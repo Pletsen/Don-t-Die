@@ -1,41 +1,41 @@
 import Phaser from 'phaser';
-import { EV, type DeathData, type HudData } from '../game/shared';
+import { EV, type ClearData, type DeathData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, fonts, palette } from '../game/palette';
+import { css, palette } from '../game/palette';
+import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { TEX } from '../fx/textures';
+import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
+import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
+import { ClearScreen } from '../ui/ClearScreen';
 
-type Mode = 'ready' | 'play' | 'dead';
-
-/** Extra space around glowing text. Top-left anchored text must be shifted by it. */
-const GLOW_PAD = 24;
-
-interface TextOpts {
-  font?: 'display' | 'mono';
-  size: number;
-  color?: string;
-  weight?: string;
-  spacing?: number;
-  glow?: boolean;
-}
+type Mode = 'title' | 'select' | 'play' | 'dead' | 'clear';
 
 /**
- * Top layer: HUD, title screen and game-over screen. Also the single place
- * that listens for taps; it forwards them to the game unless a button was hit.
+ * Top layer: HUD, title, level map, game-over and level-clear screens.
+ *
+ * It is also the single place that listens for taps. Buttons handle their own
+ * taps; a tap anywhere else means something different per screen (start,
+ * turn, retry, next level), decided in `onBackgroundTap`.
  *
  * The camera is zoomed by the device pixel ratio with its origin at the
  * top-left, so every position here is in plain CSS pixels.
  */
 export class UIScene extends Phaser.Scene {
-  private mode: Mode = 'ready';
+  private mode: Mode = 'title';
+  /** The level being played, or null for endless. */
+  private level: number | null = null;
+  /** Ignore background taps until this time, so a panicked tap doesn't skip a screen. */
+  private tapsFrom = 0;
 
   private hud!: Phaser.GameObjects.Container;
   private distLabel!: Phaser.GameObjects.Text;
   private distValue!: Phaser.GameObjects.Text;
-  private timeValue!: Phaser.GameObjects.Text;
-  private bestLabel!: Phaser.GameObjects.Text;
-  private bestValue!: Phaser.GameObjects.Text;
+  private subValue!: Phaser.GameObjects.Text;
+  private rightLabel!: Phaser.GameObjects.Text;
+  private rightValue!: Phaser.GameObjects.Text;
+  private progress!: Phaser.GameObjects.Graphics;
   private comboText!: Phaser.GameObjects.Text;
   private soundBtn!: Phaser.GameObjects.Container;
   private fxBtn!: Phaser.GameObjects.Container;
@@ -47,14 +47,18 @@ export class UIScene extends Phaser.Scene {
   private tapHint!: Phaser.GameObjects.Text;
   private statsLine!: Phaser.GameObjects.Text;
 
-  private over!: Phaser.GameObjects.Container;
   private scrim!: Phaser.GameObjects.Rectangle;
+  private select!: LevelSelect;
+  private clearScreen!: ClearScreen;
+
+  private over!: Phaser.GameObjects.Container;
   private causeText!: Phaser.GameObjects.Text;
   private scoreText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private flavorText!: Phaser.GameObjects.Text;
   private retryPill!: Phaser.GameObjects.Container;
+  private overLevels!: Button;
 
   private glitchUntil = 0;
 
@@ -66,26 +70,39 @@ export class UIScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setOrigin(0, 0).setZoom(display.dpr);
 
+    // Creation order is drawing order: HUD, title, scrim, then the screens on top.
     this.buildHud();
     this.buildTitle();
+    this.scrim = this.add.rectangle(0, 0, 10, 10, 0x020305, 0.62).setOrigin(0, 0).setAlpha(0);
     this.buildGameOver();
+    this.select = new LevelSelect(this, (level) => this.play(level));
+    this.clearScreen = new ClearScreen(this, {
+      next: () => this.nextLevel(),
+      retry: () => this.play(this.level),
+      levels: () => this.showSelect(),
+    });
+    this.buildToggles();
+
     this.layout();
     this.showTitle();
 
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (over.length > 0) return;
-      this.game.events.emit(EV.tap);
+      if (over.length === 0) this.onBackgroundTap();
     });
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
         e.preventDefault();
-        this.game.events.emit(EV.tap);
+        if (this.mode === 'select') this.play(nextLevelToPlay());
+        else this.onBackgroundTap();
+      } else if (e.code === 'Escape' && this.mode !== 'play') {
+        this.showSelect();
       }
     });
 
     this.game.events.on(EV.started, this.onStarted, this);
     this.game.events.on(EV.hud, this.onHud, this);
     this.game.events.on(EV.died, this.onDied, this);
+    this.game.events.on(EV.cleared, this.onCleared, this);
     this.game.events.on(EV.combo, this.onCombo, this);
     this.scale.on('resize', (size: Phaser.Structs.Size) => {
       cam.setSize(size.width, size.height);
@@ -93,21 +110,30 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  private onBackgroundTap() {
+    if (this.time.now < this.tapsFrom) return;
+    switch (this.mode) {
+      case 'title':
+        sfx.unlock();
+        sfx.click();
+        this.showSelect();
+        break;
+      case 'play':
+        this.game.events.emit(EV.tap);
+        break;
+      case 'dead':
+        this.play(this.level);
+        break;
+      case 'clear':
+        this.nextLevel();
+        break;
+    }
+  }
+
   // --- Building blocks ------------------------------------------------------
 
   private text(x: number, y: number, str: string, o: TextOpts) {
-    const t = this.add.text(x, y, str, {
-      fontFamily: o.font === 'mono' ? fonts.mono : fonts.display,
-      fontStyle: o.weight ?? (o.font === 'mono' ? '500' : '700'),
-      fontSize: `${o.size}px`,
-      color: o.color ?? css.ink,
-      resolution: display.dpr * 1.5,
-      // Room for the glow, otherwise it gets clipped into a visible box.
-      padding: o.glow ? { x: GLOW_PAD, y: GLOW_PAD } : undefined,
-    });
-    if (o.spacing) t.setLetterSpacing(o.spacing);
-    if (o.glow) t.setShadow(0, 0, o.color ?? css.cyan, 16, false, true);
-    return t;
+    return makeText(this, x, y, str, o);
   }
 
   private iconButton(label: string, onPress: () => void) {
@@ -138,15 +164,29 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildHud() {
+    this.progress = this.add.graphics();
     this.distLabel = this.text(0, 0, 'DISTANCE', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 });
     this.distValue = this.text(0, 0, '0.0 M', { size: 26, weight: '600', glow: true });
-    this.timeValue = this.text(0, 0, '0.00 SEC', { font: 'mono', size: 11, color: css.inkDim });
-    this.bestLabel = this.text(0, 0, 'BEST', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 }).setOrigin(1, 0);
-    this.bestValue = this.text(0, 0, `${save.best.toFixed(1)} M`, { size: 26, weight: '600', glow: true }).setOrigin(1, 0);
+    this.subValue = this.text(0, 0, '', { font: 'mono', size: 11, color: css.inkDim });
+    this.rightLabel = this.text(0, 0, 'BEST', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 }).setOrigin(1, 0);
+    this.rightValue = this.text(0, 0, '', { size: 26, weight: '600', glow: true }).setOrigin(1, 0);
     this.comboText = this.text(0, 0, '', { size: 16, color: css.orange, glow: true, spacing: 1.2 })
       .setOrigin(0.5)
       .setAlpha(0);
 
+    this.hud = this.add.container(0, 0, [
+      this.progress,
+      this.distLabel,
+      this.distValue,
+      this.subValue,
+      this.rightLabel,
+      this.rightValue,
+      this.comboText,
+    ]);
+    this.hud.setVisible(false);
+  }
+
+  private buildToggles() {
     this.soundBtn = this.iconButton('SND', () => {
       save.setMuted(!save.muted);
       sfx.setMuted(save.muted);
@@ -158,16 +198,6 @@ export class UIScene extends Phaser.Scene {
       this.refreshButtons();
     });
     this.refreshButtons();
-
-    this.hud = this.add.container(0, 0, [
-      this.distLabel,
-      this.distValue,
-      this.timeValue,
-      this.bestLabel,
-      this.bestValue,
-      this.soundBtn,
-      this.fxBtn,
-    ]);
   }
 
   private buildTitle() {
@@ -183,30 +213,20 @@ export class UIScene extends Phaser.Scene {
 
     this.subtitle = this.text(0, 0, 'CHAOS ARCADE', { font: 'mono', size: 12, color: css.inkDim, spacing: 5 }).setOrigin(0.5);
     this.tapRing = this.add.image(0, 0, TEX.ring).setTint(palette.cyan).setBlendMode(Phaser.BlendModes.ADD);
-    this.tapHint = this.text(0, 0, 'TAP TO TURN', { font: 'mono', size: 11, color: css.cyan, spacing: 3 }).setOrigin(0.5);
+    this.tapHint = this.text(0, 0, 'TAP TO START', { font: 'mono', size: 11, color: css.cyan, spacing: 3 }).setOrigin(0.5);
     this.statsLine = this.text(0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
 
     this.title = this.add.container(0, 0, [...this.titleLayers, this.subtitle, this.tapRing, this.tapHint, this.statsLine]);
   }
 
   private buildGameOver() {
-    this.scrim = this.add.rectangle(0, 0, 10, 10, 0x020305, 0.55).setOrigin(0, 0);
     this.causeText = this.text(0, 0, '', { size: 13, color: css.magenta, spacing: 3 }).setOrigin(0.5);
     this.scoreText = this.text(0, 0, '0.0 M', { size: 76, glow: true }).setOrigin(0.5);
     this.timeText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.bestText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
-
-    // Soft glow: a few rounded rectangles, each larger and fainter.
-    const pillBg = this.add.graphics();
-    for (let i = 4; i >= 1; i--) {
-      const grow = i * 5;
-      pillBg.fillStyle(palette.cyan, 0.06);
-      pillBg.fillRoundedRect(-92 - grow, -23 - grow, 184 + grow * 2, 46 + grow * 2, 23 + grow);
-    }
-    pillBg.fillStyle(palette.cyan, 1).fillRoundedRect(-92, -23, 184, 46, 23);
-    const pillText = this.text(0, 0, 'TAP TO RETRY', { size: 15, color: css.bg, weight: '700', spacing: 2 }).setOrigin(0.5);
-    this.retryPill = this.add.container(0, 0, [pillBg, pillText]);
+    this.retryPill = makeButton(this, { label: 'TAP TO RETRY', width: 184, onPress: () => this.play(this.level) });
+    this.overLevels = makeButton(this, { label: 'LEVELS', width: 120, style: 'ghost', onPress: () => this.showSelect() });
 
     this.over = this.add.container(0, 0, [
       this.causeText,
@@ -215,8 +235,8 @@ export class UIScene extends Phaser.Scene {
       this.bestText,
       this.flavorText,
       this.retryPill,
+      this.overLevels,
     ]);
-    this.scrim.setAlpha(0);
     this.over.setAlpha(0).setVisible(false);
   }
 
@@ -227,9 +247,9 @@ export class UIScene extends Phaser.Scene {
 
     this.distLabel.setPosition(side, top);
     this.distValue.setPosition(side - GLOW_PAD, top + 12 - GLOW_PAD);
-    this.timeValue.setPosition(side, top + 44);
-    this.bestLabel.setPosition(w - side, top);
-    this.bestValue.setPosition(w - side + GLOW_PAD, top + 12 - GLOW_PAD);
+    this.subValue.setPosition(side, top + 44);
+    this.rightLabel.setPosition(w - side, top);
+    this.rightValue.setPosition(w - side + GLOW_PAD, top + 12 - GLOW_PAD);
     this.soundBtn.setPosition(w / 2 - 22, top + 18);
     this.fxBtn.setPosition(w / 2 + 22, top + 18);
     this.comboText.setPosition(w / 2, top + 72);
@@ -244,41 +264,114 @@ export class UIScene extends Phaser.Scene {
     this.statsLine.setPosition(w / 2, h - 28);
 
     this.scrim.setSize(w, h);
-    const oy = h * 0.42;
+    const oy = h * 0.4;
     this.causeText.setPosition(w / 2, oy - 76);
     this.scoreText.setPosition(w / 2, oy - 18).setFontSize(Phaser.Math.Clamp(w * 0.17, 52, 104));
     this.timeText.setPosition(w / 2, oy + 38);
     this.bestText.setPosition(w / 2, oy + 60);
     this.flavorText.setPosition(w / 2, oy + 92);
     this.retryPill.setPosition(w / 2, oy + 150);
+    this.overLevels.setPosition(w / 2, oy + 212);
+
+    this.select.layout(w, h, top + 52);
+    this.clearScreen.layout(w, h);
+    this.drawProgress(this.lastHud);
   }
 
   // --- Screens --------------------------------------------------------------
 
-  private showTitle() {
-    this.mode = 'ready';
-    this.title.setVisible(true).setAlpha(1);
-    this.statsLine.setText(
-      save.deaths > 0 ? `BEST ${save.best.toFixed(1)} M  ·  ${save.deaths} DEATHS` : 'ONE TAP. ONE RULE.',
-    );
-    this.hud.setAlpha(0.85);
+  private fadeOut(target: Phaser.GameObjects.Container) {
+    if (!target.visible) return;
+    this.tweens.add({ targets: target, alpha: 0, duration: 180, onComplete: () => target.setVisible(false) });
   }
 
-  private onStarted() {
-    const wasDead = this.mode === 'dead';
-    this.mode = 'play';
-    this.tweens.add({ targets: this.title, alpha: 0, duration: 220, onComplete: () => this.title.setVisible(false) });
-    this.tweens.add({ targets: this.hud, alpha: 1, duration: 220 });
-    if (wasDead) {
-      this.tweens.add({ targets: [this.over, this.scrim], alpha: 0, duration: 160, onComplete: () => this.over.setVisible(false) });
-    }
-    this.distValue.setText('0.0 M');
-    this.timeValue.setText('0.00 SEC');
+  private fadeIn(target: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle, alpha = 1) {
+    if ('setVisible' in target) target.setVisible(true);
+    this.tweens.add({ targets: target, alpha, duration: 220 });
   }
+
+  private showTitle() {
+    this.mode = 'title';
+    this.title.setVisible(true).setAlpha(1);
+    const stars = save.totalStars();
+    this.statsLine.setText(
+      stars > 0
+        ? `${stars} STARS  ·  ${save.deaths} DEATHS`
+        : save.deaths > 0
+          ? `BEST ${save.best.toFixed(1)} M  ·  ${save.deaths} DEATHS`
+          : 'ONE TAP. ONE RULE.',
+    );
+  }
+
+  private showSelect() {
+    const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    this.mode = 'select';
+    this.fadeOut(this.title);
+    this.fadeOut(this.over);
+    this.fadeOut(this.hud);
+    if (this.clearScreen.root.visible) this.clearScreen.hide();
+    if (fromRun) this.game.events.emit(EV.menu);
+
+    this.select.refresh();
+    this.select.root.setAlpha(0);
+    this.fadeIn(this.select.root);
+    this.fadeIn(this.scrim);
+  }
+
+  private play(level: number | null) {
+    this.level = level;
+    this.fadeOut(this.title);
+    this.fadeOut(this.over);
+    this.fadeOut(this.select.root);
+    if (this.clearScreen.root.visible) this.clearScreen.hide();
+    this.tweens.add({ targets: this.scrim, alpha: 0, duration: 180 });
+    this.game.events.emit(EV.play, { level });
+  }
+
+  private nextLevel() {
+    const last = LEVELS[LEVELS.length - 1].id;
+    if (this.level === null || this.level >= last) this.showSelect();
+    else this.play(this.level + 1);
+  }
+
+  private onStarted(d: HudData) {
+    this.mode = 'play';
+    this.hud.setVisible(true).setAlpha(0);
+    this.fadeIn(this.hud);
+
+    const level = this.level === null ? null : levelById(this.level);
+    if (level) {
+      const color = hexColor(WORLDS[level.world].color);
+      this.rightLabel.setText('LEVEL');
+      this.rightValue.setText(String(level.id)).setShadow(0, 0, color, 16, false, true);
+    } else {
+      this.rightLabel.setText('BEST');
+      this.rightValue.setText(`${save.best.toFixed(1)} M`).setShadow(0, 0, css.cyan, 16, false, true);
+    }
+    this.onHud(d);
+  }
+
+  private lastHud: HudData = { meters: 0, seconds: 0, goal: null };
 
   private onHud(d: HudData) {
+    this.lastHud = d;
     this.distValue.setText(`${d.meters.toFixed(1)} M`);
-    this.timeValue.setText(`${d.seconds.toFixed(2)} SEC`);
+    this.subValue.setText(d.goal === null ? `${d.seconds.toFixed(2)} SEC` : `GOAL ${d.goal.toFixed(0)} M`);
+    this.drawProgress(d);
+  }
+
+  /** Thin bar along the top edge showing how far to the finish line. */
+  private drawProgress(d: HudData) {
+    const g = this.progress.clear();
+    if (d.goal === null || this.level === null) return;
+    const { w } = display.size(this);
+    const level = levelById(this.level)!;
+    const color = WORLDS[level.world].color;
+    const k = Math.min(1, d.meters / d.goal);
+    const y = 4 + display.safeTop();
+    g.fillStyle(0xffffff, 0.08).fillRect(0, y, w, 3);
+    g.fillStyle(color, 0.25).fillRect(0, y - 2, w * k, 7);
+    g.fillStyle(color, 1).fillRect(0, y, w * k, 3);
   }
 
   private onCombo(n: number) {
@@ -293,21 +386,31 @@ export class UIScene extends Phaser.Scene {
 
   private onDied(d: DeathData) {
     this.mode = 'dead';
+    this.tapsFrom = this.time.now + 450;
     this.onHud(d);
-    this.bestValue.setText(`${d.best.toFixed(1)} M`);
 
     const causes = { wall: 'HIT THE WALL', saw: 'SLICED', bomb: 'BLOWN UP' };
     this.causeText.setText(causes[d.cause]);
-    this.timeText.setText(`${d.seconds.toFixed(2)} SEC`);
-    this.bestText.setText(d.isNewBest ? 'NEW BEST' : `BEST ${d.best.toFixed(1)} M`);
-    this.bestText.setColor(d.isNewBest ? css.orange : css.inkDim);
-    if (d.isNewBest) this.bestText.setShadow(0, 0, css.orange, 14, false, true);
-    else this.bestText.setShadow(0, 0, 'transparent', 0);
-    this.flavorText.setText(this.flavorLine(d));
+    this.bestText.setShadow(0, 0, 'transparent', 0);
+
+    if (d.goal !== null && d.level !== null) {
+      const level = levelById(d.level)!;
+      const pct = Math.floor((d.meters / d.goal) * 100);
+      this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M  ·  ${pct}%`);
+      this.bestText.setText(`LEVEL ${d.level} · ${WORLDS[level.world].name}`).setColor(hexColor(WORLDS[level.world].color));
+      this.flavorText.setText(d.goal - d.meters < 30 ? 'SO CLOSE.' : '');
+    } else {
+      this.rightValue.setText(`${d.best.toFixed(1)} M`);
+      this.timeText.setText(`${d.seconds.toFixed(2)} SEC`);
+      this.bestText.setText(d.isNewBest ? 'NEW BEST' : `BEST ${d.best.toFixed(1)} M`);
+      this.bestText.setColor(d.isNewBest ? css.orange : css.inkDim);
+      if (d.isNewBest) this.bestText.setShadow(0, 0, css.orange, 14, false, true);
+      this.flavorText.setText(this.flavorLine(d));
+    }
 
     this.over.setVisible(true).setAlpha(0);
-    this.tweens.add({ targets: this.scrim, alpha: 1, duration: 300 });
-    this.tweens.add({ targets: this.over, alpha: 1, duration: 260 });
+    this.fadeIn(this.scrim);
+    this.fadeIn(this.over);
 
     // Count the score up for a bit of drama.
     const counter = { v: 0 };
@@ -320,8 +423,19 @@ export class UIScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onUpdate: () => this.scoreText.setText(`${counter.v.toFixed(1)} M`),
     });
-    this.retryPill.setScale(0.9).setAlpha(0);
-    this.tweens.add({ targets: this.retryPill, alpha: 1, scale: 1, delay: 350, duration: 300, ease: 'Back.easeOut' });
+    [this.retryPill, this.overLevels].forEach((b, i) => {
+      b.setScale(0.9).setAlpha(0);
+      this.tweens.add({ targets: b, alpha: 1, scale: 1, delay: 350 + i * 80, duration: 300, ease: 'Back.easeOut' });
+    });
+  }
+
+  private onCleared(d: ClearData) {
+    this.mode = 'clear';
+    this.tapsFrom = this.time.now + 1200;
+    this.onHud(d);
+    this.fadeOut(this.hud);
+    this.fadeIn(this.scrim);
+    this.clearScreen.show(d);
   }
 
   private flavorLine(d: DeathData) {
@@ -354,6 +468,9 @@ export class UIScene extends Phaser.Scene {
       const k = (t * 0.9) % 1;
       this.tapRing.setScale(0.22 + k * 0.12).setAlpha(1 - k);
     }
+
+    if (this.mode === 'select') this.select.update(time);
+    this.clearScreen.update(time);
 
     if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {
       this.retryPill.setScale(1 + 0.025 * Math.sin(t * 4));

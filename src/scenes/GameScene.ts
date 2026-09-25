@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { Track, DIRS, pointInRect, distToRectEdge, type Dir, type Hazard, type Segment } from '../game/Track';
-import { tuning, sectorColorAt, METERS_PER_PX } from '../game/tuning';
-import { shared, EV, type DeathData } from '../game/shared';
+import { tuning, METERS_PER_PX } from '../game/tuning';
+import { shared, EV, type DeathData, type ClearData, type PlayRequest } from '../game/shared';
+import { endlessCourse, levelCourse, type Course } from '../game/course';
+import { levelById, ENDLESS_UNLOCK_LEVEL } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
@@ -12,7 +14,7 @@ import { HazardView } from '../fx/HazardView';
 import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 
-type State = 'ready' | 'play' | 'dead';
+type State = 'ready' | 'play' | 'dead' | 'clear';
 
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
@@ -25,6 +27,7 @@ const damp = (rate: number, dt: number) => 1 - Math.pow(rate, dt);
  */
 export class GameScene extends Phaser.Scene {
   private state: State = 'ready';
+  private course: Course = endlessCourse();
   private track!: Track;
   private current = 0;
 
@@ -32,8 +35,10 @@ export class GameScene extends Phaser.Scene {
   private distance = 0;
   private elapsed = 0;
   private combo = 0;
+  private perfects = 0;
+  private gateTurns = 0;
+  private coast = 0;
   private slowMo = 0;
-  private deathAt = 0;
   private nearWallFlags = new Set<number>();
   private nearHazardFlags = new WeakSet<Hazard>();
 
@@ -44,7 +49,7 @@ export class GameScene extends Phaser.Scene {
   private playerView!: PlayerView;
   private effects!: Effects;
   private backdrop!: Backdrop;
-  private hazardViews = new Map<number, HazardView>();
+  private hazardViews = new Map<Hazard, HazardView>();
 
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
   private grade?: Phaser.Filters.ColorMatrix;
@@ -60,13 +65,17 @@ export class GameScene extends Phaser.Scene {
     this.effects = new Effects(this);
 
     this.setupCamera();
-    this.resetRun();
+    this.resetRun(endlessCourse());
 
-    this.game.events.on(EV.tap, this.onTap, this);
-    this.game.events.on(EV.fxChanged, this.applyFxSetting, this);
+    const listeners: [string, (...args: any[]) => void][] = [
+      [EV.play, this.onPlay],
+      [EV.menu, this.onMenu],
+      [EV.tap, this.onTap],
+      [EV.fxChanged, this.applyFxSetting],
+    ];
+    listeners.forEach(([ev, fn]) => this.game.events.on(ev, fn, this));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.game.events.off(EV.tap, this.onTap, this);
-      this.game.events.off(EV.fxChanged, this.applyFxSetting, this);
+      listeners.forEach(([ev, fn]) => this.game.events.off(ev, fn, this));
     });
   }
 
@@ -106,19 +115,22 @@ export class GameScene extends Phaser.Scene {
 
   // --- Run lifecycle --------------------------------------------------------
 
-  private resetRun() {
+  private resetRun(course: Course) {
     this.hazardViews.forEach((v) => v.destroy());
     this.hazardViews.clear();
     this.effects.clear();
 
-    this.track = new Track();
+    this.state = 'ready';
+    this.course = course;
+    this.track = new Track(course);
     this.current = 0;
     this.player = { x: 0, y: 0, dir: 0 };
     this.distance = 0;
     this.elapsed = 0;
     this.combo = 0;
+    this.perfects = 0;
+    this.gateTurns = 0;
     this.slowMo = 0;
-    this.deathFade = 0;
     this.nearWallFlags.clear();
     this.nearHazardFlags = new WeakSet();
 
@@ -127,27 +139,29 @@ export class GameScene extends Phaser.Scene {
     this.playerView.setEmitting(false);
 
     this.cam = { x: 60, y: 0, zoom: 1, punch: 0, tilt: 0 };
-    shared.accent = palette.cyan;
   }
 
-  private onTap() {
-    if (this.state === 'ready') {
-      this.beginRun();
-    } else if (this.state === 'play') {
-      this.turn();
-    } else if (this.state === 'dead' && this.time.now - this.deathAt > 650) {
-      this.resetRun();
-      this.beginRun();
-    }
-  }
-
-  private beginRun() {
+  private onPlay(req: PlayRequest) {
+    const level = req.level === null ? undefined : levelById(req.level);
+    this.resetRun(level ? levelCourse(level) : endlessCourse());
     sfx.unlock();
     sfx.start();
     this.state = 'play';
     this.playerView.setEmitting(true);
-    this.effects.shockwave(this.player.x, this.player.y, palette.cyan, 90, 500);
-    this.game.events.emit(EV.started);
+    this.effects.shockwave(0, 0, this.course.accentAt(0), 90, 500);
+    this.game.events.emit(EV.started, { meters: 0, seconds: 0, goal: this.goalMeters() });
+  }
+
+  private onMenu() {
+    this.resetRun(endlessCourse());
+  }
+
+  private onTap() {
+    if (this.state === 'play') this.turn();
+  }
+
+  private goalMeters() {
+    return this.course.goalPx === null ? null : this.course.goalPx * METERS_PER_PX;
   }
 
   /** Snapshot used by automated browser tests (see scripts/). */
@@ -155,6 +169,7 @@ export class GameScene extends Phaser.Scene {
     const next = this.track.get(this.current + 1);
     return {
       state: this.state,
+      level: this.course.level?.id ?? null,
       x: this.player.x,
       y: this.player.y,
       dir: this.player.dir,
@@ -180,8 +195,10 @@ export class GameScene extends Phaser.Scene {
     haptic(8);
 
     if (!inGate) return;
+    this.gateTurns++;
     if (perfect) {
       this.combo++;
+      this.perfects++;
       const label = this.combo > 1 ? `PERFECT x${this.combo}` : 'PERFECT';
       this.effects.floater(this.player.x, this.player.y - 26, label, css.orange, this.combo > 4 ? 17 : 14);
       this.effects.shockwave(this.player.x, this.player.y, palette.orange, 70 + Math.min(this.combo, 6) * 10);
@@ -199,7 +216,6 @@ export class GameScene extends Phaser.Scene {
   private die(cause: DeathData['cause'], color: number) {
     if (this.state !== 'play') return;
     this.state = 'dead';
-    this.deathAt = this.time.now;
     this.slowMo = 0.6;
 
     const { x, y } = this.player;
@@ -219,14 +235,18 @@ export class GameScene extends Phaser.Scene {
     else sfx.hazard();
     haptic([30, 20, 50]);
 
+    // The best-distance record belongs to endless mode only.
     const meters = this.distance * METERS_PER_PX;
-    const isNewBest = meters > save.best;
+    const endless = this.course.level === null;
+    const isNewBest = endless && meters > save.best;
     if (isNewBest) save.setBest(meters);
     save.addDeath();
 
     const data: DeathData = {
       meters,
       seconds: this.elapsed,
+      goal: this.goalMeters(),
+      level: this.course.level?.id ?? null,
       best: save.best,
       isNewBest,
       cause,
@@ -238,6 +258,45 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  /** Crossed the finish line. */
+  private clear() {
+    const level = this.course.level!;
+    this.state = 'clear';
+    this.coast = this.course.speedAt(this.distance);
+    this.combo = 0;
+    this.playerView.setEmitting(false);
+
+    // Stars: 1 for finishing, 2 for half the turns PERFECT, 3 for 90 %.
+    const ratio = this.gateTurns > 0 ? this.perfects / this.gateTurns : 0;
+    const stars = 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.9 ? 1 : 0);
+    const previousStars = save.starsFor(level.id);
+    save.recordStars(level.id, stars);
+
+    const { x, y } = this.player;
+    const color = this.course.accentAt(this.distance);
+    this.effects.shockwave(x, y, color, 260, 800);
+    this.effects.shockwave(x, y, 0xffffff, 160, 600);
+    this.effects.burst(x, y, [color, 0xffffff, palette.orange], save.fxReduced ? 20 : 60);
+    this.effects.flare(x, y, color, 160);
+    this.cam.punch = 0.1;
+    shared.pulse = 1;
+    sfx.clear();
+    haptic([20, 40, 20]);
+
+    const data: ClearData = {
+      level: level.id,
+      meters: this.distance * METERS_PER_PX,
+      seconds: this.elapsed,
+      goal: this.goalMeters(),
+      stars,
+      previousStars,
+      perfects: this.perfects,
+      turns: this.gateTurns,
+      unlockedEndless: level.id === ENDLESS_UNLOCK_LEVEL && previousStars === 0,
+    };
+    this.time.delayedCall(650, () => this.game.events.emit(EV.cleared, data));
+  }
+
   // --- Frame loop -----------------------------------------------------------
 
   update(_time: number, deltaMs: number) {
@@ -246,21 +305,23 @@ export class GameScene extends Phaser.Scene {
 
     if (this.state === 'play') this.step(dt);
     else if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
+    if (this.state === 'clear') this.coastToStop(dt);
 
-    const speed = tuning.speedAt(this.distance);
+    const speed = this.course.speedAt(this.distance);
     const speedNorm = clamp((speed - 230) / 390, 0, 1);
-    const accent = sectorColorAt(this.distance);
+    const accent = this.course.accentAt(this.distance);
 
     // Hazards animate even while the menu is up.
     for (const seg of this.visibleSegments()) {
-      const hz = seg.hazard;
-      if (!hz || !hz.alive) continue;
-      let view = this.hazardViews.get(seg.id);
-      if (!view) {
-        view = new HazardView(this, hz);
-        this.hazardViews.set(seg.id, view);
+      for (const hz of seg.hazards) {
+        if (!hz.alive) continue;
+        let view = this.hazardViews.get(hz);
+        if (!view) {
+          view = new HazardView(this, hz);
+          this.hazardViews.set(hz, view);
+        }
+        view.update(t, dt);
       }
-      view.update(t, dt);
     }
 
     this.corridor.draw(this.track.segments, this.current, this.player, accent, t, save.fxReduced);
@@ -276,8 +337,20 @@ export class GameScene extends Phaser.Scene {
     shared.pulse = Math.max(0, shared.pulse - dt * 2.5);
 
     if (this.state === 'play') {
-      this.game.events.emit(EV.hud, { meters: this.distance * METERS_PER_PX, seconds: this.elapsed });
+      this.game.events.emit(EV.hud, {
+        meters: this.distance * METERS_PER_PX,
+        seconds: this.elapsed,
+        goal: this.goalMeters(),
+      });
     }
+  }
+
+  /** After the finish line the orb glides to a stop instead of crashing. */
+  private coastToStop(dt: number) {
+    this.coast *= Math.pow(0.02, dt);
+    const d = DIRS[this.player.dir];
+    this.player.x += d.x * this.coast * dt;
+    this.player.y += d.y * this.coast * dt;
   }
 
   /** Advance the simulation by one frame while playing. */
@@ -286,11 +359,16 @@ export class GameScene extends Phaser.Scene {
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
     const sim = dt * (this.slowMo > 0 ? 0.35 : 1);
 
-    const speed = tuning.speedAt(this.distance);
+    const speed = this.course.speedAt(this.distance);
     const d = DIRS[this.player.dir];
     this.player.x += d.x * speed * sim;
     this.player.y += d.y * speed * sim;
     this.distance += speed * sim;
+
+    if (this.course.goalPx !== null && this.distance >= this.course.goalPx) {
+      this.clear();
+      return;
+    }
 
     this.track.ensureAhead(this.current, tuning.segmentsAhead);
 
@@ -321,19 +399,18 @@ export class GameScene extends Phaser.Scene {
       haptic(5);
     }
 
-    for (const seg of [cur, next]) {
-      const hz = seg?.hazard;
-      if (!hz || !hz.alive) continue;
+    const nearby = [...cur.hazards, ...(next?.hazards ?? [])];
+    for (const hz of nearby) {
+      if (!hz.alive) continue;
       if (hz.moving) {
-        const osc = Math.sin(this.time.now / 1000 * 1.6 + hz.movePhase) * hz.moveRange;
+        // Driven by run time, so moving hazards repeat exactly on every attempt.
+        const osc = Math.sin(this.elapsed * 1.6 + hz.movePhase) * hz.moveRange;
         if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
         else hz.x = hz.baseX + osc;
       }
       const dist = Math.hypot(this.player.x - hz.x, this.player.y - hz.y);
       if (dist < hz.radius + tuning.playerRadius) {
-        hz.alive = false;
-        this.hazardViews.get(seg!.id)?.destroy();
-        this.hazardViews.delete(seg!.id);
+        // The hazard stays on screen: you should see what got you.
         this.die(hz.kind, hz.kind === 'saw' ? palette.magenta : palette.orange);
         return;
       }
@@ -350,8 +427,10 @@ export class GameScene extends Phaser.Scene {
     const keepFrom = this.current - 2;
     if (keepFrom <= 0) return;
     for (const seg of this.track.pruneBefore(keepFrom)) {
-      this.hazardViews.get(seg.id)?.destroy();
-      this.hazardViews.delete(seg.id);
+      for (const hz of seg.hazards) {
+        this.hazardViews.get(hz)?.destroy();
+        this.hazardViews.delete(hz);
+      }
     }
     this.current -= keepFrom;
   }
@@ -366,7 +445,7 @@ export class GameScene extends Phaser.Scene {
     const d = DIRS[this.player.dir];
 
     // Look ahead in the direction of travel, further at higher speed.
-    const look = this.state === 'ready' ? 0 : 70 + speedNorm * 50;
+    const look = this.state === 'ready' ? 0 : this.state === 'clear' ? 20 : 70 + speedNorm * 50;
     let tx = this.player.x + d.x * look;
     let ty = this.player.y + d.y * look;
     if (this.state === 'ready') {
@@ -381,7 +460,7 @@ export class GameScene extends Phaser.Scene {
     this.cam.punch = lerp(this.cam.punch, 0, damp(0.004, dt));
     this.cam.tilt = lerp(this.cam.tilt, 0, damp(0.0005, dt));
 
-    const targetZoom = 1 - speedNorm * 0.1 + (this.state === 'ready' ? 0.08 : 0);
+    const targetZoom = 1 - speedNorm * 0.1 + (this.state === 'ready' ? 0.08 : this.state === 'clear' ? 0.15 : 0);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, damp(0.05, dt));
     const zoom = this.baseZoom() * (this.cam.zoom + this.cam.punch);
 

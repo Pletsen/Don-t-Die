@@ -124,6 +124,25 @@ class SfxEngine {
     this.tone({ freq: 220, glideTo: 880, duration: 0.25, type: 'triangle', gain: 0.14 });
   }
 
+  /** Finish line: a bright rising arpeggio. */
+  clear() {
+    [0, 4, 7, 12, 16].forEach((st, i) =>
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'triangle', gain: 0.14, delay: i * 0.06 }),
+    );
+    this.burst({ filterType: 'highpass', filterFreq: 5000, duration: 0.5, gain: 0.08 });
+  }
+
+  /** One chime per star; later stars ring higher. */
+  star(index: number) {
+    const f = 1046 * Math.pow(2, [0, 4, 7][Math.min(index, 2)] / 12);
+    this.tone({ freq: f, duration: 0.3, type: 'sine', gain: 0.22 });
+    this.tone({ freq: f * 2, duration: 0.18, type: 'triangle', gain: 0.06, delay: 0.02 });
+  }
+
+  click() {
+    this.tone({ freq: 880, glideTo: 1320, duration: 0.05, type: 'triangle', gain: 0.08 });
+  }
+
   newBest() {
     [0, 4, 7, 12].forEach((s, i) =>
       this.tone({ freq: 660 * Math.pow(2, s / 12), duration: 0.18, type: 'triangle', gain: 0.12, delay: i * 0.07 }),

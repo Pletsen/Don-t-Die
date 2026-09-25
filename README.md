@@ -2,6 +2,17 @@
 
 Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, som drejer i en spiral. Hvert tryk drejer dig 90° med uret. Rammer du væggen, en savklinge eller en bombe, er det slut.
 
+Spillet har **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
+
+| Verden | Farve | Nyt |
+|---|---|---|
+| 1 · Basics | Cyan | Kun sving |
+| 2 · Saws | Orange | Savklinger |
+| 3 · Bombs | Magenta | Bomber og smallere korridor |
+| 4 · Chaos | Rød | Alt, hurtigt og i bevægelse |
+
+Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis halvdelen af svingene var PERFECT, og 3 ved 90 %. Når level 5 er klaret, låses **evighedstilstanden** op.
+
 Spillet er bygget med spil-enginen **[Phaser 4](https://phaser.io)**, skrevet i **TypeScript** og samlet med **Vite**.
 
 ## Kom i gang
@@ -43,10 +54,17 @@ src/
 ├── scenes/
 │   ├── BootScene.ts      Laver teksturerne og starter de andre scener
 │   ├── GameScene.ts      Verdenen: regler, bevægelse, kollisioner og kamera
-│   └── UIScene.ts        HUD, titelskærm, game over, knapper og tryk
+│   └── UIScene.ts        Skifter mellem skærmene og styrer tryk
+├── ui/
+│   ├── LevelSelect.ts    Level-kortet
+│   ├── ClearScreen.ts    "LEVEL CLEAR" med stjerner
+│   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
-│   ├── Track.ts          Banen: spiral-segmenter, porte og forhindringer
-│   ├── tuning.ts         ⭐ Alle tal, der styrer sværhedsgraden
+│   ├── levels.ts         ⭐ Alle 20 levels som data: mål, fart, bredde, forhindringer
+│   ├── course.ts         Reglerne for én runde (et level eller evighedstilstand)
+│   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
+│   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
+│   ├── tuning.ts         ⭐ Tallene for evighedstilstanden
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord og indstillinger (gemmes i browseren)
 │   ├── shared.ts         Beskeder og data, der sendes mellem scenerne
@@ -78,7 +96,8 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 
 ## Ting, du selv kan prøve at ændre
 
-- **Gør spillet nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
+- **Lav eller ret et level:** Åbn `src/game/levels.ts`. Hvert level er én linje. Du kan fx ændre `goal` (meter til målet), `speed` (fart ved start og slut), `width` (korridorens halve bredde) og `hazards` (hvor mange forhindringer og hvilke). `placement: 'center'` sætter forhindringerne midt på vejen, så man ikke kan klare dem med perfekte sving alene.
+- **Gør evighedstilstanden nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
 - **Ny lyd:** `src/audio/Sfx.ts`. Prøv fx at ændre `freq` i `turn()`.
@@ -99,4 +118,5 @@ game.scene.getScene('Game').debugState()   // spillerens position, meter, combo 
 - **Installérbar app (PWA):** så spillet kan lægges på telefonens hjemmeskærm og virke offline
 - **Online-leaderboard**
 - **Flere forhindrings-typer**, fx laserbarrierer der tænder og slukker
+- **Håndlavede baner** til udvalgte levels i stedet for genererede
 - **Udgivelse via GitHub Pages**, så spillet har en fast adresse

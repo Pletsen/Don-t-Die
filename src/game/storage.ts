@@ -6,6 +6,7 @@ const KEYS = {
   deaths: 'dontdie_deaths',
   muted: 'dontdie_muted',
   fxReduced: 'dontdie_fx_reduced',
+  stars: 'dontdie_level_stars',
 };
 
 function read(key: string): string | null {
@@ -24,6 +25,15 @@ function write(key: string, value: string) {
   }
 }
 
+function readStars(): Record<number, number> {
+  try {
+    const parsed = JSON.parse(read(KEYS.stars) ?? '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 const prefersReducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -32,6 +42,23 @@ export const save = {
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
   muted: read(KEYS.muted) === '1',
   fxReduced: read(KEYS.fxReduced) === null ? prefersReducedMotion : read(KEYS.fxReduced) === '1',
+
+  /** Best star rating per level id (0 = never cleared). */
+  stars: readStars(),
+
+  starsFor(levelId: number): number {
+    return this.stars[levelId] ?? 0;
+  },
+  /** Keeps the best rating. Returns true if this improved it. */
+  recordStars(levelId: number, stars: number): boolean {
+    if (stars <= this.starsFor(levelId)) return false;
+    this.stars[levelId] = stars;
+    write(KEYS.stars, JSON.stringify(this.stars));
+    return true;
+  },
+  totalStars(): number {
+    return Object.values(this.stars).reduce((a, b) => a + b, 0);
+  },
 
   setBest(v: number) {
     this.best = v;

@@ -79,6 +79,9 @@ export class CorridorView {
 
     // --- The next turn ----------------------------------------------------
     const gg = this.gate.clear();
+    // Only show the finish once it's close, so it isn't mistaken for part of
+    // the track where the spiral crosses itself.
+    for (let i = current; i <= current + 1; i++) if (segs[i]?.finish) this.finishLine(segs[i], time);
     const next = segs[current + 1];
     if (next?.gate) {
       const r = next.gate;
@@ -126,6 +129,33 @@ export class CorridorView {
     this.drawStreaks(visible, accent, time, fxReduced);
   }
 
+
+  /** Checkered finish strip across the lane, with a pulsing glow. */
+  private finishLine(s: Segment, time: number) {
+    const g = this.gate;
+    const f = s.finish!;
+    const d = DIRS[s.dir];
+    const px = -d.y;
+    const py = d.x;
+    const hw = s.halfWidth;
+    const cell = (hw * 2) / 8;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 5);
+
+    // Glow band first, then two rows of checkers.
+    g.lineStyle(cell * 3, 0xffffff, 0.08 + pulse * 0.08);
+    g.lineBetween(f.x - px * hw, f.y - py * hw, f.x + px * hw, f.y + py * hw);
+    for (let row = 0; row < 2; row++) {
+      for (let i = 0; i < 8; i++) {
+        const light = (i + row) % 2 === 0;
+        g.fillStyle(light ? 0xffffff : 0x0b121b, 0.9);
+        const a = -hw + i * cell;
+        const b = (row - 1) * cell;
+        const cx = f.x + px * (a + cell / 2) + d.x * (b + cell / 2);
+        const cy = f.y + py * (a + cell / 2) + d.y * (b + cell / 2);
+        g.fillRect(cx - cell / 2, cy - cell / 2, cell, cell);
+      }
+    }
+  }
 
   /** Flat floor plus a world-aligned grid, so lines continue across pieces. */
   private floorPatch(r: Rect, floor: number, accent: number, alpha: number) {

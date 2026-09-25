@@ -1,4 +1,6 @@
-import { tuning } from './tuning';
+import type { Course } from './course';
+import type { HazardRules } from './levels';
+import { seededRng, type Rng } from './rng';
 
 // The track is pure data: rectangles in world space. It knows nothing about
 // drawing, which keeps the rules easy to read and test on their own.
@@ -57,7 +59,9 @@ export interface Segment {
   gate: Rect | null;
   /** The centre part of the gate that counts as a PERFECT turn. */
   perfect: Rect | null;
-  hazard: Hazard | null;
+  hazards: Hazard[];
+  /** Where the finish line crosses this segment, if it does. */
+  finish: Vec | null;
 }
 
 export const pointInRect = (x: number, y: number, r: Rect) =>
@@ -91,14 +95,22 @@ function shrinkAlong(r: Rect, axis: 'x' | 'y', fraction: number): Rect {
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-const rand = (a: number, b: number) => lerp(a, b, Math.random());
 
 export class Track {
   segments: Segment[] = [];
   private nextId = 0;
+  private rng: Rng;
 
-  constructor(initial = 6) {
+  constructor(
+    private course: Course,
+    initial = 6,
+  ) {
+    this.rng = seededRng(course.seed);
     for (let i = 0; i < initial; i++) this.push();
+  }
+
+  private rand(a: number, b: number) {
+    return lerp(a, b, this.rng());
   }
 
   get(i: number): Segment | undefined {
@@ -124,9 +136,9 @@ export class Track {
     const id = this.nextId++;
     const loopIndex = Math.floor(id / 4);
 
-    const halfWidth = tuning.corridorHalfWidthAt(travelled, loopIndex);
-    const range = tuning.segmentLengthRange(travelled, loopIndex);
-    const length = rand(range.min, range.max);
+    const halfWidth = this.course.halfWidthAt(travelled, loopIndex);
+    const range = this.course.segmentLengthRange(travelled, loopIndex);
+    const length = this.rand(range.min, range.max);
     const end = { x: start.x + DIRS[dir].x * length, y: start.y + DIRS[dir].y * length };
 
     const rect: Rect = isHorizontal(dir)
@@ -162,24 +174,63 @@ export class Track {
       loopIndex,
       gate,
       perfect,
-      hazard: null,
+      hazards: [],
+      finish: null,
     };
-    seg.hazard = this.makeHazard(seg);
+
+    const goal = this.course.goalPx;
+    if (goal !== null && goal >= travelled && goal < travelled + length) {
+      const k = goal - travelled;
+      seg.finish = { x: start.x + DIRS[dir].x * k, y: start.y + DIRS[dir].y * k };
+    }
+
+    seg.hazards = this.makeHazards(seg);
     this.segments.push(seg);
     return seg;
   }
 
-  private makeHazard(seg: Segment): Hazard | null {
-    if (Math.random() > tuning.hazardChanceAt(seg.travelled)) return null;
-    const t = rand(0.4, 0.72);
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const lateral = side * seg.halfWidth * rand(0.42, 0.62);
-    const ax = lerp(seg.start.x, seg.end.x, t);
-    const ay = lerp(seg.start.y, seg.end.y, t);
+  private makeHazards(seg: Segment): Hazard[] {
+    const rules = this.course.hazardsAt(seg.travelled);
+    const roll = this.rng();
+    if (!rules || roll > rules.chance) return [];
+    // Too short a straight to fit a hazard fairly.
+    if (seg.length < (seg.halfWidth + 24) * 2 + 20) return [];
+
+    const side = this.rng() < 0.5 ? -1 : 1;
+    const first = this.makeHazard(seg, rules, side, this.rand(0.4, 0.72), false);
+    const out = [first];
+    if (rules.perSegment === 2 && this.rng() < 0.6) {
+      // Second hazard: static and on the same side, so the far lane stays open.
+      out.push(this.makeHazard(seg, { ...rules, placement: 'side', moving: 0 }, side, this.rand(0.2, 0.32), true));
+    }
+    // On short straights both can get squeezed into the same spot; keep one.
+    if (out.length === 2 && Math.hypot(out[0].x - out[1].x, out[0].y - out[1].y) < 40) out.pop();
+    const goal = this.course.goalPx;
+    return out.filter((h) => goal === null || this.alongTrack(seg, h) < goal - 60);
+  }
+
+  private alongTrack(seg: Segment, h: Hazard) {
+    const d = DIRS[seg.dir];
+    return seg.travelled + (h.baseX - seg.start.x) * d.x + (h.baseY - seg.start.y) * d.y;
+  }
+
+  private makeHazard(seg: Segment, rules: HazardRules, side: number, t: number, forceStatic: boolean): Hazard {
+    const placement = rules.placement ?? 'side';
+    const spread =
+      placement === 'side' ? this.rand(0.42, 0.62) : placement === 'center' ? this.rand(0, 0.15) : this.rand(0, 0.62);
+    const lateral = side * seg.halfWidth * spread;
+    // Keep hazards on the straight, clear of both turn squares, so there is
+    // always room to see them coming and steer around them.
+    const margin = seg.halfWidth + 24;
+    const along = Math.max(margin, Math.min(seg.length - margin, t * seg.length));
+    const ax = seg.start.x + DIRS[seg.dir].x * along;
+    const ay = seg.start.y + DIRS[seg.dir].y * along;
     const horizontal = isHorizontal(seg.dir);
     const x = horizontal ? ax : ax + lateral;
     const y = horizontal ? ay + lateral : ay;
-    const kind: HazardKind = Math.random() < 0.55 ? 'saw' : 'bomb';
+    const kinds = rules.kinds;
+    const kind = kinds[Math.floor(this.rng() * kinds.length) % kinds.length];
+    const moving = this.rng() < (rules.moving ?? 0) && !forceStatic;
     return {
       kind,
       x,
@@ -187,10 +238,10 @@ export class Track {
       baseX: x,
       baseY: y,
       radius: kind === 'saw' ? 15 : 14,
-      moving: Math.random() < 0.3,
+      moving,
       moveAxis: horizontal ? 'y' : 'x',
       moveRange: seg.halfWidth * 0.5,
-      movePhase: Math.random() * Math.PI * 2,
+      movePhase: this.rng() * Math.PI * 2,
       alive: true,
     };
   }

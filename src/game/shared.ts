@@ -15,24 +15,47 @@ export const shared = {
 
 /** Event names sent over `game.events` between scenes. */
 export const EV = {
+  /** UI -> Game: start a run. Payload: PlayRequest. */
+  play: 'dd-play',
+  /** UI -> Game: leave the run and idle behind the menus. */
+  menu: 'dd-menu',
+  /** UI -> Game: the player tapped (turn). */
   tap: 'dd-tap',
-  hud: 'dd-hud',
+  /** Game -> UI */
   started: 'dd-started',
+  hud: 'dd-hud',
   died: 'dd-died',
+  cleared: 'dd-cleared',
   combo: 'dd-combo',
   fxChanged: 'dd-fx-changed',
 } as const;
 
+/** `level: null` means endless mode. */
+export interface PlayRequest {
+  level: number | null;
+}
+
 export interface HudData {
   meters: number;
   seconds: number;
+  /** Metres to the finish, or null in endless mode. */
+  goal: number | null;
 }
 
-export interface DeathData {
-  meters: number;
-  seconds: number;
+export interface DeathData extends HudData {
+  level: number | null;
   best: number;
   isNewBest: boolean;
   cause: 'wall' | 'saw' | 'bomb';
   deaths: number;
+}
+
+export interface ClearData extends HudData {
+  level: number;
+  stars: number;
+  /** Stars before this run, to animate only the new ones. */
+  previousStars: number;
+  perfects: number;
+  turns: number;
+  unlockedEndless: boolean;
 }
