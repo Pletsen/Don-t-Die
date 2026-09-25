@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { LEVELS, WORLDS, ENDLESS_UNLOCK_LEVEL, type LevelDef } from '../game/levels';
+import { LEVELS, WORLDS, type LevelDef } from '../game/levels';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { sfx } from '../audio/Sfx';
@@ -18,7 +18,6 @@ interface Tile {
 }
 
 export const isUnlocked = (id: number) => id === 1 || save.starsFor(id - 1) > 0;
-export const endlessUnlocked = () => save.starsFor(ENDLESS_UNLOCK_LEVEL) > 0 || save.best > 0;
 
 /** The next level to play: the first unlocked one without stars, else the last. */
 export function nextLevelToPlay(): number {
@@ -28,7 +27,7 @@ export function nextLevelToPlay(): number {
 
 /**
  * Level map: one row of five tiles per world. Levels unlock one at a time;
- * clearing level 5 also unlocks endless mode.
+ * survival mode (endless) is always open below the map.
  */
 export class LevelSelect {
   readonly root: Phaser.GameObjects.Container;
@@ -37,15 +36,20 @@ export class LevelSelect {
   private totalStars: Phaser.GameObjects.Text;
   private totalIcon: Phaser.GameObjects.Graphics;
   private worldLabels: Phaser.GameObjects.Text[] = [];
-  private endless: Button;
-  private endlessNote: Phaser.GameObjects.Text;
+  private survival: Button;
+  private survivalNote: Phaser.GameObjects.Text;
   private size = 58;
+  private pokes = 0;
+  private lastPoke = 0;
 
   constructor(
-    scene: Phaser.Scene,
+    private scene: Phaser.Scene,
     private onPick: (level: number | null) => void,
+    private onSecret: () => void,
   ) {
     this.header = makeText(scene, 0, 0, 'SELECT LEVEL', { size: 22, spacing: 1.5 });
+    // Easter egg: poke the header. It complains at 5, and at 10 you get a secret.
+    this.header.setInteractive().on('pointerdown', () => this.poke());
     this.totalStars = makeText(scene, 0, 0, '', { font: 'mono', size: 13, color: css.inkDim }).setOrigin(1, 0.5);
     this.totalIcon = scene.add.graphics();
 
@@ -74,16 +78,16 @@ export class LevelSelect {
       this.tiles.push({ level, root, glow, bg, num, stars });
     }
 
-    this.endless = makeButton(scene, {
-      label: 'ENDLESS',
+    this.survival = makeButton(scene, {
+      label: 'SURVIVAL',
       width: 300,
       style: 'ghost',
       color: palette.cyan,
       onPress: () => {
-        if (endlessUnlocked()) this.onPick(null);
+        this.onPick(null);
       },
     });
-    this.endlessNote = makeText(scene, 0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
+    this.survivalNote = makeText(scene, 0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
 
     this.root = scene.add.container(0, 0, [
       this.header,
@@ -91,8 +95,8 @@ export class LevelSelect {
       this.totalIcon,
       ...this.worldLabels,
       ...this.tiles.map((t) => t.root),
-      this.endless,
-      this.endlessNote,
+      this.survival,
+      this.survivalNote,
     ]);
     this.root.setVisible(false);
   }
@@ -135,9 +139,9 @@ export class LevelSelect {
     this.totalStars.setText(`${total} / ${LEVELS.length * 3}`);
     this.totalIcon.clear();
     drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7, 0xffffff, true);
-    const open = endlessUnlocked();
-    this.endless.setAlpha(open ? 1 : 0.35);
-    this.endlessNote.setText(open ? `BEST ${save.best.toFixed(1)} M` : `CLEAR LEVEL ${ENDLESS_UNLOCK_LEVEL} TO UNLOCK`);
+    this.survivalNote.setText(
+      save.best > 0 ? `ENDLESS RUN  ·  BEST ${save.best.toFixed(1)} M` : 'ENDLESS RUN  ·  HOW FAR CAN YOU GO?',
+    );
   }
 
   layout(w: number, h: number, top: number) {
@@ -160,8 +164,8 @@ export class LevelSelect {
     });
 
     y += 8;
-    this.endless.setPosition(0, y + 20);
-    this.endlessNote.setPosition(0, y + 54);
+    this.survival.setPosition(0, y + 20);
+    this.survivalNote.setPosition(0, y + 54);
     const contentH = y + 64;
 
     // Shrink to fit short screens (small phones, landscape).
@@ -170,6 +174,21 @@ export class LevelSelect {
     this.root.setScale(scale);
     this.root.setPosition(w / 2, top + Math.max(0, (avail - contentH * scale) / 2));
     this.refresh();
+  }
+
+  private poke() {
+    const now = this.scene.time.now;
+    this.pokes = now - this.lastPoke < 1500 ? this.pokes + 1 : 1;
+    this.lastPoke = now;
+    this.scene.tweens.add({ targets: this.header, x: this.header.x + 3, duration: 35, yoyo: true, repeat: 1 });
+    if (this.pokes === 5) {
+      this.header.setText('STOP POKING ME');
+      this.scene.time.delayedCall(1600, () => this.header.setText('SELECT LEVEL'));
+    } else if (this.pokes === 10) {
+      this.pokes = 0;
+      this.header.setText('SELECT LEVEL');
+      this.onSecret();
+    }
   }
 
   update(time: number) {

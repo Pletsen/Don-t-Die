@@ -11,7 +11,18 @@ Spillet har **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
 | 3 · Bombs | Magenta | Bomber og smallere korridor |
 | 4 · Chaos | Rød | Alt, hurtigt og i bevægelse |
 
-Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis halvdelen af svingene var PERFECT, og 3 ved 90 %. Når level 5 er klaret, låses **evighedstilstanden** op.
+Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis halvdelen af svingene var PERFECT, og 3 ved 90 %. Levels låses op ét ad gangen.
+
+Vil man hellere bare køre, er **SURVIVAL** altid åben: en uendelig bane, der bliver hurtigere og hurtigere, med rekord for længste distance.
+
+### I baggrunden
+
+Langt ude i rummet sker der ting: stjerneskud (en sjælden gang en hel regn af dem), en planet med ringe, en UFO der stopper op og lyser med sin traktorstråle, en astronaut der tumler forbi og siger hej, og en sjælden gang en neon-hval. Alt det styres af `src/fx/BackgroundEvents.ts`.
+
+### Hemmeligheder (spoiler)
+
+- Konami-koden på tastaturet (↑ ↑ ↓ ↓ ← → ← → B A) giver et regnbue-spor. På mobilen: tryk 10 gange hurtigt på "SELECT LEVEL".
+- SURVIVAL har et par beskeder gemt ved særlige distancer.
 
 Spillet er bygget med spil-enginen **[Phaser 4](https://phaser.io)**, skrevet i **TypeScript** og samlet med **Vite**.
 
@@ -61,10 +72,10 @@ src/
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
 │   ├── levels.ts         ⭐ Alle 20 levels som data: mål, fart, bredde, forhindringer
-│   ├── course.ts         Reglerne for én runde (et level eller evighedstilstand)
+│   ├── course.ts         Reglerne for én runde (et level eller SURVIVAL)
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
-│   ├── tuning.ts         ⭐ Tallene for evighedstilstanden
+│   ├── tuning.ts         ⭐ Tallene for SURVIVAL
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord og indstillinger (gemmes i browseren)
 │   ├── shared.ts         Beskeder og data, der sendes mellem scenerne
@@ -76,6 +87,7 @@ src/
 │   ├── CorridorView.ts   Tegner korridoren med neon-kanter
 │   ├── PlayerView.ts     Kuglen: glød, ring og partikel-spor
 │   ├── HazardView.ts     Savklinger og bomber
+│   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut og hval i baggrunden
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
     └── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)
@@ -97,7 +109,7 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 ## Ting, du selv kan prøve at ændre
 
 - **Lav eller ret et level:** Åbn `src/game/levels.ts`. Hvert level er én linje. Du kan fx ændre `goal` (meter til målet), `speed` (fart ved start og slut), `width` (korridorens halve bredde) og `hazards` (hvor mange forhindringer og hvilke). `placement: 'center'` sætter forhindringerne midt på vejen, så man ikke kan klare dem med perfekte sving alene.
-- **Gør evighedstilstanden nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
+- **Gør SURVIVAL nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
 - **Ny lyd:** `src/audio/Sfx.ts`. Prøv fx at ændre `freq` i `turn()`.

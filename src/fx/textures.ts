@@ -24,6 +24,10 @@ export const TEX = {
   saw: 'saw',
   bomb: 'bomb',
   shard: 'shard',
+  planet: 'planet',
+  ufo: 'ufo',
+  whale: 'whale',
+  astronaut: 'astronaut',
 } as const;
 
 export function createTextures(scene: Phaser.Scene) {
@@ -173,6 +177,143 @@ export function createTextures(scene: Phaser.Scene) {
     ctx.lineTo(30, 28);
     ctx.lineTo(4, 22);
     ctx.closePath();
+    ctx.fill();
+  });
+  // --- Background visitors (see fx/BackgroundEvents.ts) ------------------
+
+  // Ringed gas giant, painted white-ish so it can be tinted per world.
+  paint(scene, TEX.planet, 320, 200, (ctx, w, h) => {
+    const cx = w / 2;
+    const cy = h / 2;
+    const r = 62;
+    const ring = (front: boolean) => {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-0.28);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, r * 2.1, r * 0.5, 0, front ? 0 : Math.PI, front ? Math.PI : Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 7;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 16;
+      ctx.stroke();
+      ctx.restore();
+    };
+    ring(false);
+    const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.55, '#b9c4d0');
+    g.addColorStop(1, '#3a4450');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    for (let i = -3; i <= 3; i++) ctx.fillRect(cx - r, cy + i * 17 - 4, r * 2, 7);
+    ctx.restore();
+    ring(true);
+  });
+
+  // Flying saucer with a glass dome and a row of lights.
+  paint(scene, TEX.ufo, 160, 90, (ctx, w) => {
+    const cx = w / 2;
+    ctx.fillStyle = 'rgba(160,255,240,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(cx, 38, 26, 22, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(cx - 8, 28, 7, 5, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    const hull = ctx.createLinearGradient(0, 36, 0, 60);
+    hull.addColorStop(0, '#e8eef5');
+    hull.addColorStop(1, '#5a6573');
+    ctx.fillStyle = hull;
+    ctx.beginPath();
+    ctx.ellipse(cx, 46, 70, 15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2a323c';
+    ctx.beginPath();
+    ctx.ellipse(cx, 55, 30, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Neon line-art whale. Drawn with a canvas glow so it reads as light.
+  paint(scene, TEX.whale, 300, 160, (ctx) => {
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const draw = () => {
+      ctx.beginPath();
+      ctx.moveTo(236, 84);
+      ctx.bezierCurveTo(236, 44, 168, 34, 120, 46);
+      ctx.bezierCurveTo(86, 54, 62, 70, 44, 76);
+      ctx.lineTo(16, 54);
+      ctx.lineTo(28, 80);
+      ctx.lineTo(14, 108);
+      ctx.lineTo(46, 90);
+      ctx.bezierCurveTo(74, 106, 130, 120, 176, 116);
+      ctx.bezierCurveTo(218, 112, 236, 102, 236, 84);
+      ctx.stroke();
+      // Flipper.
+      ctx.beginPath();
+      ctx.moveTo(150, 112);
+      ctx.lineTo(134, 138);
+      ctx.lineTo(166, 116);
+      ctx.stroke();
+      // Throat grooves.
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(172 + i * 6, 104 - i * 1.5);
+        ctx.lineTo(226 - i * 2, 96 - i * 3);
+        ctx.stroke();
+      }
+    };
+    ctx.strokeStyle = '#ffffff';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 8;
+    ctx.lineWidth = 3;
+    draw();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(206, 74, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Tiny astronaut.
+  paint(scene, TEX.astronaut, 64, 80, (ctx) => {
+    ctx.fillStyle = '#e9eef4';
+    ctx.strokeStyle = '#9aa6b3';
+    ctx.lineWidth = 2;
+    const round = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+      ctx.fill();
+      ctx.stroke();
+    };
+    round(10, 30, 10, 26, 5); // left arm
+    round(44, 30, 10, 26, 5); // right arm
+    round(20, 54, 10, 22, 5); // legs
+    round(34, 54, 10, 22, 5);
+    round(18, 28, 28, 32, 8); // torso
+    round(38, 34, 14, 20, 4); // backpack peeking out
+    ctx.beginPath();
+    ctx.arc(32, 20, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const visor = ctx.createLinearGradient(20, 12, 44, 28);
+    visor.addColorStop(0, '#2be8ff');
+    visor.addColorStop(1, '#0b3a52');
+    ctx.fillStyle = visor;
+    ctx.beginPath();
+    ctx.ellipse(33, 20, 11, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.ellipse(28, 17, 3.5, 2, -0.5, 0, Math.PI * 2);
     ctx.fill();
   });
 }

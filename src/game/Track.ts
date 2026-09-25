@@ -67,6 +67,15 @@ export interface Segment {
 export const pointInRect = (x: number, y: number, r: Rect) =>
   x >= r.x1 && x <= r.x2 && y >= r.y1 && y <= r.y2;
 
+/**
+ * How far along the track a point is: the segment's start distance plus how
+ * far the point is along the segment's direction. Measured on the track
+ * itself, so it matches where the finish line is drawn no matter how early
+ * or late the player turned.
+ */
+export const trackDistance = (seg: Segment, x: number, y: number) =>
+  seg.travelled + (x - seg.start.x) * DIRS[seg.dir].x + (y - seg.start.y) * DIRS[seg.dir].y;
+
 export const distToRectEdge = (x: number, y: number, r: Rect) =>
   Math.min(x - r.x1, r.x2 - x, y - r.y1, r.y2 - y);
 
@@ -138,7 +147,22 @@ export class Track {
 
     const halfWidth = this.course.halfWidthAt(travelled, loopIndex);
     const range = this.course.segmentLengthRange(travelled, loopIndex);
-    const length = this.rand(range.min, range.max);
+    let length = this.rand(range.min, range.max);
+
+    // The finish line must sit on a straight, never inside a turn square.
+    // If the goal would land near this segment's end, stretch the segment so
+    // the line fits before the turn.
+    const goal = this.course.goalPx;
+    const margin = halfWidth + 30;
+    let finishAt: number | null = null;
+    if (goal !== null && goal >= travelled) {
+      const k = goal - travelled;
+      if (k >= margin && k <= length - margin) finishAt = k;
+      else if (k > length - margin && k < length + margin + 40) {
+        length = k + margin;
+        finishAt = k;
+      }
+    }
     const end = { x: start.x + DIRS[dir].x * length, y: start.y + DIRS[dir].y * length };
 
     const rect: Rect = isHorizontal(dir)
@@ -178,10 +202,8 @@ export class Track {
       finish: null,
     };
 
-    const goal = this.course.goalPx;
-    if (goal !== null && goal >= travelled && goal < travelled + length) {
-      const k = goal - travelled;
-      seg.finish = { x: start.x + DIRS[dir].x * k, y: start.y + DIRS[dir].y * k };
+    if (finishAt !== null) {
+      seg.finish = { x: start.x + DIRS[dir].x * finishAt, y: start.y + DIRS[dir].y * finishAt };
     }
 
     seg.hazards = this.makeHazards(seg);

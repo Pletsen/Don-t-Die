@@ -1,8 +1,15 @@
 import type Phaser from 'phaser';
 
-// Rendering at more than 2x costs a lot of GPU on phones for very little
-// visible gain, especially with full-screen bloom, so we cap it.
-const dpr = Math.min(window.devicePixelRatio || 1, 2);
+// Render at the screen's full pixel density (up to 3x) for crisp lines.
+// With reduced effects we cap at 2x, which is much lighter on older phones.
+function readFxReduced() {
+  try {
+    return localStorage.getItem('dontdie_fx_reduced') === '1';
+  } catch {
+    return false;
+  }
+}
+const dpr = Math.min(window.devicePixelRatio || 1, readFxReduced() ? 2 : 3);
 
 /** Height of the phone's notch / status bar area, read from CSS. */
 function safeAreaTop(): number {

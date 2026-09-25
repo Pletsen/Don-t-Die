@@ -70,6 +70,10 @@ export class HazardView {
     }
   }
 
+  setVisible(v: boolean) {
+    this.root.setVisible(v);
+  }
+
   get tint() {
     return this.color;
   }

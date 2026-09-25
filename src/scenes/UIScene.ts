@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { EV, type ClearData, type DeathData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, palette } from '../game/palette';
+import { css, palette, hueColor } from '../game/palette';
 import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { TEX } from '../fx/textures';
@@ -24,7 +24,7 @@ type Mode = 'title' | 'select' | 'play' | 'dead' | 'clear';
  */
 export class UIScene extends Phaser.Scene {
   private mode: Mode = 'title';
-  /** The level being played, or null for endless. */
+  /** The level being played, or null for survival. */
   private level: number | null = null;
   /** Ignore background taps until this time, so a panicked tap doesn't skip a screen. */
   private tapsFrom = 0;
@@ -61,6 +61,8 @@ export class UIScene extends Phaser.Scene {
   private overLevels!: Button;
 
   private glitchUntil = 0;
+  private toastText!: Phaser.GameObjects.Text;
+  private konami: string[] = [];
 
   constructor() {
     super('UI');
@@ -75,13 +77,18 @@ export class UIScene extends Phaser.Scene {
     this.buildTitle();
     this.scrim = this.add.rectangle(0, 0, 10, 10, 0x020305, 0.62).setOrigin(0, 0).setAlpha(0);
     this.buildGameOver();
-    this.select = new LevelSelect(this, (level) => this.play(level));
+    this.select = new LevelSelect(
+      this,
+      (level) => this.play(level),
+      () => this.toggleRainbow(),
+    );
     this.clearScreen = new ClearScreen(this, {
       next: () => this.nextLevel(),
       retry: () => this.play(this.level),
       levels: () => this.showSelect(),
     });
     this.buildToggles();
+    this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
     this.showTitle();
@@ -90,6 +97,7 @@ export class UIScene extends Phaser.Scene {
       if (over.length === 0) this.onBackgroundTap();
     });
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => {
+      this.checkKonami(e.code);
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
         e.preventDefault();
         if (this.mode === 'select') this.play(nextLevelToPlay());
@@ -108,6 +116,32 @@ export class UIScene extends Phaser.Scene {
       cam.setSize(size.width, size.height);
       this.layout();
     });
+  }
+
+  /** Easter egg: ↑ ↑ ↓ ↓ ← → ← → B A toggles a rainbow trail. */
+  private checkKonami(code: string) {
+    const seq = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
+    this.konami = [...this.konami, code].slice(-seq.length);
+    if (this.konami.join() === seq.join()) {
+      this.konami = [];
+      this.toggleRainbow();
+    }
+  }
+
+  private toggleRainbow() {
+    save.setRainbow(!save.rainbow);
+    sfx.unlock();
+    sfx.newBest();
+    this.toast(save.rainbow ? 'RAINBOW MODE' : 'RAINBOW MODE OFF');
+  }
+
+  private toast(msg: string) {
+    const { w, h } = display.size(this);
+    this.toastText.setText(msg).setPosition(w / 2, h - 60 - display.safeTop());
+    this.tweens.killTweensOf(this.toastText);
+    this.toastText.setAlpha(1).setScale(1.4);
+    this.tweens.add({ targets: this.toastText, scale: 1, duration: 250, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: this.toastText, alpha: 0, delay: 1600, duration: 400 });
   }
 
   private onBackgroundTap() {
@@ -470,6 +504,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.mode === 'select') this.select.update(time);
+    if (save.rainbow && this.toastText.alpha > 0) this.toastText.setColor(hexColor(hueColor(time / 3)));
     this.clearScreen.update(time);
 
     if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {

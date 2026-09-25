@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
-import { type Rect, type Segment, DIRS } from '../game/Track';
+import { type Rect, type Segment, DIRS, trackDistance } from '../game/Track';
 import { mixColor, palette } from '../game/palette';
-import { TEX } from './textures';
 
 const GRID = 36;
+/** How many segments ahead of the current one are drawn. The last one fades in. */
+export const LOOKAHEAD = 2;
 const SHADOW = 10;
 /** How far around a new segment the previous floor gets re-painted. */
 const PATCH = 20;
-const STREAKS_PER_SEGMENT = 2;
 
 /**
  * Draws the corridor into one Graphics object, oldest segment first, so newer
@@ -21,9 +21,8 @@ const STREAKS_PER_SEGMENT = 2;
 export class CorridorView {
   private track: Phaser.GameObjects.Graphics;
   private gate: Phaser.GameObjects.Graphics;
-  private streaks: Phaser.GameObjects.Image[] = [];
 
-  constructor(private scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene) {
     this.track = scene.add.graphics().setDepth(1);
     this.gate = scene.add.graphics().setDepth(2);
   }
@@ -37,16 +36,22 @@ export class CorridorView {
     fxReduced: boolean,
   ) {
     const from = Math.max(0, current - 1);
-    const to = Math.min(segs.length - 1, current + 4);
+    const to = Math.min(segs.length - 1, current + LOOKAHEAD);
     const visible = segs.slice(from, to + 1);
     const bright = mixColor(accent, 0xffffff, 0.35);
     const floor = mixColor(palette.floor, accent, 0.05);
     const g = this.track.clear();
 
-    // Track behind the player dissolves as you move away from it, so the
-    // road ahead reads clearly even where the spiral crosses itself.
-    const alphaOf = (s: Segment, index: number) =>
-      index >= current ? 1 : Phaser.Math.Clamp(1 - distToRect(player.x, player.y, s.rect) / 240, 0, 1);
+    // Track behind the player dissolves as you move away from it, and the
+    // farthest piece ahead fades in as you approach, so the road reads
+    // clearly even where the spiral crosses itself.
+    const cur = segs[current];
+    const along = cur ? Phaser.Math.Clamp(trackDistance(cur, player.x, player.y) - cur.travelled, 0, cur.length) / cur.length : 1;
+    const alphaOf = (s: Segment, index: number) => {
+      if (index < current) return Phaser.Math.Clamp(1 - distToRect(player.x, player.y, s.rect) / 240, 0, 1);
+      if (index === current + LOOKAHEAD) return Phaser.Math.Clamp(0.15 + along * 1.2, 0, 1);
+      return 1;
+    };
 
     visible.forEach((s, i) => {
       const a = alphaOf(s, from + i);
@@ -126,7 +131,7 @@ export class CorridorView {
       }
     }
 
-    this.drawStreaks(visible, accent, time, fxReduced);
+    this.drawRunners(visible, current, from, accent, time, fxReduced);
   }
 
 
@@ -186,32 +191,54 @@ export class CorridorView {
     }
   }
 
-  /** Pulses of light running along each lane. */
-  private drawStreaks(visible: Segment[], accent: number, time: number, fxReduced: boolean) {
-    const needed = fxReduced ? 0 : visible.length * STREAKS_PER_SEGMENT;
-    while (this.streaks.length < needed) {
-      this.streaks.push(
-        this.scene.add.image(0, 0, TEX.streak).setBlendMode(Phaser.BlendModes.ADD).setDepth(3),
-      );
-    }
-    this.streaks.forEach((img, i) => {
-      if (i >= needed) {
-        img.setVisible(false);
-        return;
-      }
-      const s = visible[Math.floor(i / STREAKS_PER_SEGMENT)];
-      const k = i % STREAKS_PER_SEGMENT;
-      const len = s.length;
-      const along = (((time * 180 + k * len * 0.5 + s.id * 97) % len) + len) % len;
+  /**
+   * Current running along the walls: short bright dashes with a fading tail,
+   * like pulses in a neon tube. Deliberately thin and linear so they never
+   * read as the round player orb. Pieces that would fall inside another
+   * segment (where the wall is hidden) are skipped.
+   */
+  private drawRunners(visible: Segment[], current: number, from: number, accent: number, time: number, fxReduced: boolean) {
+    if (fxReduced) return;
+    const g = this.gate;
+    const bright = mixColor(accent, 0xffffff, 0.5);
+    const inOther = (x: number, y: number, self: Segment) =>
+      visible.some((o) => o !== self && x > o.rect.x1 && x < o.rect.x2 && y > o.rect.y1 && y < o.rect.y2);
+
+    visible.forEach((s, i) => {
+      if (from + i < current) return; // walls behind are fading out
       const d = DIRS[s.dir];
-      const fade = Math.min(1, along / 60, (len - along) / 60);
-      img
-        .setVisible(true)
-        .setPosition(s.start.x + d.x * along, s.start.y + d.y * along)
-        .setRotation(Math.atan2(d.y, d.x))
-        .setScale(0.55, s.halfWidth / 90)
-        .setTint(accent)
-        .setAlpha(0.55 * fade);
+      const px = -d.y;
+      const py = d.x;
+      const r = s.rect;
+      const wallLen = Math.abs(d.x) * (r.x2 - r.x1) + Math.abs(d.y) * (r.y2 - r.y1);
+      // Start from the rect edge the lane enters through.
+      const ox = d.x > 0 ? r.x1 : d.x < 0 ? r.x2 : 0;
+      const oy = d.y > 0 ? r.y1 : d.y < 0 ? r.y2 : 0;
+
+      for (const side of [-1, 1]) {
+        const off = s.halfWidth + 1.25;
+        const baseX = (d.x !== 0 ? ox : s.start.x) + px * off * side;
+        const baseY = (d.y !== 0 ? oy : s.start.y) + py * off * side;
+        const head = (time * 300 + s.id * 131 + (side > 0 ? wallLen / 2 : 0)) % (wallLen + 90);
+        const PIECES = 9;
+        const PIECE = 10;
+        for (let k = 0; k < PIECES; k++) {
+          const a = head - k * PIECE;
+          const b = a - PIECE;
+          if (b < 0 || a > wallLen) continue;
+          const x1 = baseX + d.x * a;
+          const y1 = baseY + d.y * a;
+          const x2 = baseX + d.x * b;
+          const y2 = baseY + d.y * b;
+          if (inOther((x1 + x2) / 2, (y1 + y2) / 2, s)) continue;
+          const fade = 1 - k / PIECES;
+          // Soft halo under a bright core, so the pulse reads as light in the tube.
+          g.lineStyle(9, bright, 0.18 * fade);
+          g.lineBetween(x1, y1, x2, y2);
+          g.lineStyle(k === 0 ? 4 : 3, k < 2 ? 0xffffff : bright, fade);
+          g.lineBetween(x1, y1, x2, y2);
+        }
+      }
     });
   }
 }

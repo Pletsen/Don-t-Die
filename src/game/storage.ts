@@ -7,6 +7,7 @@ const KEYS = {
   muted: 'dontdie_muted',
   fxReduced: 'dontdie_fx_reduced',
   stars: 'dontdie_level_stars',
+  rainbow: 'dontdie_rainbow',
 };
 
 function read(key: string): string | null {
@@ -41,6 +42,7 @@ export const save = {
   best: parseFloat(read(KEYS.best) ?? '0') || 0,
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
   muted: read(KEYS.muted) === '1',
+  rainbow: read(KEYS.rainbow) === '1',
   fxReduced: read(KEYS.fxReduced) === null ? prefersReducedMotion : read(KEYS.fxReduced) === '1',
 
   /** Best star rating per level id (0 = never cleared). */
@@ -71,6 +73,10 @@ export const save = {
   setMuted(v: boolean) {
     this.muted = v;
     write(KEYS.muted, v ? '1' : '0');
+  },
+  setRainbow(v: boolean) {
+    this.rainbow = v;
+    write(KEYS.rainbow, v ? '1' : '0');
   },
   setFxReduced(v: boolean) {
     this.fxReduced = v;

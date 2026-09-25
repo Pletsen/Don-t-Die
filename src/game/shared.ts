@@ -30,7 +30,7 @@ export const EV = {
   fxChanged: 'dd-fx-changed',
 } as const;
 
-/** `level: null` means endless mode. */
+/** `level: null` means survival mode. */
 export interface PlayRequest {
   level: number | null;
 }
@@ -38,7 +38,7 @@ export interface PlayRequest {
 export interface HudData {
   meters: number;
   seconds: number;
-  /** Metres to the finish, or null in endless mode. */
+  /** Metres to the finish, or null in survival mode. */
   goal: number | null;
 }
 
@@ -57,5 +57,4 @@ export interface ClearData extends HudData {
   previousStars: number;
   perfects: number;
   turns: number;
-  unlockedEndless: boolean;
 }

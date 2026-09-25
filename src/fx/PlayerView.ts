@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { palette } from '../game/palette';
+import { palette, hueColor } from '../game/palette';
+import { save } from '../game/storage';
 import { TEX } from './textures';
 
 /**
@@ -14,6 +15,7 @@ export class PlayerView {
   private trail: Phaser.GameObjects.Particles.ParticleEmitter;
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private squash = 1;
+  private wasRainbow = false;
 
   constructor(scene: Phaser.Scene, radius: number) {
     // Trail first so it renders under the orb.
@@ -82,6 +84,11 @@ export class PlayerView {
     this.ring.setRotation(time * 0.9).setScale(ringR / 116, (ringR / 116) * 0.4);
 
     this.trail.frequency = speedNorm > 0.5 ? 5 : 8;
+
+    // Easter egg: a trail that cycles through the rainbow.
+    if (save.rainbow) this.trail.setParticleTint(hueColor(time * 240));
+    else if (this.wasRainbow) this.trail.setParticleTint(palette.cyan);
+    this.wasRainbow = save.rainbow;
   }
 
   setEmitting(on: boolean) {

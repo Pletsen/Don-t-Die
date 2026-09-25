@@ -75,3 +75,8 @@ function hsvToRgb([h, s, v]: RGB): RGB {
     h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
   return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
 }
+
+/** A fully saturated colour at the given hue (degrees). */
+export function hueColor(h: number): number {
+  return fromRGB(hsvToRgb([((h % 360) + 360) % 360, 1, 1]));
+}

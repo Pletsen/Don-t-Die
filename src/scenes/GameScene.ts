@@ -1,20 +1,29 @@
 import Phaser from 'phaser';
-import { Track, DIRS, pointInRect, distToRectEdge, type Dir, type Hazard, type Segment } from '../game/Track';
+import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment } from '../game/Track';
 import { tuning, METERS_PER_PX } from '../game/tuning';
 import { shared, EV, type DeathData, type ClearData, type PlayRequest } from '../game/shared';
 import { endlessCourse, levelCourse, type Course } from '../game/course';
-import { levelById, ENDLESS_UNLOCK_LEVEL } from '../game/levels';
+import { levelById } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { sfx, haptic } from '../audio/Sfx';
-import { CorridorView } from '../fx/CorridorView';
+import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
 import { PlayerView } from '../fx/PlayerView';
 import { HazardView } from '../fx/HazardView';
 import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
+import { BackgroundEvents } from '../fx/BackgroundEvents';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
+
+const MILESTONES: [number, string][] = [
+  [404, '404: EXIT NOT FOUND'],
+  [1000, '1 KM. RESPECT.'],
+  [1337, '1337'],
+  [2001, 'A SPACE ODYSSEY'],
+  [3000, 'ARE YOU A BOT?'],
+];
 
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
@@ -42,13 +51,15 @@ export class GameScene extends Phaser.Scene {
   private nearWallFlags = new Set<number>();
   private nearHazardFlags = new WeakSet<Hazard>();
 
-  private cam = { x: 0, y: 0, zoom: 1, punch: 0, tilt: 0 };
+  private cam = { x: 0, y: 0, zoom: 1, punch: 0 };
   private deathFade = 0;
 
   private corridor!: CorridorView;
   private playerView!: PlayerView;
   private effects!: Effects;
   private backdrop!: Backdrop;
+  private visitors!: BackgroundEvents;
+  private milestonesHit = new Set<number>();
   private hazardViews = new Map<Hazard, HazardView>();
 
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
@@ -60,6 +71,7 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.backdrop = new Backdrop(this);
+    this.visitors = new BackgroundEvents(this);
     this.corridor = new CorridorView(this);
     this.playerView = new PlayerView(this, tuning.playerRadius);
     this.effects = new Effects(this);
@@ -87,11 +99,11 @@ export class GameScene extends Phaser.Scene {
     // Bloom makes bright pixels bleed light into their surroundings. This is
     // what turns flat coloured lines into glowing neon.
     this.bloom = Phaser.Actions.AddEffectBloom(cam, {
-      threshold: 0.42,
-      blurRadius: 2.4,
+      threshold: 0.45,
+      blurRadius: 1.8,
       blurSteps: 4,
-      blurQuality: 0,
-      blendAmount: 1.15,
+      blurQuality: 1,
+      blendAmount: 1.1,
     })[0];
 
     // Colour grading, used to drain the colour out of the world on death.
@@ -132,13 +144,14 @@ export class GameScene extends Phaser.Scene {
     this.gateTurns = 0;
     this.slowMo = 0;
     this.nearWallFlags.clear();
+    this.milestonesHit.clear();
     this.nearHazardFlags = new WeakSet();
 
     this.playerView.reset();
     this.playerView.setPosition(0, 0);
     this.playerView.setEmitting(false);
 
-    this.cam = { x: 60, y: 0, zoom: 1, punch: 0, tilt: 0 };
+    this.cam = { x: 60, y: 0, zoom: 1, punch: 0 };
   }
 
   private onPlay(req: PlayRequest) {
@@ -190,7 +203,6 @@ export class GameScene extends Phaser.Scene {
     this.player.dir = ((this.player.dir + 1) % 4) as Dir;
     this.playerView.onTurn();
     this.effects.burst(this.player.x, this.player.y, palette.cyan, save.fxReduced ? 4 : 10);
-    this.cam.tilt += 0.012;
     sfx.turn();
     haptic(8);
 
@@ -235,7 +247,7 @@ export class GameScene extends Phaser.Scene {
     else sfx.hazard();
     haptic([30, 20, 50]);
 
-    // The best-distance record belongs to endless mode only.
+    // The best-distance record belongs to survival mode only.
     const meters = this.distance * METERS_PER_PX;
     const endless = this.course.level === null;
     const isNewBest = endless && meters > save.best;
@@ -292,7 +304,6 @@ export class GameScene extends Phaser.Scene {
       previousStars,
       perfects: this.perfects,
       turns: this.gateTurns,
-      unlockedEndless: level.id === ENDLESS_UNLOCK_LEVEL && previousStars === 0,
     };
     this.time.delayedCall(650, () => this.game.events.emit(EV.cleared, data));
   }
@@ -311,10 +322,13 @@ export class GameScene extends Phaser.Scene {
     const speedNorm = clamp((speed - 230) / 390, 0, 1);
     const accent = this.course.accentAt(this.distance);
 
-    // Hazards animate even while the menu is up.
+    // Hazards animate even while the menu is up. Only those on visible
+    // segments are shown; ones on track already passed are hidden.
+    const shown = new Set<Hazard>();
     for (const seg of this.visibleSegments()) {
       for (const hz of seg.hazards) {
         if (!hz.alive) continue;
+        shown.add(hz);
         let view = this.hazardViews.get(hz);
         if (!view) {
           view = new HazardView(this, hz);
@@ -323,6 +337,7 @@ export class GameScene extends Phaser.Scene {
         view.update(t, dt);
       }
     }
+    this.hazardViews.forEach((view, hz) => view.setVisible(shown.has(hz)));
 
     this.corridor.draw(this.track.segments, this.current, this.player, accent, t, save.fxReduced);
     this.playerView.setPosition(this.player.x, this.player.y);
@@ -330,6 +345,7 @@ export class GameScene extends Phaser.Scene {
     this.playerView.update(t, dt, heading, speedNorm, tuning.playerRadius);
 
     this.updateCamera(dt, speedNorm, t);
+    this.visitors.update(this.cam.x, this.cam.y, this.cameras.main, dt, t, save.fxReduced);
     this.updateGrade(dt);
 
     shared.accent = accent;
@@ -363,12 +379,6 @@ export class GameScene extends Phaser.Scene {
     const d = DIRS[this.player.dir];
     this.player.x += d.x * speed * sim;
     this.player.y += d.y * speed * sim;
-    this.distance += speed * sim;
-
-    if (this.course.goalPx !== null && this.distance >= this.course.goalPx) {
-      this.clear();
-      return;
-    }
 
     this.track.ensureAhead(this.current, tuning.segmentsAhead);
 
@@ -381,12 +391,26 @@ export class GameScene extends Phaser.Scene {
       this.pruneTrack();
     }
 
+    // Distance is measured along the track, not summed from movement, so it
+    // agrees exactly with where the finish line is drawn. It never goes
+    // backwards (a late turn briefly overshoots the corner).
+    if (this.player.dir === cur.dir) {
+      this.distance = Math.max(this.distance, trackDistance(cur, this.player.x, this.player.y));
+    }
+    if (cur.finish && this.course.goalPx !== null && this.player.dir === cur.dir && this.distance >= this.course.goalPx) {
+      this.distance = this.course.goalPx;
+      this.clear();
+      return;
+    }
+
     const inCur = pointInRect(this.player.x, this.player.y, cur.rect);
     const inNext = !!next && pointInRect(this.player.x, this.player.y, next.rect);
     if (!inCur && !inNext) {
       this.die('wall', palette.ink);
       return;
     }
+
+    if (!this.course.level) this.checkMilestones();
 
     // Near miss against the walls: once per segment.
     const edge = distToRectEdge(this.player.x, this.player.y, inCur ? cur.rect : next!.rect);
@@ -423,6 +447,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Survival easter eggs: a little message at special distances. */
+  private checkMilestones() {
+    const m = this.distance * METERS_PER_PX;
+    for (const [at, text] of MILESTONES) {
+      if (m < at || this.milestonesHit.has(at)) continue;
+      this.milestonesHit.add(at);
+      this.effects.floater(this.player.x, this.player.y - 34, text, css.ink, 15);
+      this.effects.shockwave(this.player.x, this.player.y, 0xffffff, 120, 500);
+      sfx.newBest();
+    }
+  }
+
   private pruneTrack() {
     const keepFrom = this.current - 2;
     if (keepFrom <= 0) return;
@@ -437,7 +473,7 @@ export class GameScene extends Phaser.Scene {
 
   private visibleSegments(): Segment[] {
     const s = this.track.segments;
-    return s.slice(Math.max(0, this.current - 1), Math.min(s.length, this.current + 5));
+    return s.slice(Math.max(0, this.current - 1), Math.min(s.length, this.current + LOOKAHEAD + 1));
   }
 
   private updateCamera(dt: number, speedNorm: number, t: number) {
@@ -458,14 +494,12 @@ export class GameScene extends Phaser.Scene {
     this.cam.y = lerp(this.cam.y, ty, damp(0.002, dt));
 
     this.cam.punch = lerp(this.cam.punch, 0, damp(0.004, dt));
-    this.cam.tilt = lerp(this.cam.tilt, 0, damp(0.0005, dt));
 
     const targetZoom = 1 - speedNorm * 0.1 + (this.state === 'ready' ? 0.08 : this.state === 'clear' ? 0.15 : 0);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, damp(0.05, dt));
     const zoom = this.baseZoom() * (this.cam.zoom + this.cam.punch);
 
     cam.setZoom(zoom * display.dpr);
-    cam.setRotation(this.cam.tilt);
     cam.centerOn(this.cam.x, this.cam.y);
     this.backdrop.update(cam, this.cam.x, this.cam.y);
 

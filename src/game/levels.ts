@@ -3,7 +3,7 @@ import type { HazardKind } from './Track';
 
 // Every level is plain data. To add or tweak a level, edit this file: no game
 // code needs to change. Distances are metres (9 px = 1 m), speeds px/s (230
-// is the endless start speed), widths are the corridor's HALF width in px.
+// is the survival start speed), widths are the corridor's HALF width in px.
 // Levels last roughly 15 s (level 1) up to 45 s (level 20).
 
 export interface World {
@@ -81,8 +81,5 @@ export const LEVELS: LevelDef[] = [
   { id: 19, world: 3, goal: 2300, speed: [400, 520], width: [54, 48], arm: [175, 250], hazards: { chance: 0.75, kinds: both, placement: 'any', moving: 0.7, perSegment: 2 } },
   { id: 20, world: 3, goal: 2500, speed: [420, 580], width: [52, 46], arm: [170, 245], hazards: { chance: 0.8, kinds: both, placement: 'any', moving: 0.8, perSegment: 2 } },
 ];
-
-/** Clearing this level unlocks endless mode. */
-export const ENDLESS_UNLOCK_LEVEL = 5;
 
 export const levelById = (id: number) => LEVELS.find((l) => l.id === id);
