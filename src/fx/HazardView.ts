@@ -1,0 +1,80 @@
+import Phaser from 'phaser';
+import type { Hazard } from '../game/Track';
+import { palette } from '../game/palette';
+import { TEX } from './textures';
+
+/** Visuals for one saw blade or bomb. Follows its `Hazard` data every frame. */
+export class HazardView {
+  private root: Phaser.GameObjects.Container;
+  private body: Phaser.GameObjects.Image;
+  private halo: Phaser.GameObjects.Image;
+  private warn: Phaser.GameObjects.Image;
+  private fuse?: Phaser.GameObjects.Image;
+  private color: number;
+
+  constructor(
+    scene: Phaser.Scene,
+    readonly hazard: Hazard,
+  ) {
+    const isSaw = hazard.kind === 'saw';
+    this.color = isSaw ? palette.magenta : palette.orange;
+    const d = hazard.radius * 2;
+
+    this.warn = scene.add.image(0, 0, TEX.ring).setTint(this.color).setBlendMode(Phaser.BlendModes.ADD);
+    this.halo = scene.add
+      .image(0, 0, TEX.glow)
+      .setTint(this.color)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale((d * 2.6) / 128);
+    this.body = scene.add.image(0, 0, isSaw ? TEX.saw : TEX.bomb).setScale((d * (isSaw ? 1.05 : 1.1)) / 128);
+
+    const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
+    if (!isSaw) {
+      this.fuse = scene.add
+        .image(0, 0, TEX.glow)
+        .setTint(0xfff1b0)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScale(0.14);
+      parts.push(this.fuse);
+    }
+
+    this.root = scene.add.container(hazard.x, hazard.y, parts).setDepth(4);
+
+    // Pop in instead of appearing out of nowhere.
+    this.root.setScale(0);
+    scene.tweens.add({ targets: this.root, scale: 1, duration: 380, ease: 'Back.easeOut' });
+  }
+
+  update(time: number, dt: number) {
+    const h = this.hazard;
+    this.root.setPosition(h.x, h.y);
+    const r = h.radius;
+
+    // Warning ring breathes outward.
+    const k = (time * 1.2 + h.movePhase) % 1;
+    this.warn.setScale((r * (1.4 + k * 1.1)) / 116).setAlpha((1 - k) * 0.5);
+
+    if (h.kind === 'saw') {
+      this.body.rotation += dt * 9;
+      this.halo.setAlpha(0.55 + 0.15 * Math.sin(time * 12));
+    } else {
+      const beat = Math.pow(Math.max(0, Math.sin(time * 7 + h.movePhase)), 6);
+      this.body.setScale(((r * 2.2) / 128) * (1 + beat * 0.12));
+      this.halo.setAlpha(0.45 + beat * 0.5);
+      if (this.fuse) {
+        const a = time * 14;
+        this.fuse
+          .setPosition(Math.cos(a) * r * 0.18, -r * 1.05 + Math.sin(a) * r * 0.18)
+          .setAlpha(0.7 + 0.3 * Math.random());
+      }
+    }
+  }
+
+  get tint() {
+    return this.color;
+  }
+
+  destroy() {
+    this.root.destroy();
+  }
+}
