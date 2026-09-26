@@ -244,6 +244,44 @@ class SfxEngine {
     }
   }
 
+  // --- Slot machine -------------------------------------------------------
+
+  leverPull() {
+    this.burst({ filterType: 'lowpass', filterFreq: 700, duration: 0.18, gain: 0.25 });
+    this.tone({ freq: 300, glideTo: 120, duration: 0.2, type: 'square', gain: 0.05 });
+    this.thump(80, 0.3, 0.2, 0.12);
+  }
+
+  /** Reels whirring past. */
+  spinTick() {
+    this.tone({ freq: 1800 + Math.random() * 300, duration: 0.025, type: 'square', gain: 0.03 });
+  }
+
+  /** A reel clunks to a stop; each one a little higher. */
+  reelStop(index: number) {
+    this.thump(140, 0.3, 0.12);
+    this.stab([220 * Math.pow(2, (index * 4) / 12)], 0.2, 0.08, 1800);
+  }
+
+  /** Prize reveal: bigger fanfares for rarer skins. */
+  reveal(rarity: 'common' | 'rare' | 'epic' | 'legendary') {
+    const steps = { common: [0, 7], rare: [0, 4, 7], epic: [0, 4, 7, 12], legendary: [0, 4, 7, 12, 16, 19, 24] }[rarity];
+    steps.forEach((st, i) =>
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.28, type: 'triangle', gain: 0.12, delay: i * 0.08 }),
+    );
+    if (rarity !== 'common') this.stab([131, 196, 262], 0.8, 0.1, 3000, steps.length * 0.08);
+    if (rarity === 'epic' || rarity === 'legendary') this.thump(60, 0.45, 0.6, steps.length * 0.08);
+    if (rarity === 'legendary') {
+      this.burst({ filterType: 'highpass', filterFreq: 4000, duration: 1.5, gain: 0.1 });
+      this.stab([262, 330, 392, 523], 1.6, 0.1, 5000, 0.8);
+    }
+  }
+
+  /** Not enough ducks. */
+  nope() {
+    this.denied();
+  }
+
   /** A gentle sparkle when the warp star is close. */
   starNear() {
     this.tone({ freq: 2093, duration: 0.2, type: 'sine', gain: 0.03 });

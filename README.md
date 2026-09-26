@@ -28,6 +28,19 @@ I hvert level er der gemt en lillebitte, regnbuefarvet stjerne et stykke inde p�
 
 Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på level-kortet. Logikken ligger i `Track.placeWarpStar`, `course.enterWarp` og `GameScene.warp`.
 
+### Skins og DUCK-O-MATIC
+
+Ænderne, du vælter i Universe 2, bliver til valuta, når du **gennemfører** banen. Dør du, er de tabt. Under **SKINS** på level-kortet står spillemaskinen DUCK-O-MATIC: ét træk koster 20 ænder (det første er gratis), og hjulene lander på et tilfældigt skin. Får du et, du allerede har, får du 5 ænder tilbage.
+
+| Sjældenhed | Chance | Skins |
+|---|---|---|
+| Common | 65 % | Classic, Mint, Bubblegum, Lemon, Grape, Tangerine, Frosty, Blush, Moon, Potato |
+| Rare | 25 % | Kitty, Froggy, Panda, Beach Ball, Donut, Soccer, Eyeball |
+| Epic | 8 % | Lava, Galaxy, Cyber Eye, Pizza Pal |
+| Legendary | 2 % | Golden Crown, Black Hole, Duck King |
+
+Skins er data i `src/game/skins.ts` (navn, sjældenhed, glød og spor), og hvert skin tegnes i `src/fx/skinTextures.ts`. Et nyt skin kræver én linje i listen og én tegnefunktion.
+
 ### I baggrunden
 
 Langt ude i rummet sker der ting: stjerneskud (en sjælden gang en hel regn af dem), en planet med ringe, en UFO der stopper op og lyser med sin traktorstråle, en astronaut der tumler forbi og siger hej, og en sjælden gang en neon-hval. Alt det styres af `src/fx/BackgroundEvents.ts`.
@@ -81,6 +94,7 @@ src/
 │   └── UIScene.ts        Skifter mellem skærmene og styrer tryk
 ├── ui/
 │   ├── LevelSelect.ts    Level-kortet
+│   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen
 │   ├── ClearScreen.ts    "LEVEL CLEAR" med stjerner
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
@@ -88,6 +102,7 @@ src/
 │   ├── course.ts         Reglerne for én runde (et level eller SURVIVAL)
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
+│   ├── skins.ts          ⭐ Alle 24 skins og chancerne for hver sjældenhed
 │   ├── tuning.ts         ⭐ Tallene for SURVIVAL
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord og indstillinger (gemmes i browseren)
@@ -102,6 +117,7 @@ src/
 │   ├── HazardView.ts     Savklinger og bomber
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
 │   ├── WarpStarView.ts   Den gemte warp-stjerne
+│   ├── skinTextures.ts   Tegner alle 24 skins
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
     ├── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)

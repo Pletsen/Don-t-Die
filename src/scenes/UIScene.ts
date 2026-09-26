@@ -9,8 +9,9 @@ import { TEX } from '../fx/textures';
 import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
 import { ClearScreen } from '../ui/ClearScreen';
+import { SkinShop } from '../ui/SkinShop';
 
-type Mode = 'title' | 'select' | 'play' | 'dead' | 'clear';
+type Mode = 'title' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
 
 /**
  * Top layer: HUD, title, level map, game-over and level-clear screens.
@@ -50,6 +51,7 @@ export class UIScene extends Phaser.Scene {
   private scrim!: Phaser.GameObjects.Rectangle;
   private select!: LevelSelect;
   private clearScreen!: ClearScreen;
+  private shop!: SkinShop;
 
   private over!: Phaser.GameObjects.Container;
   private causeText!: Phaser.GameObjects.Text;
@@ -81,6 +83,12 @@ export class UIScene extends Phaser.Scene {
       this,
       (level) => this.play(level),
       () => this.toggleRainbow(),
+      () => this.showSkins(),
+    );
+    this.shop = new SkinShop(
+      this,
+      () => this.showSelect(),
+      () => this.game.events.emit(EV.skin),
     );
     this.clearScreen = new ClearScreen(this, {
       next: () => this.nextLevel(),
@@ -312,6 +320,7 @@ export class UIScene extends Phaser.Scene {
     this.overLevels.setPosition(w / 2, oy + 212);
 
     this.select.layout(w, h, top + 52);
+    this.shop.layout(w, h, top + 48);
     this.clearScreen.layout(w, h);
     this.drawProgress(this.lastHud);
   }
@@ -341,8 +350,18 @@ export class UIScene extends Phaser.Scene {
     );
   }
 
+  private showSkins() {
+    this.mode = 'skins';
+    sfx.swoosh();
+    this.fadeOut(this.select.root);
+    this.shop.refresh();
+    this.shop.root.setVisible(true).setAlpha(0);
+    this.fadeIn(this.shop.root);
+  }
+
   private showSelect() {
     const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    this.fadeOut(this.shop.root);
     this.mode = 'select';
     this.fadeOut(this.title);
     this.fadeOut(this.over);
@@ -437,7 +456,9 @@ export class UIScene extends Phaser.Scene {
       const pct = Math.floor((d.meters / d.goal) * 100);
       this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M  ·  ${pct}%`);
       this.bestText.setText(`LEVEL ${d.level} · ${WORLDS[level.world].name}`).setColor(hexColor(WORLDS[level.world].color));
-      this.flavorText.setText(d.goal - d.meters < 30 ? 'SO CLOSE.' : '');
+      this.flavorText.setText(
+        d.warped && d.ducks > 0 ? `${d.ducks} DUCKS LOST. FINISH TO KEEP THEM.` : d.goal - d.meters < 30 ? 'SO CLOSE.' : '',
+      );
     } else {
       this.rightValue.setText(`${d.best.toFixed(1)} M`);
       this.timeText.setText(`${d.seconds.toFixed(2)} SEC`);
@@ -509,6 +530,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.mode === 'select') this.select.update(time);
+    if (this.mode === 'skins') this.shop.update(time);
     if (this.toastText.alpha > 0 && (save.rainbow || this.mode === 'play')) this.toastText.setColor(hexColor(hueColor(time / 3)));
     this.clearScreen.update(time);
 

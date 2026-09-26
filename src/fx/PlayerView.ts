@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { palette, hueColor } from '../game/palette';
 import { save } from '../game/storage';
+import { skinById, skinTexture, type Skin } from '../game/skins';
 import { TEX } from './textures';
 
 /**
@@ -15,7 +16,8 @@ export class PlayerView {
   private trail: Phaser.GameObjects.Particles.ParticleEmitter;
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private squash = 1;
-  private wasRainbow = false;
+  private skin: Skin = skinById('classic');
+  private orb!: Phaser.GameObjects.Image;
   // Bonus-universe costume: googly eyes and a party hat.
   private party: Phaser.GameObjects.Container;
   private pupils: Phaser.GameObjects.Graphics;
@@ -59,8 +61,10 @@ export class PlayerView {
       .setTint(palette.cyan)
       .setAlpha(0.7);
 
-    const orb = scene.add.image(0, 0, TEX.orb).setScale((radius * 2.1) / 96);
-    this.body = scene.add.container(0, 0, [orb]);
+    // Skin textures are 128 px with the ball's radius at 44 px, the same
+    // proportions as the original 96 px orb, so the same scale works.
+    this.orb = scene.add.image(0, 0, TEX.orb).setScale((radius * 2.1) / 96);
+    this.body = scene.add.container(0, 0, [this.orb]);
 
     this.pupils = scene.add.graphics();
     const eyes = scene.add.graphics();
@@ -90,6 +94,17 @@ export class PlayerView {
     this.pupil.vy += (Math.random() - 0.5) * 60;
   }
 
+  /** Dress the orb in a skin: its texture, glow colour and trail. */
+  setSkin(id: string) {
+    this.skin = skinById(id);
+    this.orb.setTexture(skinTexture(this.skin.id));
+    // Slightly dim character skins so bloom keeps their faces readable.
+    this.orb.setTint(this.skin.upright ? 0xd8d8d8 : 0xffffff);
+    this.halo.setTint(this.skin.glow);
+    this.ring.setTint(this.skin.glow);
+    this.sparks.setParticleTint([0xffffff, this.skin.glow]);
+  }
+
   setParty(on: boolean) {
     this.party.setVisible(on);
     if (on) {
@@ -100,10 +115,13 @@ export class PlayerView {
 
   update(time: number, dt: number, heading: number, speedNorm: number, radius: number) {
     this.squash += (1 - this.squash) * Math.min(1, dt * 16);
-    this.body.setRotation(heading).setScale(2 - this.squash, this.squash);
+    // Faces and hats stay upright; plain balls turn with the direction.
+    this.body.setRotation(this.skin.upright ? 0 : heading).setScale(2 - this.squash, this.squash);
 
     const pulse = 0.5 + 0.5 * Math.sin(time * 5);
-    this.halo.setAlpha(0.6 + pulse * 0.2 + speedNorm * 0.15);
+    // Faces need a softer halo, or the glow washes out their features.
+    const haloBase = this.skin.upright ? 0.28 : 0.6;
+    this.halo.setAlpha(haloBase + pulse * 0.2 + speedNorm * 0.15);
 
     // Rotating a squashed image turns a circle into a tumbling orbit.
     const ringR = radius * 2.2 * (1 + 0.04 * Math.sin(time * 3));
@@ -126,9 +144,10 @@ export class PlayerView {
     }
 
     // Easter egg: a trail that cycles through the rainbow.
-    if (save.rainbow) this.trail.setParticleTint(hueColor(time * 240));
-    else if (this.wasRainbow) this.trail.setParticleTint(palette.cyan);
-    this.wasRainbow = save.rainbow;
+    const trail = this.skin.trail;
+    if (save.rainbow || trail === 'rainbow') this.trail.setParticleTint(hueColor(time * 240));
+    else if (Array.isArray(trail)) this.trail.setParticleTint(trail[Math.floor(time * 8) % trail.length]);
+    else this.trail.setParticleTint(trail);
   }
 
   setEmitting(on: boolean) {

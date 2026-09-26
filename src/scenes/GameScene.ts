@@ -92,6 +92,7 @@ export class GameScene extends Phaser.Scene {
       [EV.menu, this.onMenu],
       [EV.tap, this.onTap],
       [EV.fxChanged, this.applyFxSetting],
+      [EV.skin, () => this.playerView.setSkin(save.skin)],
     ];
     listeners.forEach(([ev, fn]) => this.game.events.on(ev, fn, this));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -107,7 +108,7 @@ export class GameScene extends Phaser.Scene {
     // Bloom makes bright pixels bleed light into their surroundings. This is
     // what turns flat coloured lines into glowing neon.
     this.bloom = Phaser.Actions.AddEffectBloom(cam, {
-      threshold: 0.45,
+      threshold: 0.56,
       blurRadius: 1.8,
       blurSteps: 4,
       blurQuality: 1,
@@ -164,6 +165,7 @@ export class GameScene extends Phaser.Scene {
     this.nearHazardFlags = new WeakSet();
 
     this.playerView.reset();
+    this.playerView.setSkin(save.skin);
     this.playerView.setPosition(0, 0);
     this.playerView.setEmitting(false);
 
@@ -281,6 +283,7 @@ export class GameScene extends Phaser.Scene {
       goal: this.goalMeters(),
       level: this.course.level?.id ?? null,
       warped: this.course.warped,
+      ducks: this.ducks,
       best: save.best,
       isNewBest,
       cause,
@@ -305,7 +308,11 @@ export class GameScene extends Phaser.Scene {
     const stars = 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.9 ? 1 : 0);
     const previousStars = save.starsFor(level.id);
     save.recordStars(level.id, stars);
-    if (this.course.warped) save.recordWarp(level.id);
+    if (this.course.warped) {
+      save.recordWarp(level.id);
+      // Ducks only become currency when you make it to the finish.
+      save.addDucks(this.ducks);
+    }
 
     const { x, y } = this.player;
     const color = this.course.accentAt(this.distance);

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createTextures } from '../fx/textures';
+import { createSkinTextures } from '../fx/skinTextures';
 
 // First scene to run. It prepares shared resources, then starts the scenes
 // that make up the game. Scenes are stacked like transparent layers: Game
@@ -11,6 +12,7 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     createTextures(this);
+    createSkinTextures(this);
     this.scene.launch('Game');
     this.scene.launch('UI');
     this.scene.stop();

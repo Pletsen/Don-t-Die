@@ -31,6 +31,8 @@ export const EV = {
   combo: 'dd-combo',
   /** Game -> UI: the warp star was hit. */
   warp: 'dd-warp',
+  /** UI -> Game: a different skin was equipped. */
+  skin: 'dd-skin',
   fxChanged: 'dd-fx-changed',
 } as const;
 
@@ -49,6 +51,8 @@ export interface HudData {
 export interface DeathData extends HudData {
   level: number | null;
   warped: boolean;
+  /** Ducks bonked this run. They only count if you finish, so these are lost. */
+  ducks: number;
   best: number;
   isNewBest: boolean;
   cause: 'wall' | 'saw' | 'bomb';

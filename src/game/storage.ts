@@ -9,6 +9,10 @@ const KEYS = {
   stars: 'dontdie_level_stars',
   rainbow: 'dontdie_rainbow',
   warps: 'dontdie_warps',
+  ducks: 'dontdie_ducks',
+  skins: 'dontdie_skins',
+  skin: 'dontdie_skin',
+  freeSpin: 'dontdie_free_spin_used',
 };
 
 function read(key: string): string | null {
@@ -44,6 +48,31 @@ export const save = {
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
   muted: read(KEYS.muted) === '1',
   rainbow: read(KEYS.rainbow) === '1',
+  /** Rubber ducks banked from cleared bonus universes: the skin currency. */
+  ducks: parseInt(read(KEYS.ducks) ?? '0', 10) || 0,
+  addDucks(n: number) {
+    this.ducks = Math.max(0, this.ducks + n);
+    write(KEYS.ducks, String(this.ducks));
+  },
+  /** Skins owned (ids). 'classic' is always owned. */
+  skins: new Set<string>(['classic', ...(read(KEYS.skins) ?? '').split(',').filter(Boolean)]),
+  addSkin(id: string) {
+    this.skins.add(id);
+    write(KEYS.skins, [...this.skins].join(','));
+  },
+  /** The equipped skin. */
+  skin: read(KEYS.skin) ?? 'classic',
+  setSkin(id: string) {
+    this.skin = id;
+    write(KEYS.skin, id);
+  },
+  /** Everyone gets one free spin, so the machine can be tried right away. */
+  freeSpin: read(KEYS.freeSpin) !== '1',
+  useFreeSpin() {
+    this.freeSpin = false;
+    write(KEYS.freeSpin, '1');
+  },
+
   /** Level ids where the warp star has been hit. */
   warps: new Set<number>((read(KEYS.warps) ?? '').split(',').filter(Boolean).map(Number)),
   recordWarp(levelId: number) {
