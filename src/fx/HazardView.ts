@@ -11,6 +11,7 @@ export class HazardView {
   private warn: Phaser.GameObjects.Image;
   private fuse?: Phaser.GameObjects.Image;
   private color: number;
+  private frozen = false;
 
   constructor(
     private scene: Phaser.Scene,
@@ -61,7 +62,9 @@ export class HazardView {
     const k = (time * 1.2 + h.movePhase) % 1;
     this.warn.setScale((r * (1.4 + k * 1.1)) / 116).setAlpha((1 - k) * 0.5);
 
-    if (h.kind === 'duck') {
+    if (this.frozen) {
+      // Frozen solid: no spinning, no pulsing.
+    } else if (h.kind === 'duck') {
       // Bob on invisible water.
       this.body.setY(Math.sin(time * 4 + h.movePhase) * 2).setRotation(Math.sin(time * 3 + h.movePhase) * 0.15);
     } else if (h.kind === 'saw') {
@@ -78,6 +81,14 @@ export class HazardView {
           .setAlpha(0.7 + 0.3 * Math.random());
       }
     }
+  }
+
+  setFrozen(on: boolean) {
+    if (on === this.frozen) return;
+    this.frozen = on;
+    if (on) this.body.setTint(0xbfefff);
+    else this.body.clearTint();
+    this.halo.setTint(on ? 0x9fe8ff : this.color);
   }
 
   /** Duck got bonked: it spins off into space and is gone. */

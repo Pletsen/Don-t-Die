@@ -7,7 +7,8 @@ import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
-import { SKINS } from '../game/skins';
+import { SKINS, skinById, skinTexture, RARITIES } from '../game/skins';
+import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 
@@ -23,6 +24,10 @@ type Mode = 'menu' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
  * The camera is zoomed by the device pixel ratio with its origin at the
  * top-left, so every position here is in plain CSS pixels.
  */
+function setIfChanged(t: Phaser.GameObjects.Text, s: string) {
+  if (t.text !== s) t.setText(s);
+}
+
 export class UIScene extends Phaser.Scene {
   private mode: Mode = 'menu';
   /** The level being played, or null for survival. */
@@ -100,6 +105,7 @@ export class UIScene extends Phaser.Scene {
       levels: () => this.showSelect(),
     });
     this.buildToggles();
+    this.buildAbilityPill();
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
@@ -125,12 +131,13 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on(EV.died, this.onDied, this);
     this.game.events.on(EV.cleared, this.onCleared, this);
     this.game.events.on(EV.combo, this.onCombo, this);
+    this.game.events.on(EV.ability, this.onAbility, this);
     this.game.events.on(EV.warp, () => {
       this.toast('WELCOME TO UNIVERSE 2', 2600);
       this.glitchUntil = this.time.now + 400;
     });
     this.scale.on('resize', (size: Phaser.Structs.Size) => {
-      cam.setSize(size.width, size.height);
+      cam.setSize(size.width, size.height).setZoom(display.dpr);
       this.layout();
     });
   }
@@ -232,6 +239,56 @@ export class UIScene extends Phaser.Scene {
     this.hud.setVisible(false);
   }
 
+  // --- Ability pill (bottom of the HUD) ---------------------------------------
+
+  private abilityPill!: Phaser.GameObjects.Container;
+  private abilityBg!: Phaser.GameObjects.Graphics;
+  private abilityIcon!: Phaser.GameObjects.Image;
+  private abilityName!: Phaser.GameObjects.Text;
+  private abilityStatus!: Phaser.GameObjects.Text;
+  private abilityState = { state: 'ready', frac: 0 };
+  private lastAbilityDraw = 0;
+
+  private buildAbilityPill() {
+    this.abilityBg = this.add.graphics();
+    this.abilityIcon = this.add.image(-96, 0, skinTexture('classic')).setScale(0.3);
+    this.abilityName = this.text(-76, -8, '', { size: 13, spacing: 1.2 }).setOrigin(0, 0.5);
+    this.abilityStatus = this.text(-76, 9, '', { font: 'mono', size: 9, color: css.inkDim, spacing: 1 }).setOrigin(0, 0.5);
+    this.abilityPill = this.add.container(0, 0, [this.abilityBg, this.abilityIcon, this.abilityName, this.abilityStatus]);
+    this.hud.add(this.abilityPill);
+  }
+
+  private onAbility(a: { state: string; frac: number }) {
+    const changed = a.state !== this.abilityState.state;
+    this.abilityState = a;
+    if (!changed && this.time.now - this.lastAbilityDraw < 80) return;
+    this.lastAbilityDraw = this.time.now;
+    this.drawAbilityPill();
+  }
+
+  private drawAbilityPill() {
+    const skin = skinById(save.skin);
+    const def = abilityFor(skin.id);
+    const { state, frac } = this.abilityState;
+    const w = 230;
+    const h = 44;
+    const color = skin.glow;
+    const g = this.abilityBg.clear();
+    g.fillStyle(0x0a0e14, 0.72).fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    g.lineStyle(1.5, state === 'used' || state === 'recharging' ? 0x2a3644 : color, state === 'active' ? 1 : 0.7);
+    g.strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    if (state === 'active') {
+      g.fillStyle(color, 0.28).fillRoundedRect(-w / 2 + 3, -h / 2 + 3, Math.max(h - 6, (w - 6) * frac), h - 6, (h - 6) / 2);
+    }
+    this.abilityIcon.setTexture(skinTexture(skin.id)).setAlpha(state === 'used' ? 0.4 : 1);
+    setIfChanged(this.abilityName, def.name);
+    this.abilityName.setColor(state === 'used' || state === 'recharging' ? css.inkDim : css.ink);
+    const status =
+      state === 'ready' ? 'TAP 4× FAST TO ACTIVATE' : state === 'active' ? `${Math.ceil(frac * 10)} SEC` : state === 'used' ? 'USED THIS LEVEL' : 'RECHARGING';
+    setIfChanged(this.abilityStatus, status);
+    this.abilityStatus.setColor(state === 'ready' ? hexColor(RARITIES[skin.rarity].color) : css.inkDim);
+  }
+
   private buildToggles() {
     this.soundBtn = this.iconButton('SND', () => {
       save.setMuted(!save.muted);
@@ -328,6 +385,7 @@ export class UIScene extends Phaser.Scene {
     this.soundBtn.setPosition(w / 2 - 22, top + 18);
     this.fxBtn.setPosition(w / 2 + 22, top + 18);
     this.comboText.setPosition(w / 2, top + 72);
+    this.abilityPill?.setPosition(w / 2, h - 40);
 
     const titleSize = Phaser.Math.Clamp(w * 0.14, 44, 96);
     this.titleLayers.forEach((t) => t.setFontSize(titleSize));
@@ -448,6 +506,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onStarted(d: HudData) {
+    this.abilityState = { state: 'ready', frac: 0 };
+    this.drawAbilityPill();
     this.mode = 'play';
     this.hud.setVisible(true).setAlpha(0);
     this.fadeIn(this.hud);
@@ -461,15 +521,25 @@ export class UIScene extends Phaser.Scene {
       this.rightLabel.setText('BEST');
       this.rightValue.setText(`${save.best.toFixed(1)} M`).setShadow(0, 0, css.cyan, 16, false, true);
     }
-    this.onHud(d);
+    this.onHud(d, true);
   }
 
   private lastHud: HudData = { meters: 0, seconds: 0, goal: null };
 
-  private onHud(d: HudData) {
+  private lastHudDraw = 0;
+
+  /**
+   * Redrawing glowing text is expensive (it's re-rendered and re-uploaded to
+   * the GPU), so the HUD updates about 12 times a second instead of every
+   * frame, and only when the text actually changed.
+   */
+  private onHud(d: HudData, force = false) {
     this.lastHud = d;
-    this.distValue.setText(`${d.meters.toFixed(1)} M`);
-    this.subValue.setText(d.goal === null ? `${d.seconds.toFixed(2)} SEC` : `GOAL ${d.goal.toFixed(0)} M`);
+    const now = this.time.now;
+    if (!force && now - this.lastHudDraw < 80) return;
+    this.lastHudDraw = now;
+    setIfChanged(this.distValue, `${d.meters.toFixed(1)} M`);
+    setIfChanged(this.subValue, d.goal === null ? `${d.seconds.toFixed(2)} SEC` : `GOAL ${d.goal.toFixed(0)} M`);
     this.drawProgress(d);
   }
 
@@ -500,7 +570,7 @@ export class UIScene extends Phaser.Scene {
   private onDied(d: DeathData) {
     this.mode = 'dead';
     this.tapsFrom = this.time.now + 450;
-    this.onHud(d);
+    this.onHud(d, true);
 
     const causes = { wall: 'HIT THE WALL', saw: 'SLICED', bomb: 'BLOWN UP' };
     this.causeText.setText(d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]);
@@ -513,7 +583,7 @@ export class UIScene extends Phaser.Scene {
       this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M  ·  ${pct}%`);
       this.bestText.setText(`LEVEL ${d.level} · ${WORLDS[level.world].name}`).setColor(hexColor(WORLDS[level.world].color));
       this.flavorText.setText(
-        d.warped && d.ducks > 0 ? `${d.ducks} DUCKS LOST. FINISH TO KEEP THEM.` : d.goal - d.meters < 30 ? 'SO CLOSE.' : '',
+        d.ducks > 0 ? `${d.ducks} DUCKS LOST. FINISH TO KEEP THEM.` : d.goal - d.meters < 30 ? 'SO CLOSE.' : '',
       );
     } else {
       this.rightValue.setText(`${d.best.toFixed(1)} M`);
@@ -521,7 +591,7 @@ export class UIScene extends Phaser.Scene {
       this.bestText.setText(d.isNewBest ? 'NEW BEST' : `BEST ${d.best.toFixed(1)} M`);
       this.bestText.setColor(d.isNewBest ? css.orange : css.inkDim);
       if (d.isNewBest) this.bestText.setShadow(0, 0, css.orange, 14, false, true);
-      this.flavorText.setText(this.flavorLine(d));
+      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS BANKED` : this.flavorLine(d));
     }
 
     this.over.setVisible(true).setAlpha(0);
@@ -548,7 +618,7 @@ export class UIScene extends Phaser.Scene {
   private onCleared(d: ClearData) {
     this.mode = 'clear';
     this.tapsFrom = this.time.now + 1200;
-    this.onHud(d);
+    this.onHud(d, true);
     this.fadeOut(this.hud);
     this.fadeIn(this.scrim);
     this.clearScreen.show(d);

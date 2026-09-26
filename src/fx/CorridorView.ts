@@ -220,8 +220,8 @@ export class CorridorView {
         const baseX = (d.x !== 0 ? ox : s.start.x) + px * off * side;
         const baseY = (d.y !== 0 ? oy : s.start.y) + py * off * side;
         const head = (time * 300 + s.id * 131 + (side > 0 ? wallLen / 2 : 0)) % (wallLen + 90);
-        const PIECES = 9;
-        const PIECE = 10;
+        const PIECES = 6;
+        const PIECE = 14;
         for (let k = 0; k < PIECES; k++) {
           const a = head - k * PIECE;
           const b = a - PIECE;
@@ -232,9 +232,11 @@ export class CorridorView {
           const y2 = baseY + d.y * b;
           if (inOther((x1 + x2) / 2, (y1 + y2) / 2, s)) continue;
           const fade = 1 - k / PIECES;
-          // Soft halo under a bright core, so the pulse reads as light in the tube.
-          g.lineStyle(9, bright, 0.18 * fade);
-          g.lineBetween(x1, y1, x2, y2);
+          // Soft halo on the head only, so the pulse reads as light in the tube.
+          if (k === 0) {
+            g.lineStyle(10, bright, 0.2);
+            g.lineBetween(x1, y1, x2, y2);
+          }
           g.lineStyle(k === 0 ? 4 : 3, k < 2 ? 0xffffff : bright, fade);
           g.lineBetween(x1, y1, x2, y2);
         }

@@ -244,6 +244,48 @@ class SfxEngine {
     }
   }
 
+  // --- Skin abilities -----------------------------------------------------
+
+  /** Ability on: a rising power-up, bigger for rarer skins. */
+  ability(rarity: 'common' | 'rare' | 'epic' | 'legendary') {
+    const top = { common: 2, rare: 3, epic: 4, legendary: 6 }[rarity];
+    this.tone({ freq: 110, glideTo: 440 * top, duration: 0.45, type: 'sawtooth', gain: 0.06 });
+    this.thump(80, 0.35, 0.3);
+    this.stab([220, 330, 440], 0.6, 0.1, 3500, 0.2);
+    if (rarity === 'epic' || rarity === 'legendary') this.burst({ filterType: 'highpass', filterFreq: 2500, duration: 0.8, gain: 0.08 });
+  }
+
+  /** Ability off: a falling sweep. */
+  powerDown() {
+    this.tone({ freq: 660, glideTo: 110, duration: 0.5, type: 'triangle', gain: 0.1 });
+  }
+
+  /** A hazard destroyed by an ability. */
+  smash() {
+    this.thump(120, 0.3, 0.14);
+    this.burst({ filterType: 'bandpass', filterFreq: 1400, duration: 0.18, gain: 0.18 });
+  }
+
+  laser() {
+    this.tone({ freq: 1800, glideTo: 300, duration: 0.14, type: 'square', gain: 0.05 });
+  }
+
+  pop() {
+    this.tone({ freq: 500, glideTo: 1400, duration: 0.07, type: 'sine', gain: 0.25 });
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 0.08, gain: 0.12 });
+  }
+
+  boing() {
+    this.tone({ freq: 160, glideTo: 480, duration: 0.2, type: 'sine', gain: 0.18 });
+  }
+
+  /** An extra life saved you. */
+  revive() {
+    [0, 7, 12, 19].forEach((st, i) =>
+      this.tone({ freq: 392 * Math.pow(2, st / 12), duration: 0.2, type: 'triangle', gain: 0.12, delay: i * 0.05 }),
+    );
+  }
+
   // --- Slot machine -------------------------------------------------------
 
   leverPull() {

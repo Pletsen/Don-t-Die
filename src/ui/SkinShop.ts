@@ -5,6 +5,8 @@ import { DUPLICATE_REFUND, RARITIES, SKINS, SPIN_COST, rollSkin, skinTexture, ty
 import { sfx } from '../audio/Sfx';
 import { TEX } from '../fx/textures';
 import { hexColor, makeButton, makeText, type Button } from './widgets';
+import { abilityFor } from '../game/abilities';
+import { skinById } from '../game/skins';
 
 const REEL_SLOTS = 8;
 const SLOT_H = 56;
@@ -45,6 +47,7 @@ export class SkinShop {
   private odds: Phaser.GameObjects.Text;
 
   private collectionLabel: Phaser.GameObjects.Text;
+  private abilityInfo: Phaser.GameObjects.Text;
   private tiles: { skin: Skin; root: Phaser.GameObjects.Container; bg: Phaser.GameObjects.Graphics; img: Phaser.GameObjects.Image; q: Phaser.GameObjects.Text }[] = [];
 
   private reveal: Phaser.GameObjects.Container;
@@ -109,6 +112,8 @@ export class SkinShop {
 
     // --- Collection -------------------------------------------------------
     this.collectionLabel = makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: css.inkDim, spacing: 2 });
+    this.abilityInfo = makeText(scene, 0, 0, '', { size: 13, color: css.ink, spacing: 0.5 }).setOrigin(0.5, 0);
+    this.abilityInfo.setAlign('center').setLineSpacing(4);
     for (const skin of SKINS) {
       const bg = scene.add.graphics();
       const img = scene.add.image(0, 0, skinTexture(skin.id));
@@ -143,6 +148,7 @@ export class SkinShop {
       this.odds,
       this.collectionLabel,
       ...this.tiles.map((t) => t.root),
+      this.abilityInfo,
       this.reveal,
     ]);
     this.root.setVisible(false);
@@ -195,6 +201,8 @@ export class SkinShop {
       (t.root.list[3] as Phaser.GameObjects.Zone).setSize(s, s);
     });
     y += Math.ceil(this.tiles.length / COLS) * (s + 8);
+    this.abilityInfo.setPosition(0, y + 6).setWordWrapWidth(width);
+    y += 76;
 
     const avail = h - top - 12;
     const scale = Math.min(1, avail / y);
@@ -256,6 +264,9 @@ export class SkinShop {
     this.balanceIcon.setPosition(this.balance.x - this.balance.width - 16, this.balance.y);
     this.pull.setLabel(`PULL  ·  ${SPIN_COST} DUCKS`);
     const owned = SKINS.filter((s) => save.skins.has(s.id)).length;
+    const worn = skinById(save.skin);
+    const ab = abilityFor(worn.id);
+    this.abilityInfo.setText(`${worn.name}  ·  ${ab.name}\n${ab.desc}\nTAP 4× FAST ON A STRAIGHT TO USE IT`);
     this.collectionLabel.setText(`COLLECTION  ${owned} / ${SKINS.length}`);
 
     const s = this.tileSize;
@@ -351,7 +362,11 @@ export class SkinShop {
     this.revealRarity.setText(rarity.label).setColor(rarity.css).setShadow(0, 0, rarity.css, 16, false, true);
     this.revealName.setText(skin.name).setShadow(0, 0, rarity.css, 20, false, true);
     this.revealNote
-      .setText(isNew ? 'NEW SKIN!' : `ALREADY OWNED  ·  +${DUPLICATE_REFUND} DUCKS BACK`)
+      .setText(
+        isNew
+          ? `NEW SKIN!  ·  ABILITY: ${abilityFor(skin.id).name}`
+          : `ALREADY OWNED  ·  +${DUPLICATE_REFUND} DUCKS BACK`,
+      )
       .setColor(isNew ? '#ffd21f' : css.inkDim);
     this.revealEquip.setVisible(save.skin !== skin.id);
     this.revealOk.setPosition(save.skin !== skin.id ? 80 : 0, 150);

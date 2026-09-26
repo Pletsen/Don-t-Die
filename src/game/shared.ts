@@ -31,6 +31,8 @@ export const EV = {
   combo: 'dd-combo',
   /** Game -> UI: the warp star was hit. */
   warp: 'dd-warp',
+  /** Game -> UI: ability state changed ({ state, frac }). */
+  ability: 'dd-ability',
   /** UI -> Game: a different skin was equipped. */
   skin: 'dd-skin',
   fxChanged: 'dd-fx-changed',

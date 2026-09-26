@@ -40,11 +40,12 @@ export class Backdrop {
       .setDepth(-100);
   }
 
-  /** Cover the camera's view (with margin, so camera tilt never shows edges). */
+  /** Cover the camera's view, with a hair of margin for the zoom punch. */
   update(cam: Phaser.Cameras.Scene2D.Camera, centerX: number, centerY: number) {
     this.view = { w: cam.width / cam.zoom, h: cam.height / cam.zoom };
-    const w = Math.ceil(this.view.w * 1.3);
-    const h = Math.ceil(this.view.h * 1.3);
+    // Only a small margin: every extra pixel here runs the whole shader.
+    const w = Math.ceil(this.view.w * 1.04);
+    const h = Math.ceil(this.view.h * 1.04);
     if (w !== this.size.w || h !== this.size.h) {
       this.size = { w, h };
       this.shader.setSize(w, h);

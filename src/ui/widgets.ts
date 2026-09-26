@@ -23,7 +23,8 @@ export function makeText(scene: Phaser.Scene, x: number, y: number, str: string,
     fontStyle: o.weight ?? (o.font === 'mono' ? '500' : '700'),
     fontSize: `${o.size}px`,
     color: o.color ?? css.ink,
-    resolution: display.dpr * 1.5,
+    // Exactly the screen's pixel density: sharp, without wasting memory.
+    resolution: display.dpr,
     // Room for the glow, otherwise it gets clipped into a visible box.
     padding: o.glow ? { x: GLOW_PAD, y: GLOW_PAD } : undefined,
   });

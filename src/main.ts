@@ -60,9 +60,10 @@ async function start() {
   (window as unknown as { game: Phaser.Game }).game = game;
 
   window.addEventListener('resize', () => {
+    // Read the ratio each time: the game may have lowered it for speed.
     const { w, h } = viewportSize();
-    game.scale.resize(Math.round(w * dpr), Math.round(h * dpr));
-    game.scale.setZoom(1 / dpr);
+    game.scale.resize(Math.round(w * display.dpr), Math.round(h * display.dpr));
+    game.scale.setZoom(1 / display.dpr);
   });
 }
 

@@ -33,6 +33,9 @@ export class WarpStarView {
   }
 
   update(time: number) {
+    // The star can be pulled towards you (magnet abilities).
+    this.root.setPosition(this.data.x, this.data.y);
+    this.sparkles.setPosition(this.data.x, this.data.y);
     const tw = 0.5 + 0.5 * Math.sin(time * 9);
     const color = hueColor(time * 200);
     this.star.setRotation(time * 2).setScale(0.24 + tw * 0.06);

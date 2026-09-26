@@ -17,6 +17,12 @@ export class PlayerView {
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private squash = 1;
   private skin: Skin = skinById('classic');
+  private aura: Phaser.GameObjects.Image;
+  private bubble: Phaser.GameObjects.Container;
+  private auraColor: number | null = null;
+  /** Extra rotation from the 4-tap spin, on top of the heading. */
+  private spin = 0;
+  private sizeMult = 1;
   private orb!: Phaser.GameObjects.Image;
   // Bonus-universe costume: googly eyes and a party hat.
   private party: Phaser.GameObjects.Container;
@@ -77,7 +83,16 @@ export class PlayerView {
     hat.fillStyle(0x2be8ff, 1).fillCircle(0, -30, 3.2);
     this.party = scene.add.container(0, 0, [hat, eyes, this.pupils]).setVisible(false);
 
-    this.root = scene.add.container(0, 0, [this.halo, this.ring, this.body, this.party]).setDepth(6);
+    // Ability look: a spinning aura ring and (for shields) a bubble.
+    this.aura = scene.add.image(0, 0, TEX.ring).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
+    this.bubble = scene.add.container(0, 0, [
+      scene.add.image(0, 0, TEX.glow).setBlendMode(Phaser.BlendModes.ADD).setScale(0.55).setAlpha(0.25).setTint(0xff9ad5),
+      scene.add.image(0, 0, TEX.ring).setScale((radius * 2.2) / 116).setAlpha(0.8).setTint(0xffc6e3),
+    ]).setVisible(false);
+
+    this.root = scene.add
+      .container(0, 0, [this.aura, this.halo, this.ring, this.body, this.party, this.bubble])
+      .setDepth(6);
     this.trail.startFollow(this.root);
     this.sparks.startFollow(this.root);
   }
@@ -105,6 +120,42 @@ export class PlayerView {
     this.sparks.setParticleTint([0xffffff, this.skin.glow]);
   }
 
+  /** One tap of the 4-tap trick: a quarter spin. */
+  spinTick() {
+    this.squash = 0.8;
+    this.root.scene.tweens.add({ targets: this, spin: this.spin + Math.PI / 2, duration: 70 });
+  }
+
+  /** The trick didn't complete: drop the extra spin (the real turns take over). */
+  resetSpin() {
+    this.root.scene.tweens.killTweensOf(this);
+    this.spin = 0;
+  }
+
+  /** Show an ability's look, or clear it with `null`. */
+  setAbilityLook(color: number | null, opts: { bubble?: boolean; size?: number } = {}) {
+    this.auraColor = color;
+    this.aura.setVisible(color !== null);
+    this.setBubble(!!opts.bubble);
+    this.root.scene.tweens.add({ targets: this, sizeMult: opts.size ?? 1, duration: 250, ease: 'Back.easeOut' });
+  }
+
+  setBubble(on: boolean) {
+    if (on === this.bubble.visible) return;
+    if (on) {
+      this.bubble.setVisible(true).setAlpha(1);
+    } else {
+      // Pop!
+      this.root.scene.tweens.add({
+        targets: this.bubble,
+        alpha: 0,
+        scale: 1.8,
+        duration: 180,
+        onComplete: () => this.bubble.setVisible(false).setScale(1),
+      });
+    }
+  }
+
   setParty(on: boolean) {
     this.party.setVisible(on);
     if (on) {
@@ -116,7 +167,13 @@ export class PlayerView {
   update(time: number, dt: number, heading: number, speedNorm: number, radius: number) {
     this.squash += (1 - this.squash) * Math.min(1, dt * 16);
     // Faces and hats stay upright; plain balls turn with the direction.
-    this.body.setRotation(this.skin.upright ? 0 : heading).setScale(2 - this.squash, this.squash);
+    this.body.setRotation((this.skin.upright ? 0 : heading) + this.spin).setScale(2 - this.squash, this.squash);
+    this.root.setScale(this.sizeMult);
+    if (this.auraColor !== null) {
+      const k = 0.5 + 0.5 * Math.sin(time * 10);
+      this.aura.setTint(this.auraColor).setRotation(time * 4).setScale((radius * (2.6 + k * 0.5)) / 116).setAlpha(0.5 + k * 0.4);
+    }
+    if (this.bubble.visible) this.bubble.setScale(1 + Math.sin(time * 6) * 0.05);
 
     const pulse = 0.5 + 0.5 * Math.sin(time * 5);
     // Faces need a softer halo, or the glow washes out their features.
@@ -166,6 +223,11 @@ export class PlayerView {
 
   reset() {
     this.party.setVisible(false);
+    this.resetSpin();
+    this.auraColor = null;
+    this.aura.setVisible(false);
+    this.bubble.setVisible(false);
+    this.sizeMult = 1;
     this.root.setAlpha(1).setScale(1).setVisible(true);
     this.squash = 1;
     this.trail.killAll();

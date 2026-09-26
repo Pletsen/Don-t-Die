@@ -78,6 +78,7 @@ export class ClearScreen {
     this.next.setLabel(last ? 'LEVELS' : 'NEXT LEVEL');
 
     if (d.warped) this.hint.setText(`WARP STAR FOUND  ·  +${d.ducks} DUCKS BANKED`).setColor(css.orange);
+    else if (d.ducks > 0) this.hint.setText(`+${d.ducks} DUCKS BANKED`).setColor(css.orange);
     else if (d.stars < 2) this.hint.setText('2 STARS: HALF YOUR TURNS PERFECT').setColor(css.inkDim);
     else if (d.stars < 3) this.hint.setText('3 STARS: 90% OF TURNS PERFECT').setColor(css.inkDim);
     else this.hint.setText(d.previousStars < 3 ? 'FLAWLESS' : '').setColor(css.orange);

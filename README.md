@@ -41,6 +41,21 @@ Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på le
 
 Skins er data i `src/game/skins.ts` (navn, sjældenhed, glød og spor), og hvert skin tegnes i `src/fx/skinTextures.ts`. Et nyt skin kræver én linje i listen og én tegnefunktion.
 
+### Skin-evner
+
+Hvert skin har en særlig evne. **Tryk 4 gange hurtigt på en lige strækning**, så laver kuglen en 360° og fortsætter lige ud, og evnen kører i 10 sekunder. Den kan bruges én gang pr. level (i SURVIVAL lades den op igen hver 500 m). Pillen nederst på skærmen viser, om evnen er klar.
+
+Jo sjældnere skin, jo stærkere evne:
+
+- **Common:** FOCUS (slowmotion), COOL HEAD (alle sving PERFECT), BUBBLE (boble tager ét slag), SQUEEZE (halv størrelse), GRAPEVINE (magnet til ænder og warp-stjernen), ZEST RUSH (fart), DEEP FREEZE (forhindringer fryser), SO SHY (forhindringer glider væk), ORBIT (automatiske sving ved væggen), COUCH POTATO (spillet spiller sig selv, langsomt)
+- **Rare:** NINE LIVES (overlev ét styrt), TONGUE (stor magnet og hop over forhindringer), BAMBOO BITE (æd forhindringer), BOUNCY (hop af væggene), SUGAR RUSH (fart og alt PERFECT), KICKOFF (sparket af sted, væggene er bander), THIRD EYE (slowmotion og alt PERFECT)
+- **Epic:** MELTDOWN, HYPERDRIVE (autopilot med dobbelt fart og dobbelte ænder), TARGET LOCK (lasere), PIZZA PARTY (forhindringer bliver til ænder)
+- **Legendary:** ROYAL DECREE, EVENT HORIZON (et sort hul, der sluger alt), QUACK ARMY
+
+Evnerne er opskrifter af små byggeklodser (fart, slowmotion, magnet, skjold, autopilot …) i `src/game/abilities.ts`. En ny evne er en ny opskrift; selve klodserne ligger i `GameScene.runAbility`.
+
+Ænder, du samler med evnerne, tæller også uden for Universe 2.
+
 ### I baggrunden
 
 Langt ude i rummet sker der ting: stjerneskud (en sjælden gang en hel regn af dem), en planet med ringe, en UFO der stopper op og lyser med sin traktorstråle, en astronaut der tumler forbi og siger hej, og en sjælden gang en neon-hval. Alt det styres af `src/fx/BackgroundEvents.ts`.
@@ -103,6 +118,7 @@ src/
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
 │   ├── skins.ts          ⭐ Alle 24 skins og chancerne for hver sjældenhed
+│   ├── abilities.ts      ⭐ Hvert skins særlige evne
 │   ├── tuning.ts         ⭐ Tallene for SURVIVAL
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord og indstillinger (gemmes i browseren)

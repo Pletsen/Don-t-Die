@@ -16,6 +16,8 @@ import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
+import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
+import { skinById } from '../game/skins';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
 
@@ -70,6 +72,23 @@ export class GameScene extends Phaser.Scene {
   private starSparkled = false;
   private ducks = 0;
 
+  // Skin ability state.
+  private ability: {
+    def: AbilityDef;
+    until: number;
+    shield: number;
+    revive: number;
+    graceUntil: number;
+    nextLaser: number;
+    nextImplode: number;
+  } | null = null;
+  private abilityCharges = 1;
+  private rechargeAtM = Infinity;
+  private spinTaps = 0;
+  private lastSpinTap = 0;
+  /** Drives moving hazards; stops while they're frozen. */
+  private hazardClock = 0;
+
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
   private grade?: Phaser.Filters.ColorMatrix;
 
@@ -110,8 +129,8 @@ export class GameScene extends Phaser.Scene {
     this.bloom = Phaser.Actions.AddEffectBloom(cam, {
       threshold: 0.56,
       blurRadius: 1.8,
-      blurSteps: 4,
-      blurQuality: 1,
+      blurSteps: 3,
+      blurQuality: 0,
       blendAmount: 1.1,
     })[0];
 
@@ -145,6 +164,11 @@ export class GameScene extends Phaser.Scene {
     this.starSparkled = false;
     this.ducks = 0;
     this.setUniverse(false);
+    this.ability = null;
+    this.abilityCharges = 1;
+    this.rechargeAtM = Infinity;
+    this.spinTaps = 0;
+    this.hazardClock = 0;
 
     this.state = 'ready';
     this.course = course;
@@ -182,6 +206,7 @@ export class GameScene extends Phaser.Scene {
     this.playerView.setEmitting(true);
     this.effects.shockwave(0, 0, this.course.accentAt(0), 90, 500);
     this.game.events.emit(EV.started, { meters: 0, seconds: 0, goal: this.goalMeters() });
+    this.emitAbility();
   }
 
   private onMenu() {
@@ -189,8 +214,43 @@ export class GameScene extends Phaser.Scene {
     this.resetRun(endlessCourse());
   }
 
+  /**
+   * A tap inside a gate turns right away. A tap anywhere else starts the
+   * 4-tap trick: if four taps come quickly, the orb spins 360°, keeps going
+   * straight and fires the skin's ability. Fewer taps simply turn (a split
+   * second later, which also forgives a tap that was a touch too early).
+   */
   private onTap() {
-    if (this.state === 'play') this.turn();
+    if (this.state !== 'play') return;
+    if (this.ability?.def.autopilot) return; // hands off: the ability is driving
+    if (this.inGate() && this.spinTaps === 0) {
+      this.turn();
+      return;
+    }
+    this.spinTaps++;
+    this.lastSpinTap = this.time.now;
+    this.playerView.spinTick();
+    if (this.spinTaps >= 4) {
+      this.spinTaps = 0;
+      this.playerView.resetSpin();
+      this.tryActivateAbility();
+    }
+  }
+
+  private inGate() {
+    const next = this.track.get(this.current + 1);
+    return !!next?.gate && pointInRect(this.player.x, this.player.y, next.gate);
+  }
+
+  /** Taps that didn't become a full trick turn into normal turns. */
+  private resolveSpinTaps() {
+    if (this.spinTaps === 0) return;
+    const expired = this.time.now - this.lastSpinTap > SPIN_TAP_WINDOW;
+    if (!expired && !(this.spinTaps === 1 && this.inGate())) return;
+    const turns = this.spinTaps;
+    this.spinTaps = 0;
+    this.playerView.resetSpin();
+    for (let i = 0; i < turns; i++) this.turn();
   }
 
   private goalMeters() {
@@ -218,7 +278,8 @@ export class GameScene extends Phaser.Scene {
   private turn() {
     const next = this.track.get(this.current + 1);
     const inGate = !!next?.gate && pointInRect(this.player.x, this.player.y, next.gate);
-    const perfect = inGate && !!next?.perfect && pointInRect(this.player.x, this.player.y, next.perfect);
+    const perfect =
+      inGate && (!!this.ability?.def.perfectAll || (!!next?.perfect && pointInRect(this.player.x, this.player.y, next.perfect)));
 
     const oldHeading = Math.atan2(DIRS[this.player.dir].y, DIRS[this.player.dir].x);
     this.player.dir = ((this.player.dir + 1) % 4) as Dir;
@@ -248,6 +309,8 @@ export class GameScene extends Phaser.Scene {
 
   private die(cause: DeathData['cause'], color: number) {
     if (this.state !== 'play') return;
+    if (this.tryRevive()) return;
+    this.endAbility(true);
     this.state = 'dead';
     music.duck();
     music.setEnergy(0);
@@ -276,6 +339,8 @@ export class GameScene extends Phaser.Scene {
     const isNewBest = endless && meters > save.best;
     if (isNewBest) save.setBest(meters);
     save.addDeath();
+    // Survival never finishes, so its ducks are kept when the run ends.
+    if (endless && this.ducks > 0) save.addDucks(this.ducks);
 
     const data: DeathData = {
       meters,
@@ -308,11 +373,10 @@ export class GameScene extends Phaser.Scene {
     const stars = 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.9 ? 1 : 0);
     const previousStars = save.starsFor(level.id);
     save.recordStars(level.id, stars);
-    if (this.course.warped) {
-      save.recordWarp(level.id);
-      // Ducks only become currency when you make it to the finish.
-      save.addDucks(this.ducks);
-    }
+    if (this.course.warped) save.recordWarp(level.id);
+    // Ducks only become currency when you make it to the finish.
+    if (this.ducks > 0) save.addDucks(this.ducks);
+    this.endAbility(true);
 
     const { x, y } = this.player;
     const color = this.course.accentAt(this.distance);
@@ -347,7 +411,10 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(deltaMs / 1000, 1 / 30);
     const t = this.time.now / 1000;
 
-    if (this.state === 'play') this.step(dt);
+    if (this.state === 'play') {
+      this.step(dt);
+      this.watchPerformance();
+    }
     else if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
     if (this.state === 'clear') this.coastToStop(dt);
 
@@ -370,6 +437,7 @@ export class GameScene extends Phaser.Scene {
           view = new HazardView(this, hz);
           this.hazardViews.set(hz, view);
         }
+        view.setFrozen(!!this.ability?.def.freeze);
         view.update(t, dt);
       }
     }
@@ -388,6 +456,7 @@ export class GameScene extends Phaser.Scene {
     shared.intensity = lerp(shared.intensity, this.state === 'play' ? speedNorm : 0.15, damp(0.2, dt));
     shared.pulse = Math.max(0, shared.pulse - dt * 2.5);
 
+    if (this.state === 'play' && this.ability) this.emitAbility();
     if (this.state === 'play') {
       this.game.events.emit(EV.hud, {
         meters: this.distance * METERS_PER_PX,
@@ -408,10 +477,14 @@ export class GameScene extends Phaser.Scene {
   /** Advance the simulation by one frame while playing. */
   private step(dt: number) {
     this.elapsed += dt;
+    this.resolveSpinTaps();
+    if (this.ability && this.elapsed >= this.ability.until) this.endAbility();
+    const ab = this.ability?.def;
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
-    const sim = dt * (this.slowMo > 0 ? 0.35 : 1);
+    const sim = dt * (this.slowMo > 0 ? 0.35 : 1) * (ab?.slow ?? 1);
+    if (!ab?.freeze) this.hazardClock += sim;
 
-    const speed = this.course.speedAt(this.distance);
+    const speed = this.course.speedAt(this.distance) * (ab?.speed ?? 1);
     const d = DIRS[this.player.dir];
     this.player.x += d.x * speed * sim;
     this.player.y += d.y * speed * sim;
@@ -439,6 +512,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (ab && next && this.player.dir === cur.dir) this.autoTurn(ab, cur, next);
+
     const inCur = pointInRect(this.player.x, this.player.y, cur.rect);
     const inNext = !!next && pointInRect(this.player.x, this.player.y, next.rect);
     if (!inCur && !inNext) {
@@ -464,26 +539,43 @@ export class GameScene extends Phaser.Scene {
       haptic(5);
     }
 
+    if (this.ability) this.runAbility(sim);
+    if (this.state !== 'play') return;
+
+    const radius = this.playerRadius();
     const nearby = [...cur.hazards, ...(next?.hazards ?? [])];
     for (const hz of nearby) {
       if (!hz.alive) continue;
       if (hz.moving) {
         // Driven by run time, so moving hazards repeat exactly on every attempt.
-        const osc = Math.sin(this.elapsed * 1.6 + hz.movePhase) * hz.moveRange;
+        const osc = Math.sin(this.hazardClock * 1.6 + hz.movePhase) * hz.moveRange;
         if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
         else hz.x = hz.baseX + osc;
       }
       const dist = Math.hypot(this.player.x - hz.x, this.player.y - hz.y);
       if (hz.kind === 'duck') {
-        if (dist < hz.radius + tuning.playerRadius) this.bonkDuck(hz);
+        if (dist < hz.radius + radius) this.bonkDuck(hz);
         continue;
       }
-      if (dist < hz.radius + tuning.playerRadius) {
+      if (dist < hz.radius + radius) {
+        const a = this.ability;
+        if (a && (this.elapsed < a.graceUntil || a.def.ghost)) continue;
+        if (a && (a.def.smash || a.def.vacuum || a.def.laser)) {
+          this.smashHazard(hz);
+          continue;
+        }
+        if (a && a.shield > 0) {
+          a.shield--;
+          this.playerView.setBubble(a.shield > 0);
+          sfx.pop();
+          this.smashHazard(hz);
+          continue;
+        }
         // The hazard stays on screen: you should see what got you.
         this.die(hz.kind === 'saw' ? 'saw' : 'bomb', hz.kind === 'saw' ? palette.magenta : palette.orange);
         return;
       }
-      if (dist < hz.radius + tuning.playerRadius + 16 && !this.nearHazardFlags.has(hz)) {
+      if (dist < hz.radius + radius + 16 && !this.nearHazardFlags.has(hz)) {
         this.nearHazardFlags.add(hz);
         this.effects.floater(this.player.x, this.player.y - 20, 'CLOSE', css.magenta, 12);
         this.slowMo = Math.max(this.slowMo, 0.09);
@@ -512,7 +604,7 @@ export class GameScene extends Phaser.Scene {
       sfx.starNear();
     }
     // Deliberately tiny pickup radius: it should be hard to hit.
-    if (dist < tuning.playerRadius + 5) this.warp(star);
+    if (dist < this.playerRadius() + 5) this.warp(star);
   }
 
   /** You hit the star: off to the bonus universe for the rest of the run. */
@@ -563,11 +655,257 @@ export class GameScene extends Phaser.Scene {
     this.hazardViews.delete(hz);
     const d = DIRS[this.player.dir];
     view?.knockAway(d.x, d.y);
-    this.ducks++;
+    this.ducks += this.ability?.def.duckMult ?? 1;
     sfx.quack();
     const lines = ['QUACK', 'BONK', 'SORRY DUCK', 'QUACK QUACK', 'DUCK OFF', 'WHEEE'];
     this.effects.floater(hz.x, hz.y - 20, lines[this.ducks % lines.length], '#ffd21f', 14);
     this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 6 : 16);
+  }
+
+  // --- Skin abilities -------------------------------------------------------
+
+  private playerRadius() {
+    return tuning.playerRadius * (this.ability?.def.shrink ?? 1);
+  }
+
+  private emitAbility() {
+    const a = this.ability;
+    const state = a ? 'active' : this.abilityCharges > 0 ? 'ready' : this.course.level ? 'used' : 'recharging';
+    this.game.events.emit(EV.ability, { state, frac: a ? Math.max(0, (a.until - this.elapsed) / ABILITY_SECONDS) : 0 });
+  }
+
+  private tryActivateAbility() {
+    if (this.ability) return;
+    if (this.abilityCharges <= 0) {
+      const msg = this.course.level ? 'ONCE PER LEVEL' : 'RECHARGING';
+      this.effects.floater(this.player.x, this.player.y - 28, msg, css.inkDim, 12);
+      sfx.denied();
+      return;
+    }
+    const skin = skinById(save.skin);
+    const def = abilityFor(skin.id);
+    this.abilityCharges--;
+    if (!this.course.level) this.rechargeAtM = this.distance * METERS_PER_PX + SURVIVAL_RECHARGE_M;
+    this.ability = {
+      def,
+      until: this.elapsed + ABILITY_SECONDS,
+      shield: def.shield ?? 0,
+      revive: def.revive ?? 0,
+      graceUntil: 0,
+      nextLaser: 0,
+      nextImplode: 0,
+    };
+
+    const { x, y } = this.player;
+    this.playerView.setAbilityLook(skin.glow, { bubble: (def.shield ?? 0) > 0, size: def.shrink });
+    this.effects.shockwave(x, y, skin.glow, 200, 600);
+    this.effects.shockwave(x, y, 0xffffff, 110, 400);
+    this.effects.burst(x, y, [skin.glow, 0xffffff], save.fxReduced ? 12 : 36);
+    this.effects.floater(x, y - 36, def.name, '#ffffff', 20);
+    this.cam.punch = 0.15;
+    shared.pulse = 1;
+    sfx.ability(skin.rarity);
+    haptic([20, 30, 60]);
+    this.emitAbility();
+  }
+
+  /** Ability over (or cut short by death / finish). */
+  private endAbility(silent = false) {
+    if (!this.ability) return;
+    this.ability = null;
+    this.playerView.setAbilityLook(null);
+    this.hazardViews.forEach((v) => v.setFrozen(false));
+    if (!silent) {
+      this.effects.floater(this.player.x, this.player.y - 28, 'POWER DOWN', css.inkDim, 12);
+      sfx.powerDown();
+    }
+    this.emitAbility();
+  }
+
+  /**
+   * Autopilot makes a perfect turn in the middle of the next gate; bounce
+   * turns at the last moment before the wall instead of crashing.
+   */
+  private autoTurn(ab: AbilityDef, cur: Segment, next: Segment) {
+    const d = DIRS[cur.dir];
+    if (ab.autopilot && next.perfect && pointInRect(this.player.x, this.player.y, next.gate!)) {
+      const cx = (next.perfect.x1 + next.perfect.x2) / 2;
+      const cy = (next.perfect.y1 + next.perfect.y2) / 2;
+      const passed = [this.player.x >= cx, this.player.y >= cy, this.player.x <= cx, this.player.y <= cy][cur.dir];
+      if (passed) {
+        this.turn();
+        return;
+      }
+    }
+    if (!ab.bounce && !ab.autopilot) return;
+    const along = trackDistance(cur, this.player.x, this.player.y) - cur.travelled;
+    const limit = cur.length + cur.halfWidth - this.playerRadius() - 2;
+    if (along < limit) return;
+    // Step back to just before the wall, then bounce round the corner.
+    this.player.x -= d.x * (along - limit);
+    this.player.y -= d.y * (along - limit);
+    this.turn();
+    this.effects.shockwave(this.player.x, this.player.y, 0xffffff, 60, 250);
+    sfx.boing();
+    if (this.ability?.def.word === 'BOOT') this.effects.floater(this.player.x, this.player.y - 24, 'BANK SHOT', '#ffffff', 13);
+  }
+
+  /** Per-frame effects of the running ability. */
+  private runAbility(sim: number) {
+    const a = this.ability!;
+    const def = a.def;
+    const p = this.player;
+    const segs = this.visibleSegments();
+    const entries = segs.flatMap((seg) => seg.hazards.filter((h) => h.alive).map((h) => ({ h, seg })));
+    const hazards = entries.map((e) => e.h);
+
+    for (const { h: hz, seg } of entries) {
+      const dx = p.x - hz.x;
+      const dy = p.y - hz.y;
+      const dist = Math.hypot(dx, dy) || 1;
+
+      // Turn saws and bombs into rubber ducks.
+      if (def.ducksFromHazards && hz.kind !== 'duck') {
+        hz.kind = 'duck';
+        hz.radius = 13;
+        hz.moving = false;
+        this.hazardViews.get(hz)?.destroy();
+        this.hazardViews.delete(hz);
+        this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff], 8);
+      }
+
+      const pull = (speed: number) => {
+        const k = Math.min(dist, speed * sim) / dist;
+        hz.x += dx * k;
+        hz.y += dy * k;
+        hz.baseX = hz.x;
+        hz.baseY = hz.y;
+        hz.moving = false;
+      };
+      if (hz.kind === 'duck' && def.magnet && dist < def.magnet) pull(480);
+      if (hz.kind !== 'duck' && def.vacuum && dist < def.vacuum) {
+        pull(520);
+        if (dist < 26) this.smashHazard(hz);
+      }
+
+      // Shy hazards slide sideways, away from your line.
+      if (def.shy && hz.kind !== 'duck' && dist < 230) {
+        // Sideways = across the hazard's own segment.
+        const lateralY = seg.dir % 2 === 0;
+        const away = Math.sign(lateralY ? hz.y - p.y : hz.x - p.x) || 1;
+        const move = away * 170 * sim;
+        const lim = seg.halfWidth - hz.radius - 4;
+        if (lateralY) {
+          hz.baseY = clamp(hz.baseY + move, seg.start.y - lim, seg.start.y + lim);
+          if (!hz.moving) hz.y = hz.baseY;
+        } else {
+          hz.baseX = clamp(hz.baseX + move, seg.start.x - lim, seg.start.x + lim);
+          if (!hz.moving) hz.x = hz.baseX;
+        }
+      }
+    }
+
+    // Lasers pick off the nearest hazard ahead.
+    if (def.laser && this.elapsed >= a.nextLaser) {
+      const d = DIRS[p.dir];
+      const target = hazards
+        .filter((h) => h.kind !== 'duck' && (h.x - p.x) * d.x + (h.y - p.y) * d.y > -20)
+        .map((h) => ({ h, dist: Math.hypot(h.x - p.x, h.y - p.y) }))
+        .filter((o) => o.dist < def.laser!)
+        .sort((a1, b1) => a1.dist - b1.dist)[0];
+      if (target) {
+        this.effects.laser(p.x, p.y, target.h.x, target.h.y, 0xff2240);
+        sfx.laser();
+        this.smashHazard(target.h);
+        a.nextLaser = this.elapsed + 0.22;
+      }
+    }
+
+    // Black hole: rings keep collapsing into you.
+    if (def.vacuum && this.elapsed >= a.nextImplode) {
+      this.effects.implode(p.x, p.y, 0xb36bff, def.vacuum * 1.2);
+      a.nextImplode = this.elapsed + 0.3;
+    }
+
+    // Magnet also reels in the warp star.
+    if (def.magnet) {
+      for (const seg of segs) {
+        const star = seg.warpStar;
+        if (!star || star.taken) continue;
+        const dist = Math.hypot(p.x - star.x, p.y - star.y) || 1;
+        if (dist > def.magnet) continue;
+        const k = Math.min(dist, 380 * sim) / dist;
+        star.x += (p.x - star.x) * k;
+        star.y += (p.y - star.y) * k;
+        this.checkWarpStar(star);
+      }
+    }
+  }
+
+  /** A hazard destroyed by an ability: it shatters instead of killing you. */
+  private smashHazard(hz: Hazard) {
+    if (!hz.alive) return;
+    hz.alive = false;
+    this.hazardViews.get(hz)?.destroy();
+    this.hazardViews.delete(hz);
+    const color = hz.kind === 'saw' ? palette.magenta : palette.orange;
+    this.effects.debris(hz.x, hz.y, color, save.fxReduced ? 5 : 14);
+    this.effects.burst(hz.x, hz.y, [color, 0xffffff], save.fxReduced ? 6 : 16);
+    this.effects.floater(hz.x, hz.y - 18, this.ability?.def.word ?? 'SMASH', '#ffffff', 13);
+    sfx.smash();
+  }
+
+  /** Extra life: pop back onto the middle of the track instead of dying. */
+  private tryRevive(): boolean {
+    const a = this.ability;
+    if (!a || a.revive <= 0) return false;
+    a.revive--;
+    const cur = this.track.get(this.current)!;
+    const d = DIRS[cur.dir];
+    const along = clamp(trackDistance(cur, this.player.x, this.player.y) - cur.travelled, 0, cur.length - cur.halfWidth - 30);
+    this.player = { x: cur.start.x + d.x * along, y: cur.start.y + d.y * along, dir: cur.dir };
+    a.graceUntil = this.elapsed + 1.2;
+    this.slowMo = 0.5;
+    const { x, y } = this.player;
+    const kitty = save.skin === 'kitty';
+    this.effects.flare(x, y, 0xffffff, 150);
+    this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
+    this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18);
+    this.cameras.main.shake(200, 0.006);
+    sfx.revive();
+    haptic([40, 40, 40]);
+    return true;
+  }
+
+  // --- Automatic quality ---------------------------------------------------
+
+  private perf = { start: 0, frames: 0, warmupUntil: 0 };
+
+  /**
+   * Watches the frame rate while playing. If the device can't keep up
+   * (under ~48 fps for two seconds), lower the rendering resolution one step:
+   * 3x -> 2x -> 1.5x. Most of the GPU cost scales with the pixel count.
+   */
+  private watchPerformance() {
+    // Real wall-clock time: Phaser smooths its own frame delta, which would
+    // hide exactly the stutter we're looking for.
+    const now = performance.now();
+    const p = this.perf;
+    if (p.warmupUntil === 0) p.warmupUntil = now + 3000;
+    if (now < p.warmupUntil) {
+      p.start = now;
+      p.frames = 0;
+      return;
+    }
+    p.frames++;
+    const elapsed = now - p.start;
+    if (elapsed < 2000) return;
+    const fps = (p.frames * 1000) / elapsed;
+    p.start = now;
+    p.frames = 0;
+    if (fps >= 48) return;
+    const next = display.dpr > 2 ? 2 : display.dpr > 1.5 ? 1.5 : null;
+    if (next && display.lowerDpr(next)) p.warmupUntil = now + 2000;
   }
 
   /** Bombs tick when you get close, faster the closer you are. */
@@ -585,6 +923,13 @@ export class GameScene extends Phaser.Scene {
   /** Survival easter eggs: a little message at special distances. */
   private checkMilestones() {
     const m = this.distance * METERS_PER_PX;
+    // Survival: the ability recharges every so often.
+    if (this.abilityCharges === 0 && !this.ability && m >= this.rechargeAtM) {
+      this.abilityCharges = 1;
+      this.effects.floater(this.player.x, this.player.y - 30, 'ABILITY READY', css.ink, 14);
+      sfx.revive();
+      this.emitAbility();
+    }
     // A rising sweep each time the world changes colour.
     const sector = [250, 550, 950].filter((s) => m >= s).length;
     if (sector > this.lastSector) {
