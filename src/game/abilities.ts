@@ -1,5 +1,6 @@
-// Every skin has a special ability. Trigger it by tapping 4 times quickly on a
-// straight: the orb spins 360° and carries on, and the ability runs for
+// Every skin has a special ability. Trigger it by tapping 4 times quickly:
+// each tap turns 90° right away, so four quick taps spin you all the way round
+// and you carry on in the same direction. The ability then runs for
 // ABILITY_SECONDS. Once per level (in Survival it recharges).
 //
 // An ability is a recipe of simple building blocks, so new ones are easy to
@@ -50,7 +51,7 @@ export interface AbilityDef {
 export const ABILITY_SECONDS = 10;
 /** Survival: the ability recharges every this many metres after use. */
 export const SURVIVAL_RECHARGE_M = 500;
-/** Max time between the four taps, ms. */
+/** Max time between the four taps, ms (also the wall grace during the spin). */
 export const SPIN_TAP_WINDOW = 280;
 
 export const ABILITIES: Record<string, AbilityDef> = {

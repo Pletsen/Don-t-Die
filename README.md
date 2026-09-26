@@ -43,7 +43,7 @@ Skins er data i `src/game/skins.ts` (navn, sjældenhed, glød og spor), og hvert
 
 ### Skin-evner
 
-Hvert skin har en særlig evne. **Tryk 4 gange hurtigt på en lige strækning**, så laver kuglen en 360° og fortsætter lige ud, og evnen kører i 10 sekunder. Den kan bruges én gang pr. level (i SURVIVAL lades den op igen hver 500 m). Pillen nederst på skærmen viser, om evnen er klar.
+Hvert skin har en særlig evne. **Tryk 4 gange hurtigt**: hvert tryk drejer kuglen 90° med det samme, så fire hurtige tryk vender den hele vejen rundt og tilbage i samme retning. Så aktiveres evnen, og den kører i 10 sekunder. Under de hurtige sving må kuglen godt stikke et øjeblik uden for banen. Den kan bruges én gang pr. level (i SURVIVAL lades den op igen hver 500 m). Pillen nederst på skærmen viser, om evnen er klar.
 
 Jo sjældnere skin, jo stærkere evne:
 

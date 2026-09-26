@@ -20,8 +20,6 @@ export class PlayerView {
   private aura: Phaser.GameObjects.Image;
   private bubble: Phaser.GameObjects.Container;
   private auraColor: number | null = null;
-  /** Extra rotation from the 4-tap spin, on top of the heading. */
-  private spin = 0;
   private sizeMult = 1;
   private orb!: Phaser.GameObjects.Image;
   // Bonus-universe costume: googly eyes and a party hat.
@@ -120,18 +118,6 @@ export class PlayerView {
     this.sparks.setParticleTint([0xffffff, this.skin.glow]);
   }
 
-  /** One tap of the 4-tap trick: a quarter spin. */
-  spinTick() {
-    this.squash = 0.8;
-    this.root.scene.tweens.add({ targets: this, spin: this.spin + Math.PI / 2, duration: 70 });
-  }
-
-  /** The trick didn't complete: drop the extra spin (the real turns take over). */
-  resetSpin() {
-    this.root.scene.tweens.killTweensOf(this);
-    this.spin = 0;
-  }
-
   /** Show an ability's look, or clear it with `null`. */
   setAbilityLook(color: number | null, opts: { bubble?: boolean; size?: number } = {}) {
     this.auraColor = color;
@@ -167,7 +153,7 @@ export class PlayerView {
   update(time: number, dt: number, heading: number, speedNorm: number, radius: number) {
     this.squash += (1 - this.squash) * Math.min(1, dt * 16);
     // Faces and hats stay upright; plain balls turn with the direction.
-    this.body.setRotation((this.skin.upright ? 0 : heading) + this.spin).setScale(2 - this.squash, this.squash);
+    this.body.setRotation(this.skin.upright ? 0 : heading).setScale(2 - this.squash, this.squash);
     this.root.setScale(this.sizeMult);
     if (this.auraColor !== null) {
       const k = 0.5 + 0.5 * Math.sin(time * 10);
@@ -223,7 +209,7 @@ export class PlayerView {
 
   reset() {
     this.party.setVisible(false);
-    this.resetSpin();
+    this.root.scene.tweens.killTweensOf(this);
     this.auraColor = null;
     this.aura.setVisible(false);
     this.bubble.setVisible(false);

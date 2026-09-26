@@ -84,8 +84,10 @@ export class GameScene extends Phaser.Scene {
   } | null = null;
   private abilityCharges = 1;
   private rechargeAtM = Infinity;
-  private spinTaps = 0;
-  private lastSpinTap = 0;
+  /** Recent taps: time and heading before each, to spot the 4-tap spin. */
+  private recentTaps: { t: number; dirBefore: Dir }[] = [];
+  /** Walls don't kill until this time: room for the quick spin's side steps. */
+  private spinGuardUntil = 0;
   /** Drives moving hazards; stops while they're frozen. */
   private hazardClock = 0;
 
@@ -167,7 +169,8 @@ export class GameScene extends Phaser.Scene {
     this.ability = null;
     this.abilityCharges = 1;
     this.rechargeAtM = Infinity;
-    this.spinTaps = 0;
+    this.recentTaps = [];
+    this.spinGuardUntil = 0;
     this.hazardClock = 0;
 
     this.state = 'ready';
@@ -215,42 +218,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   /**
-   * A tap inside a gate turns right away. A tap anywhere else starts the
-   * 4-tap trick: if four taps come quickly, the orb spins 360°, keeps going
-   * straight and fires the skin's ability. Fewer taps simply turn (a split
-   * second later, which also forgives a tap that was a touch too early).
+   * Every tap turns right away. Four quick taps in a row turn you all the
+   * way round (4 × 90°) back to where you were heading, and that fires the
+   * skin's ability.
    */
   private onTap() {
     if (this.state !== 'play') return;
     if (this.ability?.def.autopilot) return; // hands off: the ability is driving
-    if (this.inGate() && this.spinTaps === 0) {
-      this.turn();
-      return;
-    }
-    this.spinTaps++;
-    this.lastSpinTap = this.time.now;
-    this.playerView.spinTick();
-    if (this.spinTaps >= 4) {
-      this.spinTaps = 0;
-      this.playerView.resetSpin();
-      this.tryActivateAbility();
-    }
-  }
+    const now = this.time.now;
+    const dirBefore = this.player.dir;
+    this.turn();
+    if (this.state !== 'play') return;
 
-  private inGate() {
-    const next = this.track.get(this.current + 1);
-    return !!next?.gate && pointInRect(this.player.x, this.player.y, next.gate);
-  }
+    // A tap that comes too long after the previous one starts a new sequence.
+    const last = this.recentTaps[this.recentTaps.length - 1];
+    if (last && now - last.t > SPIN_TAP_WINDOW) this.recentTaps = [];
+    this.recentTaps.push({ t: now, dirBefore });
+    this.spinGuardUntil = now + SPIN_TAP_WINDOW;
 
-  /** Taps that didn't become a full trick turn into normal turns. */
-  private resolveSpinTaps() {
-    if (this.spinTaps === 0) return;
-    const expired = this.time.now - this.lastSpinTap > SPIN_TAP_WINDOW;
-    if (!expired && !(this.spinTaps === 1 && this.inGate())) return;
-    const turns = this.spinTaps;
-    this.spinTaps = 0;
-    this.playerView.resetSpin();
-    for (let i = 0; i < turns; i++) this.turn();
+    if (this.recentTaps.length >= 4) {
+      const back = this.player.dir === this.recentTaps[0].dirBefore;
+      this.recentTaps = [];
+      if (back) this.tryActivateAbility();
+    }
   }
 
   private goalMeters() {
@@ -477,7 +467,6 @@ export class GameScene extends Phaser.Scene {
   /** Advance the simulation by one frame while playing. */
   private step(dt: number) {
     this.elapsed += dt;
-    this.resolveSpinTaps();
     if (this.ability && this.elapsed >= this.ability.until) this.endAbility();
     const ab = this.ability?.def;
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
@@ -516,7 +505,8 @@ export class GameScene extends Phaser.Scene {
 
     const inCur = pointInRect(this.player.x, this.player.y, cur.rect);
     const inNext = !!next && pointInRect(this.player.x, this.player.y, next.rect);
-    if (!inCur && !inNext) {
+    // Mid-spin you may poke outside the lane for a moment; that's allowed.
+    if (!inCur && !inNext && this.time.now >= this.spinGuardUntil) {
       this.die('wall', palette.ink);
       return;
     }
@@ -529,7 +519,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Near miss against the walls: once per segment.
-    const edge = distToRectEdge(this.player.x, this.player.y, inCur ? cur.rect : next!.rect);
+    const edge = inCur || inNext ? distToRectEdge(this.player.x, this.player.y, inCur ? cur.rect : next!.rect) : Infinity;
     if (edge < 10 && !this.nearWallFlags.has(cur.id)) {
       this.nearWallFlags.add(cur.id);
       const extreme = edge < 3;
