@@ -12,7 +12,7 @@ import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 import { HowToPlay } from '../ui/HowToPlay';
-import { TEX } from '../fx/textures';
+import { TEX, DUCK_RES } from '../fx/textures';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
 
@@ -758,7 +758,7 @@ export class UIScene extends Phaser.Scene {
     }
     bg.fillStyle(0x1c1404, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, 20);
     bg.lineStyle(2, 0xffd21f, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, 20);
-    const icon = this.add.image(-w / 2 + 34, 0, 'duck').setScale(0.42);
+    const icon = this.add.image(-w / 2 + 34, 0, TEX.duck).setScale(0.42 / DUCK_RES);
     const title = this.text(-w / 2 + 64, -14, 'DUCK-O-MATIC READY!', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0, 0.5);
     this.spinBannerText = this.text(-w / 2 + 64, 10, '', { font: 'mono', size: 10, color: css.ink, spacing: 1 }).setOrigin(0, 0.5);
     const go = this.text(w / 2 - 18, 10, 'SPIN NOW', { size: 12, color: '#ffd21f', spacing: 2 }).setOrigin(1, 0.5);

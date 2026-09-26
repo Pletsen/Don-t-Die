@@ -30,6 +30,8 @@ export const TEX = {
   astronaut: 'astronaut',
   warpStar: 'warpStar',
   duck: 'duck',
+  duckRed: 'duckRed',
+  duckGold: 'duckGold',
   pizza: 'pizza',
   disco: 'disco',
   vignette: 'vignette',
@@ -358,40 +360,12 @@ export function createTextures(scene: Phaser.Scene) {
   });
 
   // Rubber duck, facing right.
-  paint(scene, TEX.duck, 96, 84, (ctx) => {
-    ctx.fillStyle = '#ffd21f';
-    ctx.strokeStyle = '#c99400';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(44, 58, 34, 20, 0, 0, Math.PI * 2); // body
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(12, 50);
-    ctx.lineTo(4, 34);
-    ctx.lineTo(22, 44);
-    ctx.fill(); // tail
-    ctx.beginPath();
-    ctx.arc(60, 30, 18, 0, Math.PI * 2); // head
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#ff8a1f';
-    ctx.beginPath();
-    ctx.ellipse(81, 34, 11, 5.5, 0.1, 0, Math.PI * 2); // beak
-    ctx.fill();
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath();
-    ctx.arc(66, 25, 3.5, 0, Math.PI * 2); // eye
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(67, 24, 1.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.beginPath();
-    ctx.ellipse(38, 50, 14, 5, -0.3, 0, Math.PI * 2); // shine
-    ctx.fill();
-  });
+  // Rubber ducks: plain yellow, the red runner and the golden king. Painted
+  // at twice the size they are shown (DUCK_RES), so they stay crisp on
+  // retina screens and when the camera zooms in.
+  paint(scene, TEX.duck, 96 * DUCK_RES, 84 * DUCK_RES, (ctx) => paintDuck(ctx, DUCKS.normal));
+  paint(scene, TEX.duckRed, 96 * DUCK_RES, 84 * DUCK_RES, (ctx) => paintDuck(ctx, DUCKS.red));
+  paint(scene, TEX.duckGold, 96 * DUCK_RES, 84 * DUCK_RES, (ctx) => paintDuck(ctx, DUCKS.golden));
 
   // Pizza slice wearing sunglasses.
   paint(scene, TEX.pizza, 110, 110, (ctx) => {
@@ -454,4 +428,225 @@ export function createTextures(scene: Phaser.Scene) {
     for (let i = 0; i < 9; i++) ctx.fillRect(c - 20 + ((i * 13) % 34), c - 22 + ((i * 7) % 30), 5, 5);
     ctx.restore();
   });
+}
+
+/** Duck textures are painted at this multiple of their 96 px design size. */
+export const DUCK_RES = 2;
+
+interface DuckLook {
+  light: string;
+  base: string;
+  shade: string;
+  outline: string;
+  beak: string;
+  beakShade: string;
+  extra: 'none' | 'headband' | 'crown';
+}
+
+const DUCKS: Record<'normal' | 'red' | 'golden', DuckLook> = {
+  normal: { light: '#fff3a0', base: '#ffd21f', shade: '#e0a200', outline: '#8a5a00', beak: '#ff9a2e', beakShade: '#d9621a', extra: 'none' },
+  // The runner: bright red with a sweatband, because it never stops moving.
+  red: { light: '#ff9a8a', base: '#ff3b30', shade: '#b8141c', outline: '#5c0610', beak: '#ffb02e', beakShade: '#d9731a', extra: 'headband' },
+  // The golden king: polished metal and a crown.
+  golden: { light: '#fffbe0', base: '#ffd84a', shade: '#c08a10', outline: '#6b4700', beak: '#ff8a1f', beakShade: '#c4520f', extra: 'crown' },
+};
+
+/**
+ * A rubber duck in a 96 x 84 design space (scaled up by DUCK_RES): body and
+ * head with a soft light-to-shadow gradient, a feathered wing, tail, a
+ * two-part beak, a glossy eye and a highlight, all with a dark outline so it
+ * reads at small sizes.
+ */
+function paintDuck(ctx: CanvasRenderingContext2D, c: DuckLook) {
+  ctx.scale(DUCK_RES, DUCK_RES);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  const shaded = (x: number, y: number, r: number) => {
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r * 1.1);
+    g.addColorStop(0, c.light);
+    g.addColorStop(0.45, c.base);
+    g.addColorStop(1, c.shade);
+    return g;
+  };
+
+  // Tail feather.
+  ctx.fillStyle = c.base;
+  ctx.strokeStyle = c.outline;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(16, 54);
+  ctx.quadraticCurveTo(4, 44, 6, 32);
+  ctx.quadraticCurveTo(16, 38, 24, 46);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Body.
+  ctx.fillStyle = shaded(42, 56, 34);
+  ctx.beginPath();
+  ctx.ellipse(44, 58, 34, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Wing: a darker teardrop with three feather lines.
+  ctx.fillStyle = c.shade;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(24, 52);
+  ctx.quadraticCurveTo(40, 40, 58, 52);
+  ctx.quadraticCurveTo(44, 70, 24, 52);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = c.outline;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(24, 52);
+  ctx.quadraticCurveTo(40, 40, 58, 52);
+  ctx.quadraticCurveTo(44, 70, 24, 52);
+  ctx.stroke();
+  ctx.beginPath();
+  for (const [x1, y1, x2, y2] of [
+    [32, 55, 44, 53],
+    [34, 59, 48, 56],
+    [38, 62, 50, 59],
+  ]) {
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+  }
+  ctx.globalAlpha = 0.6;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Head.
+  ctx.lineWidth = 2.2;
+  ctx.fillStyle = shaded(60, 30, 18);
+  ctx.beginPath();
+  ctx.arc(60, 30, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Beak: upper and lower half, so it looks like it could quack.
+  ctx.lineWidth = 1.6;
+  ctx.fillStyle = c.beakShade;
+  ctx.beginPath();
+  ctx.ellipse(80, 37, 10, 4, 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = c.beak;
+  ctx.beginPath();
+  ctx.ellipse(81, 33, 11.5, 5, 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.beginPath();
+  ctx.ellipse(80, 31.5, 5, 1.6, 0.05, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cheek blush.
+  ctx.fillStyle = 'rgba(255,90,90,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(66, 37, 4.5, 2.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eye: white, pupil, two glints.
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = c.outline;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(66, 25, 5, 5.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = '#16181c';
+  ctx.beginPath();
+  ctx.arc(67.4, 25.6, 3.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(68.6, 24.2, 1.2, 0, Math.PI * 2);
+  ctx.arc(66.4, 27.2, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (c.extra === 'headband') {
+    // Sweatband across the forehead, above the eye.
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = c.outline;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(45, 17);
+    ctx.quadraticCurveTo(60, 7, 75, 14);
+    ctx.lineTo(76.5, 18.5);
+    ctx.quadraticCurveTo(60, 11.5, 44, 21.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#2be8ff';
+    ctx.fillRect(57, 11.2, 6, 3);
+    // The loose ends of the band flutter behind.
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(45.5, 18);
+    ctx.lineTo(35, 13);
+    ctx.lineTo(36, 19);
+    ctx.lineTo(44.5, 21);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (c.extra === 'crown') {
+    // Crown with three points and gems.
+    const g = ctx.createLinearGradient(48, 4, 72, 18);
+    g.addColorStop(0, '#fff6c0');
+    g.addColorStop(0.5, '#ffc21a');
+    g.addColorStop(1, '#b37400');
+    ctx.fillStyle = g;
+    ctx.strokeStyle = c.outline;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(48, 16);
+    ctx.lineTo(47, 4);
+    ctx.lineTo(54, 10);
+    ctx.lineTo(60, 1);
+    ctx.lineTo(66, 10);
+    ctx.lineTo(73, 4);
+    ctx.lineTo(72, 16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ff2f9e';
+    ctx.beginPath();
+    ctx.arc(60, 12, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#2be8ff';
+    ctx.beginPath();
+    ctx.arc(52, 13, 1.4, 0, Math.PI * 2);
+    ctx.arc(68, 13, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Sparkles on the polished body.
+    ctx.fillStyle = '#ffffff';
+    for (const [x, y, r] of [
+      [30, 50, 2.4],
+      [54, 64, 1.6],
+      [50, 22, 1.8],
+    ]) {
+      ctx.beginPath();
+      ctx.moveTo(x, y - r * 2);
+      ctx.lineTo(x + r * 0.5, y - r * 0.5);
+      ctx.lineTo(x + r * 2, y);
+      ctx.lineTo(x + r * 0.5, y + r * 0.5);
+      ctx.lineTo(x, y + r * 2);
+      ctx.lineTo(x - r * 0.5, y + r * 0.5);
+      ctx.lineTo(x - r * 2, y);
+      ctx.lineTo(x - r * 0.5, y - r * 0.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Glossy highlights on body and head.
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.ellipse(34, 48, 11, 3.6, -0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(53, 22, 4.5, 2.2, -0.6, 0, Math.PI * 2);
+  ctx.fill();
 }

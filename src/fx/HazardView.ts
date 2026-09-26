@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import type { Hazard } from '../game/Track';
 import { palette } from '../game/palette';
-import { TEX } from './textures';
+import { TEX, DUCK_RES } from './textures';
 import { glowFx } from './glow';
 
 /** Visuals for one saw blade, bomb or rubber duck. Follows its `Hazard` data every frame. */
@@ -35,18 +35,19 @@ export class HazardView {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale((d * 2.6) / 128);
     this.body = isDuck
-      ? scene.add.image(0, 0, TEX.duck).setScale((d * 1.5) / 96).setFlipX(Math.random() < 0.5)
+      ? scene.add
+          .image(0, 0, { normal: TEX.duck, red: TEX.duckRed, golden: TEX.duckGold }[variant])
+          .setScale((d * 1.5) / (96 * DUCK_RES))
+          .setFlipX(Math.random() < 0.5)
       : scene.add.image(0, 0, isSaw ? TEX.saw : TEX.bomb).setScale((d * (isSaw ? 1.05 : 1.1)) / 128);
     if (isDuck) {
       this.warn.setVisible(false);
       this.halo.setAlpha(0.35);
       if (variant === 'red') {
-        // Red paint job, and a pulsing ring so you notice it.
-        this.body.setTint(0xff5050);
+        // A pulsing ring so you notice it.
         this.warn.setVisible(true);
-        this.halo.setAlpha(0.6);
+        this.halo.setAlpha(0.4);
       } else if (variant === 'golden') {
-        this.body.setTint(0xfff0a0);
         this.warn.setVisible(true);
         this.halo.setAlpha(0.9).setScale((d * 3.6) / 128);
       }
@@ -56,7 +57,8 @@ export class HazardView {
     // special ducks. Plain ducks are harmless and stay plain.
     if (!isDuck || variant !== 'normal') {
       // Saws a little softer, so their teeth stay sharp.
-      const strength = isDuck ? (variant === 'golden' ? 3.5 : 2.5) : isSaw ? 2 : 2.5;
+      // Ducks get a thin rim, so the detail inside stays visible.
+      const strength = isDuck ? (variant === 'golden' ? 2 : 1.4) : isSaw ? 2 : 2.5;
       glowFx.add(this.body, this.color, strength, 12);
     }
 
@@ -96,8 +98,7 @@ export class HazardView {
         // Big, slow and shiny, with a pulsing golden glow.
         const glow = 0.5 + 0.5 * Math.sin(time * 5);
         this.body.setY(Math.sin(time * 2.5 + h.movePhase) * 3).setRotation(Math.sin(time * 2 + h.movePhase) * 0.12);
-        this.halo.setAlpha(0.7 + glow * 0.3);
-        this.body.setTint(glow > 0.8 ? 0xffffff : 0xfff0a0);
+        this.halo.setAlpha(0.55 + glow * 0.35);
       } else {
         // Bob on invisible water.
         this.body.setY(Math.sin(time * 4 + h.movePhase) * 2).setRotation(Math.sin(time * 3 + h.movePhase) * 0.15);
@@ -122,8 +123,6 @@ export class HazardView {
     if (on === this.frozen) return;
     this.frozen = on;
     if (on) this.body.setTint(0xbfefff);
-    else if (this.hazard.variant === 'red') this.body.setTint(0xff5050);
-    else if (this.hazard.variant === 'golden') this.body.setTint(0xfff0a0);
     else this.body.clearTint();
     this.halo.setTint(on ? 0x9fe8ff : this.color);
   }

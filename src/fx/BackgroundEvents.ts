@@ -3,7 +3,7 @@ import { shared } from '../game/shared';
 import { mixColor, hueColor } from '../game/palette';
 import { display } from '../game/display';
 import { fonts } from '../game/palette';
-import { TEX } from './textures';
+import { TEX, DUCK_RES } from './textures';
 import { sfx } from '../audio/Sfx';
 
 /**
@@ -302,7 +302,7 @@ export class BackgroundEvents {
   /** Giant rubber duck bobbing past in the background. */
   private floatingDuck() {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const img = this.scene.add.image(0, 0, TEX.duck).setFlipX(dir < 0).setAlpha(0.85);
+    const img = this.scene.add.image(0, 0, TEX.duck).setScale(1 / DUCK_RES).setFlipX(dir < 0).setAlpha(0.85);
     const obj = this.scene.add.container(0, 0, [img]).setScale(rand(0.5, 1.1));
     const speed = rand(60, 110);
     const edge = this.vw / 2 + 80;

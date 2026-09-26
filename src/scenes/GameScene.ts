@@ -16,7 +16,7 @@ import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
-import { TEX } from '../fx/textures';
+import { TEX, DUCK_RES } from '../fx/textures';
 import { glowFx } from '../fx/glow';
 import { Ambient } from '../fx/Ambient';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
@@ -766,12 +766,12 @@ export class GameScene extends Phaser.Scene {
     // A duck squirts out of the player and tumbles away.
     const a = Math.random() * Math.PI * 2;
     const { x, y } = this.player;
-    const duck = this.add.image(x, y, TEX.duck).setScale(0.15).setDepth(8).setFlipX(Math.cos(a) < 0);
+    const duck = this.add.image(x, y, TEX.duck).setScale(0.15 / DUCK_RES).setDepth(8).setFlipX(Math.cos(a) < 0);
     this.tweens.add({
       targets: duck,
       x: x + Math.cos(a) * (90 + Math.random() * 80),
       y: y + Math.sin(a) * (90 + Math.random() * 80),
-      scale: 0.4,
+      scale: 0.4 / DUCK_RES,
       angle: (Math.random() - 0.5) * 540,
       alpha: 0,
       duration: 650,

@@ -3,7 +3,7 @@ import { save } from '../game/storage';
 import { css, hueColor, palette } from '../game/palette';
 import { DUPLICATE_REFUND, RARITIES, SKINS, SPIN_COST, rollSkin, skinTexture, type Skin } from '../game/skins';
 import { sfx } from '../audio/Sfx';
-import { TEX } from '../fx/textures';
+import { TEX, DUCK_RES } from '../fx/textures';
 import { hexColor, makeButton, makeText, type Button } from './widgets';
 import { abilityFor } from '../game/abilities';
 import { skinById } from '../game/skins';
@@ -70,7 +70,7 @@ export class SkinShop {
   ) {
     this.title = makeText(scene, 0, 0, 'SKINS', { size: 22, spacing: 1.5 }).setOrigin(0.5, 0);
     this.back = makeButton(scene, { label: 'BACK', width: 84, height: 34, style: 'ghost', onPress: () => this.onBack() });
-    this.balanceIcon = scene.add.image(0, 0, TEX.duck).setScale(0.28);
+    this.balanceIcon = scene.add.image(0, 0, TEX.duck).setScale(0.28 / DUCK_RES);
     this.balance = makeText(scene, 0, 0, '0', { font: 'mono', size: 15, weight: '700', color: '#ffd21f' }).setOrigin(1, 0.5);
 
     // --- Machine ----------------------------------------------------------

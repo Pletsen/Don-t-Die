@@ -262,8 +262,8 @@ export class HowToPlay {
     {
       const star = this.img(TEX.warpStar, 30);
       const yellow = this.img(TEX.duck, 40);
-      const red = this.img(TEX.duck, 40).setTint(0xff5050);
-      const gold = this.img(TEX.duck, 66).setTint(0xfff0a0);
+      const red = this.img(TEX.duckRed, 40);
+      const gold = this.img(TEX.duckGold, 66);
       const glow = this.img(TEX.glow, 130).setTint(0xffe680).setBlendMode(Phaser.BlendModes.ADD);
       this.stage.moveBelow(glow, gold);
       const labels = [
