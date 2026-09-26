@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { EV, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
+import { EV, shared, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette, hueColor } from '../game/palette';
@@ -12,6 +12,7 @@ import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 import { HowToPlay } from '../ui/HowToPlay';
+import { TEX } from '../fx/textures';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
 
@@ -68,6 +69,7 @@ export class UIScene extends Phaser.Scene {
   private frenzyBar!: Phaser.GameObjects.Graphics;
 
   private scrim!: Phaser.GameObjects.Rectangle;
+  private vignette!: Phaser.GameObjects.Image;
   private select!: LevelSelect;
   private clearScreen!: ClearScreen;
   private shop!: SkinShop;
@@ -94,7 +96,10 @@ export class UIScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setOrigin(0, 0).setZoom(display.dpr);
 
-    // Creation order is drawing order: HUD, scrim, then the screens on top.
+    // Creation order is drawing order: vignette, HUD, scrim, then the screens.
+    // The vignette darkens the screen edges so the eye goes to the middle.
+    // It's one stretched image over the game, which costs almost nothing.
+    this.vignette = this.add.image(0, 0, TEX.vignette).setOrigin(0, 0);
     this.buildHud();
     this.scrim = this.add.rectangle(0, 0, 10, 10, 0x020305, 0.62).setOrigin(0, 0).setAlpha(0);
     this.buildTitle();
@@ -483,6 +488,7 @@ export class UIScene extends Phaser.Scene {
     this.statsLine.setPosition(w / 2, Math.max(h - 24, my + 294));
 
     this.scrim.setSize(w, h);
+    this.vignette.setDisplaySize(w, h);
     const oy = h * 0.4;
     this.causeText.setPosition(w / 2, oy - 76);
     this.scoreText.setPosition(w / 2, oy - 18).setFontSize(Phaser.Math.Clamp(w * 0.17, 52, 104));
@@ -805,6 +811,8 @@ export class UIScene extends Phaser.Scene {
 
   update(time: number) {
     const t = time / 1000;
+    // After a crash the darkness creeps in from the edges.
+    this.vignette.setAlpha(0.85 + shared.gloom * 0.15);
 
     if (this.title.visible) {
       // Occasional glitch bursts, otherwise a gentle drift of the ghosts.

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { Hazard } from '../game/Track';
 import { palette } from '../game/palette';
 import { TEX } from './textures';
+import { glowFx } from './glow';
 
 /** Visuals for one saw blade, bomb or rubber duck. Follows its `Hazard` data every frame. */
 export class HazardView {
@@ -49,6 +50,14 @@ export class HazardView {
         this.warn.setVisible(true);
         this.halo.setAlpha(0.9).setScale((d * 3.6) / 128);
       }
+    }
+
+    // A milder engine glow on the things that matter: saws, bombs and the
+    // special ducks. Plain ducks are harmless and stay plain.
+    if (!isDuck || variant !== 'normal') {
+      // Saws a little softer, so their teeth stay sharp.
+      const strength = isDuck ? (variant === 'golden' ? 3.5 : 2.5) : isSaw ? 2 : 2.5;
+      glowFx.add(this.body, this.color, strength, 12);
     }
 
     const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];

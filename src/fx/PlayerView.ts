@@ -3,6 +3,7 @@ import { palette, hueColor } from '../game/palette';
 import { save } from '../game/storage';
 import { skinById, skinTexture, type Skin } from '../game/skins';
 import { TEX } from './textures';
+import { glowFx } from './glow';
 
 /**
  * The player's look: a glossy orb with a halo, a tilted orbiting ring and a
@@ -22,6 +23,9 @@ export class PlayerView {
   private auraColor: number | null = null;
   private sizeMult = 1;
   private orb!: Phaser.GameObjects.Image;
+  /** GPU glow that hugs the orb's outline, in the skin's colour. */
+  private glow: Phaser.Filters.Glow | null = null;
+  private glowKick = 0;
   // Bonus-universe costume: googly eyes and a party hat.
   private party: Phaser.GameObjects.Container;
   private pupils: Phaser.GameObjects.Graphics;
@@ -69,6 +73,7 @@ export class PlayerView {
     // proportions as the original 96 px orb, so the same scale works.
     this.orb = scene.add.image(0, 0, TEX.orb).setScale((radius * 2.1) / 96);
     this.body = scene.add.container(0, 0, [this.orb]);
+    this.glow = glowFx.add(this.orb, palette.cyan, 4.5, 18);
 
     this.pupils = scene.add.graphics();
     const eyes = scene.add.graphics();
@@ -102,6 +107,7 @@ export class PlayerView {
   /** A quick squash, as if the orb pushes off the new direction. */
   onTurn() {
     this.squash = 0.62;
+    this.glowKick = 1;
     // Googly eyes rattle on every turn.
     this.pupil.vx += (Math.random() - 0.5) * 60;
     this.pupil.vy += (Math.random() - 0.5) * 60;
@@ -115,6 +121,7 @@ export class PlayerView {
     this.orb.setTint(this.skin.upright ? 0xd8d8d8 : 0xffffff);
     this.halo.setTint(this.skin.glow);
     this.ring.setTint(this.skin.glow);
+    if (this.glow) this.glow.color = this.skin.glow;
     this.sparks.setParticleTint([0xffffff, this.skin.glow]);
   }
 
@@ -165,6 +172,9 @@ export class PlayerView {
     // Faces need a softer halo, or the glow washes out their features.
     const haloBase = this.skin.upright ? 0.28 : 0.6;
     this.halo.setAlpha(haloBase + pulse * 0.2 + speedNorm * 0.15);
+    // The outline glow breathes, flares on each turn and burns brighter at speed.
+    this.glowKick = Math.max(0, this.glowKick - dt * 5);
+    if (this.glow) this.glow.outerStrength = (this.skin.upright ? 3 : 4) + pulse * 0.8 + speedNorm * 1 + this.glowKick * 3;
 
     // Rotating a squashed image turns a circle into a tumbling orbit.
     const ringR = radius * 2.2 * (1 + 0.04 * Math.sin(time * 3));

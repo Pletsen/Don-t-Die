@@ -13,6 +13,8 @@ export const shared = {
   pulse: 0,
   /** 0 normal, 1 in the bonus universe (after the warp star). */
   warp: 0,
+  /** 0 normal, 1 dead: the vignette closes in. */
+  gloom: 0,
 };
 
 /** Event names sent over `game.events` between scenes. */

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { glowFx } from './fx/glow';
 // Fonts are bundled with the game (no Google Fonts request), so they also
 // work offline. Only the Latin subset and the weights we actually use.
 import '@fontsource/chakra-petch/latin-500.css';
@@ -57,7 +58,7 @@ async function start() {
   });
 
   // Handy for debugging in the browser console and for automated tests.
-  (window as unknown as { game: Phaser.Game }).game = game;
+  Object.assign(window, { game, glowFx });
 
   window.addEventListener('resize', () => {
     // Read the ratio each time: the game may have lowered it for speed.

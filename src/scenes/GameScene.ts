@@ -17,6 +17,7 @@ import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
 import { TEX } from '../fx/textures';
+import { glowFx } from '../fx/glow';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
 
@@ -160,6 +161,7 @@ export class GameScene extends Phaser.Scene {
 
   private applyFxSetting() {
     if (this.bloom) this.bloom.parallelFilters.active = !save.fxReduced;
+    glowFx.setEnabled(!save.fxReduced);
   }
 
   /** Base zoom so the track looks similar on a phone and a big monitor. */
@@ -1057,6 +1059,8 @@ export class GameScene extends Phaser.Scene {
     if (fps >= 48) return;
     const next = display.dpr > 2 ? 2 : display.dpr > 1.5 ? 1.5 : null;
     if (next && display.lowerDpr(next)) p.warmupUntil = now + 2000;
+    // Out of resolution to give up: drop the per-object glows next.
+    else if (!next && glowFx.enabled && fps < 40) glowFx.setEnabled(false);
   }
 
   /** Bombs tick when you get close, faster the closer you are. */
@@ -1150,6 +1154,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.grade) return;
     const target = this.state === 'dead' ? 1 : 0;
     this.deathFade = lerp(this.deathFade, target, damp(this.state === 'dead' ? 0.02 : 0.0001, dt));
+    shared.gloom = this.deathFade;
     if (this.deathFade < 0.01) {
       this.grade.active = false;
       return;

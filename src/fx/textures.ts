@@ -32,6 +32,7 @@ export const TEX = {
   duck: 'duck',
   pizza: 'pizza',
   disco: 'disco',
+  vignette: 'vignette',
 } as const;
 
 export function createTextures(scene: Phaser.Scene) {
@@ -44,6 +45,22 @@ export function createTextures(scene: Phaser.Scene) {
     g.addColorStop(0.18, 'rgba(255,255,255,0.75)');
     g.addColorStop(0.45, 'rgba(255,255,255,0.22)');
     g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, w);
+  });
+
+  // Vignette: clear in the middle, easing into the background colour at the
+  // edges. Stretched over the whole screen, so it becomes an ellipse that
+  // fits any phone. The corners of the square are sqrt(2) from the centre,
+  // so the gradient runs out to there.
+  paint(scene, TEX.vignette, 256, 256, (ctx, w) => {
+    const r = w / 2;
+    const g = ctx.createRadialGradient(r, r, 0, r, r, r * Math.SQRT2);
+    g.addColorStop(0, 'rgba(5,7,10,0)');
+    g.addColorStop(0.4, 'rgba(5,7,10,0)');
+    g.addColorStop(0.58, 'rgba(5,7,10,0.3)');
+    g.addColorStop(0.78, 'rgba(5,7,10,0.66)');
+    g.addColorStop(1, 'rgba(5,7,10,0.92)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, w);
   });
