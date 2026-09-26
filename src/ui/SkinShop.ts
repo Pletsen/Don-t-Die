@@ -266,7 +266,7 @@ export class SkinShop {
     const owned = SKINS.filter((s) => save.skins.has(s.id)).length;
     const worn = skinById(save.skin);
     const ab = abilityFor(worn.id);
-    this.abilityInfo.setText(`${worn.name}  ·  ${ab.name}\n${ab.desc}\nTAP 4× FAST ON A STRAIGHT TO USE IT`);
+    this.abilityInfo.setText(`${worn.name}  ·  ${ab.name}\n${ab.desc}\nTAP 4 TIMES FAST TO ACTIVATE`);
     this.collectionLabel.setText(`COLLECTION  ${owned} / ${SKINS.length}`);
 
     const s = this.tileSize;

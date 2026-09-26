@@ -33,6 +33,8 @@ export const EV = {
   warp: 'dd-warp',
   /** Game -> UI: ability state changed ({ state, frac }). */
   ability: 'dd-ability',
+  /** Game -> UI: DUCK FRENZY ({ phase: 'start' | 'tick' | 'end', count, max, frac }). */
+  frenzy: 'dd-frenzy',
   /** UI -> Game: a different skin was equipped. */
   skin: 'dd-skin',
   fxChanged: 'dd-fx-changed',
@@ -70,4 +72,12 @@ export interface ClearData extends HudData {
   turns: number;
   warped: boolean;
   ducks: number;
+}
+
+export interface FrenzyData {
+  phase: 'start' | 'tick' | 'end';
+  count: number;
+  max: number;
+  /** Time left, 1 → 0. */
+  frac: number;
 }

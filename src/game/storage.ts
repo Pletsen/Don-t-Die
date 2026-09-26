@@ -12,6 +12,7 @@ const KEYS = {
   ducks: 'dontdie_ducks',
   skins: 'dontdie_skins',
   skin: 'dontdie_skin',
+  intro: 'dontdie_intro_seen',
 };
 
 function read(key: string): string | null {
@@ -71,6 +72,12 @@ export const save = {
   recordWarp(levelId: number) {
     this.warps.add(levelId);
     write(KEYS.warps, [...this.warps].join(','));
+  },
+  /** The HOW TO PLAY screen has been seen (shown by itself on first launch). */
+  introSeen: read(KEYS.intro) === '1',
+  setIntroSeen() {
+    this.introSeen = true;
+    write(KEYS.intro, '1');
   },
   fxReduced: read(KEYS.fxReduced) === null ? prefersReducedMotion : read(KEYS.fxReduced) === '1',
 

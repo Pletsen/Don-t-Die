@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment, type WarpStar } from '../game/Track';
 import { tuning, METERS_PER_PX, SECTOR_METERS } from '../game/tuning';
-import { shared, EV, type DeathData, type ClearData, type PlayRequest } from '../game/shared';
+import { shared, EV, type DeathData, type ClearData, type PlayRequest, type FrenzyData } from '../game/shared';
 import { endlessCourse, levelCourse, type Course } from '../game/course';
 import { levelById } from '../game/levels';
 import { display } from '../game/display';
@@ -16,6 +16,7 @@ import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
+import { TEX } from '../fx/textures';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
 
@@ -28,6 +29,14 @@ const MILESTONES: [number, string][] = [
   [2001, 'A SPACE ODYSSEY'],
   [3000, 'ARE YOU A BOT?'],
 ];
+
+/** DUCK FRENZY: tap as fast as you can for this long, one duck per tap. */
+const FRENZY_SECONDS = 8;
+const FRENZY_MAX = 70;
+/** Pause after the frenzy so leftover taps don't steer you into a wall. */
+const FRENZY_COOLDOWN = 1.4;
+/** What a red duck is worth. */
+const RED_DUCK_VALUE = 5;
 
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
@@ -90,6 +99,10 @@ export class GameScene extends Phaser.Scene {
   private spinGuardUntil = 0;
   /** Drives moving hazards; stops while they're frozen. */
   private hazardClock = 0;
+  /** DUCK FRENZY in progress: the world is paused and taps become ducks. */
+  private frenzy: { left: number; count: number; cooldown: number; x: number; y: number } | null = null;
+  /** Hazards can't hurt you until this run time (right after a frenzy). */
+  private safeUntil = 0;
 
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
   private grade?: Phaser.Filters.ColorMatrix;
@@ -172,6 +185,8 @@ export class GameScene extends Phaser.Scene {
     this.recentTaps = [];
     this.spinGuardUntil = 0;
     this.hazardClock = 0;
+    this.frenzy = null;
+    this.safeUntil = 0;
 
     this.state = 'ready';
     this.course = course;
@@ -224,6 +239,10 @@ export class GameScene extends Phaser.Scene {
    */
   private onTap() {
     if (this.state !== 'play') return;
+    if (this.frenzy) {
+      this.frenzyTap();
+      return;
+    }
     if (this.ability?.def.autopilot) return; // hands off: the ability is driving
     const now = this.time.now;
     const dirBefore = this.player.dir;
@@ -402,7 +421,8 @@ export class GameScene extends Phaser.Scene {
     const t = this.time.now / 1000;
 
     if (this.state === 'play') {
-      this.step(dt);
+      if (this.frenzy) this.stepFrenzy(dt);
+      else this.step(dt);
       this.watchPerformance();
     }
     else if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
@@ -483,6 +503,7 @@ export class GameScene extends Phaser.Scene {
     let cur = this.track.get(this.current)!;
     let next = this.track.get(this.current + 1);
     if (next && this.player.dir === next.dir && pointInRect(this.player.x, this.player.y, next.rect)) {
+      this.runAwayDucks(cur);
       this.current++;
       cur = next;
       next = this.track.get(this.current + 1);
@@ -532,22 +553,29 @@ export class GameScene extends Phaser.Scene {
     if (this.ability) this.runAbility(sim);
     if (this.state !== 'play') return;
 
+    // Moving hazards: driven by run time, so they repeat exactly on every
+    // attempt. Everything on screen moves, not just what's near you.
+    for (const seg of this.visibleSegments()) {
+      for (const hz of seg.hazards) {
+        if (!hz.alive || !hz.moving) continue;
+        const osc = Math.sin(this.hazardClock * (hz.moveSpeed ?? 1.6) + hz.movePhase) * hz.moveRange;
+        if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
+        else hz.x = hz.baseX + osc;
+      }
+    }
+
     const radius = this.playerRadius();
     const nearby = [...cur.hazards, ...(next?.hazards ?? [])];
     for (const hz of nearby) {
       if (!hz.alive) continue;
-      if (hz.moving) {
-        // Driven by run time, so moving hazards repeat exactly on every attempt.
-        const osc = Math.sin(this.hazardClock * 1.6 + hz.movePhase) * hz.moveRange;
-        if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
-        else hz.x = hz.baseX + osc;
-      }
       const dist = Math.hypot(this.player.x - hz.x, this.player.y - hz.y);
       if (hz.kind === 'duck') {
         if (dist < hz.radius + radius) this.bonkDuck(hz);
+        if (this.frenzy) return;
         continue;
       }
       if (dist < hz.radius + radius) {
+        if (this.elapsed < this.safeUntil) continue;
         const a = this.ability;
         if (a && (this.elapsed < a.graceUntil || a.def.ghost)) continue;
         if (a && (a.def.smash || a.def.vacuum || a.def.laser)) {
@@ -645,11 +673,144 @@ export class GameScene extends Phaser.Scene {
     this.hazardViews.delete(hz);
     const d = DIRS[this.player.dir];
     view?.knockAway(d.x, d.y);
-    this.ducks += this.ability?.def.duckMult ?? 1;
+    const mult = this.ability?.def.duckMult ?? 1;
+
+    if (hz.variant === 'golden') {
+      this.startFrenzy(hz);
+      return;
+    }
+    if (hz.variant === 'red') {
+      const value = RED_DUCK_VALUE * mult;
+      this.ducks += value;
+      sfx.redDuck();
+      haptic([15, 20, 30]);
+      this.effects.floater(hz.x, hz.y - 24, `GOTCHA! +${value}`, '#ff6a55', 18);
+      this.effects.shockwave(hz.x, hz.y, 0xff5a4a, 110, 450);
+      this.effects.burst(hz.x, hz.y, [0xff5a4a, 0xffd21f, 0xffffff], save.fxReduced ? 10 : 28);
+      this.cam.punch = 0.08;
+      return;
+    }
+
+    this.ducks += mult;
     sfx.quack();
     const lines = ['QUACK', 'BONK', 'SORRY DUCK', 'QUACK QUACK', 'DUCK OFF', 'WHEEE'];
     this.effects.floater(hz.x, hz.y - 20, lines[this.ducks % lines.length], '#ffd21f', 14);
     this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 6 : 16);
+  }
+
+  /**
+   * Red and golden ducks never give up: if you pass one without catching it,
+   * it scurries off up the track and waits for you on a later straight.
+   */
+  private runAwayDucks(left: Segment) {
+    const runners = left.hazards.filter((hz) => hz.alive && hz.kind === 'duck' && hz.variant && hz.variant !== 'normal');
+    if (!runners.length) return;
+    left.hazards = left.hazards.filter((hz) => !runners.includes(hz));
+    for (const hz of runners) {
+      const color = hz.variant === 'golden' ? '#ffe680' : '#ff6a55';
+      this.effects.floater(hz.x, hz.y - 22, hz.variant === 'golden' ? 'COME BACK!' : 'TOO SLOW!', color, 14);
+      this.hazardViews.get(hz)?.destroy();
+      this.hazardViews.delete(hz);
+      // Land just beyond what's on screen, so it pops up again ahead of you.
+      const placed = [LOOKAHEAD + 2, LOOKAHEAD + 3, LOOKAHEAD + 4].some((ahead) => {
+        const seg = this.track.get(this.current + ahead);
+        return !!seg && this.track.moveDuckTo(hz, seg);
+      });
+      if (placed) sfx.duckEscape();
+    }
+  }
+
+  // --- DUCK FRENZY ------------------------------------------------------------
+
+  /** Hit the golden duck: the world freezes and every tap is a duck. */
+  private startFrenzy(hz: Hazard) {
+    this.frenzy = { left: FRENZY_SECONDS, count: 0, cooldown: 0, x: hz.x, y: hz.y };
+    this.recentTaps = [];
+    const gold = [0xffe680, 0xffd21f, 0xffffff, 0xff9a2e];
+    this.effects.burst(hz.x, hz.y, gold, save.fxReduced ? 20 : 60);
+    [0, 1, 2].forEach((i) =>
+      this.time.delayedCall(i * 90, () => this.effects.shockwave(hz.x, hz.y, gold[i], 160 + i * 90, 700)),
+    );
+    if (!save.fxReduced) this.cameras.main.flash(350, 255, 220, 90);
+    this.cam.punch = 0.3;
+    shared.pulse = 1;
+    sfx.frenzyStart();
+    haptic([40, 30, 40, 30, 120]);
+    this.emitFrenzy('start');
+  }
+
+  private frenzyTap() {
+    const f = this.frenzy!;
+    if (f.cooldown > 0 || f.count >= FRENZY_MAX) return;
+    f.count++;
+    this.ducks++;
+    sfx.frenzyTap(f.count);
+    haptic(6);
+    shared.pulse = Math.min(1, shared.pulse + 0.35);
+    this.cam.punch = Math.min(0.2, this.cam.punch + 0.025);
+    // A duck squirts out of the player and tumbles away.
+    const a = Math.random() * Math.PI * 2;
+    const { x, y } = this.player;
+    const duck = this.add.image(x, y, TEX.duck).setScale(0.15).setDepth(8).setFlipX(Math.cos(a) < 0);
+    this.tweens.add({
+      targets: duck,
+      x: x + Math.cos(a) * (90 + Math.random() * 80),
+      y: y + Math.sin(a) * (90 + Math.random() * 80),
+      scale: 0.4,
+      angle: (Math.random() - 0.5) * 540,
+      alpha: 0,
+      duration: 650,
+      ease: 'Cubic.easeOut',
+      onComplete: () => duck.destroy(),
+    });
+    if (!save.fxReduced) this.effects.burst(x + Math.cos(a) * 30, y + Math.sin(a) * 30, [0xffd21f, 0xffffff], 4);
+    if (f.count % 10 === 0) {
+      this.effects.shockwave(this.player.x, this.player.y, 0xffd21f, 120 + f.count, 400);
+      this.effects.floater(this.player.x, this.player.y - 40, `${f.count}!`, '#ffe680', 22);
+    }
+    if (f.count >= FRENZY_MAX) this.endFrenzy();
+    else this.emitFrenzy('tick');
+  }
+
+  private stepFrenzy(dt: number) {
+    const f = this.frenzy!;
+    if (f.cooldown > 0) {
+      f.cooldown -= dt;
+      if (f.cooldown <= 0) {
+        this.frenzy = null;
+        this.safeUntil = this.elapsed + 1;
+        this.spinGuardUntil = this.time.now + 300;
+      }
+      return;
+    }
+    f.left -= dt;
+    // Ducks sparkle around you the whole time.
+    if (Math.random() < dt * 20) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 40 + Math.random() * 60;
+      this.effects.burst(this.player.x + Math.cos(a) * r, this.player.y + Math.sin(a) * r, [0xffe680], 2);
+    }
+    if (f.left <= 0) this.endFrenzy();
+    else this.emitFrenzy('tick');
+  }
+
+  private endFrenzy() {
+    const f = this.frenzy!;
+    f.left = 0;
+    f.cooldown = FRENZY_COOLDOWN;
+    const { x, y } = this.player;
+    this.effects.shockwave(x, y, 0xffe680, 260, 700);
+    this.effects.burst(x, y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 16 : 50);
+    this.cam.punch = 0.2;
+    sfx.frenzyEnd(f.count);
+    haptic([30, 40, 80]);
+    this.emitFrenzy('end');
+  }
+
+  private emitFrenzy(phase: FrenzyData['phase']) {
+    const f = this.frenzy!;
+    const data: FrenzyData = { phase, count: f.count, max: FRENZY_MAX, frac: Math.max(0, f.left / FRENZY_SECONDS) };
+    this.game.events.emit(EV.frenzy, data);
   }
 
   // --- Skin abilities -------------------------------------------------------

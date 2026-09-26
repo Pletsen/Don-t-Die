@@ -19,7 +19,12 @@ export class HazardView {
   ) {
     const isSaw = hazard.kind === 'saw';
     const isDuck = hazard.kind === 'duck';
-    this.color = isSaw ? palette.magenta : isDuck ? 0xffd21f : palette.orange;
+    const variant = hazard.variant ?? 'normal';
+    this.color = isSaw
+      ? palette.magenta
+      : isDuck
+        ? { normal: 0xffd21f, red: 0xff5a4a, golden: 0xffe680 }[variant]
+        : palette.orange;
     const d = hazard.radius * 2;
 
     this.warn = scene.add.image(0, 0, TEX.ring).setTint(this.color).setBlendMode(Phaser.BlendModes.ADD);
@@ -34,6 +39,16 @@ export class HazardView {
     if (isDuck) {
       this.warn.setVisible(false);
       this.halo.setAlpha(0.35);
+      if (variant === 'red') {
+        // Red paint job, and a pulsing ring so you notice it.
+        this.body.setTint(0xff5050);
+        this.warn.setVisible(true);
+        this.halo.setAlpha(0.6);
+      } else if (variant === 'golden') {
+        this.body.setTint(0xfff0a0);
+        this.warn.setVisible(true);
+        this.halo.setAlpha(0.9).setScale((d * 3.6) / 128);
+      }
     }
 
     const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
@@ -65,8 +80,19 @@ export class HazardView {
     if (this.frozen) {
       // Frozen solid: no spinning, no pulsing.
     } else if (h.kind === 'duck') {
-      // Bob on invisible water.
-      this.body.setY(Math.sin(time * 4 + h.movePhase) * 2).setRotation(Math.sin(time * 3 + h.movePhase) * 0.15);
+      if (h.variant === 'red') {
+        // Running: a frantic little waddle.
+        this.body.setY(-Math.abs(Math.sin(time * 18)) * 3).setRotation(Math.sin(time * 18) * 0.25);
+      } else if (h.variant === 'golden') {
+        // Big, slow and shiny, with a pulsing golden glow.
+        const glow = 0.5 + 0.5 * Math.sin(time * 5);
+        this.body.setY(Math.sin(time * 2.5 + h.movePhase) * 3).setRotation(Math.sin(time * 2 + h.movePhase) * 0.12);
+        this.halo.setAlpha(0.7 + glow * 0.3);
+        this.body.setTint(glow > 0.8 ? 0xffffff : 0xfff0a0);
+      } else {
+        // Bob on invisible water.
+        this.body.setY(Math.sin(time * 4 + h.movePhase) * 2).setRotation(Math.sin(time * 3 + h.movePhase) * 0.15);
+      }
     } else if (h.kind === 'saw') {
       this.body.rotation += dt * 9;
       this.halo.setAlpha(0.55 + 0.15 * Math.sin(time * 12));
@@ -87,6 +113,8 @@ export class HazardView {
     if (on === this.frozen) return;
     this.frozen = on;
     if (on) this.body.setTint(0xbfefff);
+    else if (this.hazard.variant === 'red') this.body.setTint(0xff5050);
+    else if (this.hazard.variant === 'golden') this.body.setTint(0xfff0a0);
     else this.body.clearTint();
     this.halo.setTint(on ? 0x9fe8ff : this.color);
   }

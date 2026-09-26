@@ -42,8 +42,21 @@ export interface Hazard {
   moveAxis: 'x' | 'y';
   moveRange: number;
   movePhase: number;
+  /** How fast a moving hazard sways (default 1.6). */
+  moveSpeed?: number;
   alive: boolean;
+  /**
+   * Ducks come in three kinds: normal (+1), red (runs about, +5, never
+   * leaves: if you miss it, it runs further up the track) and golden (big,
+   * 0.5 % rare, starts a DUCK FRENZY).
+   */
+  variant?: DuckVariant;
 }
+
+export type DuckVariant = 'normal' | 'red' | 'golden';
+
+/** Chances for a spawned duck to be special. */
+export const DUCK_CHANCE = { golden: 0.005, red: 0.1 };
 
 export interface Segment {
   id: number;
@@ -279,6 +292,25 @@ export class Track {
     return out.filter((h) => goal === null || this.alongTrack(seg, h) < goal - 60);
   }
 
+  /**
+   * Move a special duck you missed onto a segment further ahead, centred in
+   * the lane, so it's waiting for you again. False if there's no room there.
+   */
+  moveDuckTo(hz: Hazard, seg: Segment): boolean {
+    const margin = seg.halfWidth + 24;
+    if (seg.length < margin * 2 + 20 || seg.warpStar) return false;
+    const along = margin + this.rng() * (seg.length - margin * 2);
+    const d = DIRS[seg.dir];
+    hz.x = hz.baseX = seg.start.x + d.x * along;
+    hz.y = hz.baseY = seg.start.y + d.y * along;
+    hz.moveAxis = isHorizontal(seg.dir) ? 'y' : 'x';
+    hz.moveRange = seg.halfWidth * (hz.variant === 'golden' ? 0.5 : 0.75);
+    const goal = this.course.goalPx;
+    if (goal !== null && this.alongTrack(seg, hz) > goal - 60) return false;
+    seg.hazards.push(hz);
+    return true;
+  }
+
   private alongTrack(seg: Segment, h: Hazard) {
     const d = DIRS[seg.dir];
     return seg.travelled + (h.baseX - seg.start.x) * d.x + (h.baseY - seg.start.y) * d.y;
@@ -301,7 +333,7 @@ export class Track {
     const kinds = rules.kinds;
     const kind = kinds[Math.floor(this.rng() * kinds.length) % kinds.length];
     const moving = this.rng() < (rules.moving ?? 0) && !forceStatic;
-    return {
+    const hazard: Hazard = {
       kind,
       x,
       y,
@@ -314,5 +346,20 @@ export class Track {
       movePhase: this.rng() * Math.PI * 2,
       alive: true,
     };
+    if (kind === 'duck') {
+      const roll = this.rng();
+      hazard.variant = roll < DUCK_CHANCE.golden ? 'golden' : roll < DUCK_CHANCE.golden + DUCK_CHANCE.red ? 'red' : 'normal';
+      if (hazard.variant !== 'normal') {
+        // Special ducks run back and forth across the lane, centred on it.
+        const golden = hazard.variant === 'golden';
+        hazard.x = hazard.baseX = horizontal ? ax : seg.start.x;
+        hazard.y = hazard.baseY = horizontal ? seg.start.y : ay;
+        hazard.moving = true;
+        hazard.moveRange = seg.halfWidth * (golden ? 0.5 : 0.75);
+        hazard.moveSpeed = golden ? 1.1 : 3.2;
+        if (golden) hazard.radius = 24;
+      }
+    }
+    return hazard;
   }
 }

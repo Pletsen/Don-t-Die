@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { EV, type ClearData, type DeathData, type HudData } from '../game/shared';
+import { EV, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette, hueColor } from '../game/palette';
@@ -11,8 +11,9 @@ import { SKINS, skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins
 import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
+import { HowToPlay } from '../ui/HowToPlay';
 
-type Mode = 'menu' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
+type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
 
 /**
  * Top layer: HUD, title, level map, game-over and level-clear screens.
@@ -56,6 +57,15 @@ export class UIScene extends Phaser.Scene {
   private playNote!: Phaser.GameObjects.Text;
   private survivalNote!: Phaser.GameObjects.Text;
   private skinsNote!: Phaser.GameObjects.Text;
+  private howBtn!: Button;
+  private howTo!: HowToPlay;
+
+  private frenzy!: Phaser.GameObjects.Container;
+  private frenzyTitle!: Phaser.GameObjects.Text;
+  private frenzySub!: Phaser.GameObjects.Text;
+  private frenzyCount!: Phaser.GameObjects.Text;
+  private frenzyMax!: Phaser.GameObjects.Text;
+  private frenzyBar!: Phaser.GameObjects.Graphics;
 
   private scrim!: Phaser.GameObjects.Rectangle;
   private select!: LevelSelect;
@@ -106,12 +116,19 @@ export class UIScene extends Phaser.Scene {
       levels: () => this.showSelect(),
       menu: () => this.showMenu(),
     });
+    this.howTo = new HowToPlay(this, () => this.showMenu());
     this.buildToggles();
     this.buildAbilityPill();
+    this.buildFrenzy();
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
     this.showMenu();
+    // First launch: explain the game before anything else.
+    if (!save.introSeen && save.deaths === 0 && save.totalStars() === 0) this.showHowTo();
+
+    // Several fingers can tap at once (handy in a DUCK FRENZY).
+    this.input.addPointer(2);
 
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length === 0) this.onBackgroundTap();
@@ -134,6 +151,7 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on(EV.cleared, this.onCleared, this);
     this.game.events.on(EV.combo, this.onCombo, this);
     this.game.events.on(EV.ability, this.onAbility, this);
+    this.game.events.on(EV.frenzy, this.onFrenzy, this);
     this.game.events.on(EV.warp, () => {
       this.toast('WELCOME TO UNIVERSE 2', 2600);
       this.glitchUntil = this.time.now + 400;
@@ -163,7 +181,7 @@ export class UIScene extends Phaser.Scene {
 
   private toast(msg: string, hold = 1600) {
     const { w, h } = display.size(this);
-    this.toastText.setText(msg).setPosition(w / 2, h - 60 - display.safeTop());
+    this.toastText.setText(msg).setPosition(w / 2, h - 100 - display.safeTop());
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(1).setScale(1.4);
     this.tweens.add({ targets: this.toastText, scale: 1, duration: 250, ease: 'Back.easeOut' });
@@ -181,6 +199,9 @@ export class UIScene extends Phaser.Scene {
         break;
       case 'clear':
         this.nextLevel();
+        break;
+      case 'howto':
+        this.howTo.tap();
         break;
     }
   }
@@ -286,9 +307,59 @@ export class UIScene extends Phaser.Scene {
     setIfChanged(this.abilityName, def.name);
     this.abilityName.setColor(state === 'used' || state === 'recharging' ? css.inkDim : css.ink);
     const status =
-      state === 'ready' ? 'TAP 4× FAST TO ACTIVATE' : state === 'active' ? `${Math.ceil(frac * 10)} SEC` : state === 'used' ? 'USED THIS LEVEL' : 'RECHARGING';
+      state === 'ready' ? 'TAP 4 TIMES FAST TO ACTIVATE' : state === 'active' ? `${Math.ceil(frac * 10)} SEC` : state === 'used' ? 'USED THIS LEVEL' : 'RECHARGING';
     setIfChanged(this.abilityStatus, status);
     this.abilityStatus.setColor(state === 'ready' ? hexColor(RARITIES[skin.rarity].color) : css.inkDim);
+  }
+
+  // --- DUCK FRENZY overlay ------------------------------------------------------
+
+  private frenzyActive = false;
+
+  private buildFrenzy() {
+    this.frenzyTitle = this.text(0, -70, 'DUCK FRENZY!', { size: 38, glow: '#ffd21f', spacing: 2 }).setOrigin(0.5);
+    this.frenzySub = this.text(0, -26, 'TAP TAP TAP!', { size: 18, color: '#ffe680', spacing: 3 }).setOrigin(0.5);
+    this.frenzyCount = this.text(0, 40, '0', { size: 84, color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
+    this.frenzyMax = this.text(0, 96, '', { font: 'mono', size: 12, color: css.inkDim, spacing: 2 }).setOrigin(0.5);
+    this.frenzyBar = this.add.graphics();
+    this.frenzy = this.add.container(0, 0, [this.frenzyTitle, this.frenzySub, this.frenzyCount, this.frenzyMax, this.frenzyBar]);
+    this.frenzy.setVisible(false);
+  }
+
+  private onFrenzy(f: FrenzyData) {
+    if (f.phase === 'start') {
+      this.frenzyActive = true;
+      this.tweens.killTweensOf(this.frenzy);
+      this.frenzy.setVisible(true).setAlpha(1).setScale(0.4);
+      this.tweens.add({ targets: this.frenzy, scale: 1, duration: 420, ease: 'Back.easeOut' });
+      this.frenzySub.setText('TAP TAP TAP!');
+      this.frenzyTitle.setText('DUCK FRENZY!');
+    }
+    const prev = this.frenzyCount.text;
+    setIfChanged(this.frenzyCount, String(f.count));
+    if (prev !== this.frenzyCount.text) {
+      this.tweens.killTweensOf(this.frenzyCount);
+      this.frenzyCount.setScale(1.25);
+      this.tweens.add({ targets: this.frenzyCount, scale: 1, duration: 120 });
+    }
+    setIfChanged(this.frenzyMax, `DUCKS  ·  MAX ${f.max}`);
+    const w = 220;
+    const g = this.frenzyBar.clear();
+    g.fillStyle(0x0a0e14, 0.8).fillRoundedRect(-w / 2, 118, w, 10, 5);
+    g.fillStyle(f.frac > 0.25 ? 0xffd21f : 0xff5a4a, 1).fillRoundedRect(-w / 2, 118, Math.max(10, w * f.frac), 10, 5);
+
+    if (f.phase === 'end') {
+      this.frenzyActive = false;
+      this.frenzySub.setScale(1).setText(f.count >= f.max ? 'MAXED OUT!' : f.count >= 40 ? 'INSANE!' : 'NICE!');
+      this.frenzyTitle.setText(`+${f.count} DUCKS`).setColor('#ffd21f');
+      this.tweens.add({
+        targets: this.frenzy,
+        alpha: 0,
+        delay: 1100,
+        duration: 300,
+        onComplete: () => this.frenzy.setVisible(false),
+      });
+    }
   }
 
   private buildToggles() {
@@ -330,6 +401,14 @@ export class UIScene extends Phaser.Scene {
       color: 0xffd21f,
       onPress: () => this.showSkins(),
     });
+    this.howBtn = makeButton(this, {
+      label: 'HOW TO PLAY',
+      width: 150,
+      height: 32,
+      style: 'ghost',
+      color: 0x8fa3b5,
+      onPress: () => this.showHowTo(),
+    });
     this.playNote = note();
     this.survivalNote = note();
     this.skinsNote = note();
@@ -344,6 +423,7 @@ export class UIScene extends Phaser.Scene {
       this.survivalNote,
       this.skinsBtn,
       this.skinsNote,
+      this.howBtn,
       this.statsLine,
     ]);
   }
@@ -392,14 +472,15 @@ export class UIScene extends Phaser.Scene {
     const cy = this.titleY();
     this.titleLayers.forEach((t) => t.setPosition(w / 2, cy));
     this.subtitle.setPosition(w / 2, cy + titleSize * 0.62);
-    const my = Math.max(cy + titleSize * 0.62 + 70, h * 0.5);
+    const my = Math.min(Math.max(cy + titleSize * 0.62 + 70, h * 0.5), h - 320);
     this.playBtn.setPosition(w / 2, my);
     this.playNote.setPosition(w / 2, my + 42);
     this.survivalBtn.setPosition(w / 2, my + 96);
     this.survivalNote.setPosition(w / 2, my + 132);
     this.skinsBtn.setPosition(w / 2, my + 186);
     this.skinsNote.setPosition(w / 2, my + 222);
-    this.statsLine.setPosition(w / 2, h - 28);
+    this.howBtn.setPosition(w / 2, my + 264);
+    this.statsLine.setPosition(w / 2, Math.max(h - 24, my + 294));
 
     this.scrim.setSize(w, h);
     const oy = h * 0.4;
@@ -415,6 +496,8 @@ export class UIScene extends Phaser.Scene {
 
     this.select.layout(w, h, top + 52);
     this.shop.layout(w, h, top + 48);
+    this.howTo.layout(w, h, top + 40);
+    this.frenzy.setPosition(w / 2, h * 0.3);
     this.clearScreen.layout(w, h);
     this.drawProgress(this.lastHud);
   }
@@ -442,6 +525,7 @@ export class UIScene extends Phaser.Scene {
     this.hideSpinBanner();
     this.fadeOut(this.select.root);
     this.fadeOut(this.shop.root);
+    this.fadeOut(this.howTo.root);
     this.fadeOut(this.over);
     this.fadeOut(this.hud);
     if (this.clearScreen.root.visible) this.clearScreen.hide();
@@ -463,6 +547,19 @@ export class UIScene extends Phaser.Scene {
           ? `BEST ${save.best.toFixed(1)} M  ·  ${save.deaths} DEATHS`
           : 'ONE TAP. ONE RULE.',
     );
+  }
+
+  /** HOW TO PLAY: animated cards explaining the game. */
+  private showHowTo() {
+    this.mode = 'howto';
+    sfx.swoosh();
+    this.tweens.killTweensOf([this.title, this.scrim]);
+    this.fadeOut(this.title);
+    this.fadeIn(this.scrim, 0.92);
+    this.howTo.show();
+    this.howTo.root.setVisible(true).setAlpha(0);
+    this.fadeIn(this.howTo.root);
+    this.tapsFrom = this.time.now + 300;
   }
 
   private showSkins() {
@@ -502,6 +599,7 @@ export class UIScene extends Phaser.Scene {
 
   private play(level: number | null) {
     this.level = level;
+    this.frenzy.setVisible(false);
     this.hideSpinBanner();
     this.fadeOut(this.title);
     this.fadeOut(this.over);
@@ -724,6 +822,11 @@ export class UIScene extends Phaser.Scene {
 
     if (this.mode === 'select') this.select.update(time);
     if (this.mode === 'skins') this.shop.update(time);
+    if (this.mode === 'howto') this.howTo.update(time);
+    if (this.frenzy.visible && this.frenzyActive) {
+      this.frenzySub.setScale(1 + 0.08 * Math.sin(t * 20));
+      this.frenzyTitle.setColor(hexColor(hueColor(time / 4 + 40)));
+    }
     if (this.toastText.alpha > 0 && (save.rainbow || this.mode === 'play')) this.toastText.setColor(hexColor(hueColor(time / 3)));
     this.clearScreen.update(time);
 

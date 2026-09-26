@@ -2,7 +2,7 @@
 
 Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, som drejer i en spiral. Hvert tryk drejer dig 90° med uret. Rammer du væggen, en savklinge eller en bombe, er det slut.
 
-Spillet åbner i en hovedmenu med **PLAY** (level-kortet), **SURVIVAL** og **SKINS**. Der er **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
+Spillet åbner i en hovedmenu med **PLAY** (level-kortet), **SURVIVAL**, **SKINS** og en lille **HOW TO PLAY**-knap. HOW TO PLAY er 7 kort med små animationer (mål, sving, PERFECT, farer, ænder, super power og skins). Første gang man åbner spillet, vises den af sig selv (`src/ui/HowToPlay.ts`). Der er **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
 
 | Verden | Farve | Nyt |
 |---|---|---|
@@ -25,6 +25,16 @@ I hvert level er der gemt en lillebitte, regnbuefarvet stjerne et stykke inde p�
 - saw blades og bomber bliver skiftet ud med gummiænder, som du kan vælte (QUACK)
 - en pizza med solbriller flyver forbi på en regnbue, og der dukker skøre beskeder op
 - musikken skifter toneart og tempo
+
+### Tre slags ænder
+
+| And | Chance | Værdi | Hvad sker der |
+|---|---|---|---|
+| Gul | resten | 1 | Står og vipper på vandet |
+| Rød | 10 % | 5 | Løber frem og tilbage på tværs af banen. Misser du den, stikker den af (TOO SLOW!) og venter på dig et par stræk længere fremme, så du får en ny chance |
+| Gylden, kæmpestor | 0,5 % | op til 70 | Starter **DUCK FRENZY**: verden fryser, og hvert tryk i 8 sekunder er én and (flere fingre tæller også). Bagefter er der en kort pause, så de sidste panik-tryk ikke styrer dig ind i en væg |
+
+Chancerne står i `DUCK_CHANCE` i `Track.ts`. Frenzy-tallene (`FRENZY_SECONDS`, `FRENZY_MAX`) og den røde ands værdi står øverst i `GameScene.ts`.
 
 Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på level-kortet. Logikken ligger i `Track.placeWarpStar`, `course.enterWarp` og `GameScene.warp`.
 
@@ -111,6 +121,7 @@ src/
 │   ├── LevelSelect.ts    Level-kortet (hovedmenuen ligger i UIScene)
 │   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen
 │   ├── ClearScreen.ts    "LEVEL CLEAR" med stjerner
+│   ├── HowToPlay.ts      HOW TO PLAY: kort med små animationer
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
 │   ├── levels.ts         ⭐ Alle 20 levels som data: mål, fart, bredde, forhindringer
@@ -130,7 +141,7 @@ src/
 │   ├── Backdrop.ts       Lægger shaderen bag verdenen
 │   ├── CorridorView.ts   Tegner korridoren med neon-kanter
 │   ├── PlayerView.ts     Kuglen: glød, ring og partikel-spor
-│   ├── HazardView.ts     Savklinger og bomber
+│   ├── HazardView.ts     Savklinger, bomber og ænder (gule, røde og gyldne)
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
 │   ├── WarpStarView.ts   Den gemte warp-stjerne
 │   ├── skinTextures.ts   Tegner alle 24 skins

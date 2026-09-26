@@ -221,15 +221,15 @@ class SfxEngine {
     );
   }
 
-  /** Bonked a rubber duck. */
-  quack() {
+  /** Bonked a rubber duck. `pitch` above 1 for small ducks, below 1 for big ones. */
+  quack(pitch = 1) {
     if (!this.ctx || !this.master) return;
     for (const d of [0, 0.11]) {
       const t0 = this.ctx.currentTime + d;
       const osc = this.ctx.createOscillator();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(620, t0);
-      osc.frequency.exponentialRampToValueAtTime(380, t0 + 0.1);
+      osc.frequency.setValueAtTime(620 * pitch, t0);
+      osc.frequency.exponentialRampToValueAtTime(380 * pitch, t0 + 0.1);
       const formant = this.ctx.createBiquadFilter();
       formant.type = 'bandpass';
       formant.frequency.value = 1100;
@@ -242,6 +242,51 @@ class SfxEngine {
       osc.start(t0);
       osc.stop(t0 + 0.12);
     }
+  }
+
+  // --- Special ducks ------------------------------------------------------
+
+  /** Caught the red duck: a bright little jingle on top of the quack. */
+  redDuck() {
+    this.quack(1.3);
+    [0, 4, 7, 12].forEach((st, i) =>
+      this.tone({ freq: 784 * Math.pow(2, st / 12), duration: 0.16, type: 'triangle', gain: 0.09, delay: 0.1 + i * 0.05 }),
+    );
+  }
+
+  /** A missed red duck runs off up the track, laughing. */
+  duckEscape() {
+    this.quack(1.5);
+    this.tone({ freq: 900, glideTo: 1600, duration: 0.25, type: 'triangle', gain: 0.05, delay: 0.2 });
+  }
+
+  /** The golden duck: a huge fanfare into DUCK FRENZY. */
+  frenzyStart() {
+    this.quack(0.6);
+    this.thump(60, 0.5, 0.7, 0.1);
+    this.stab([196, 247, 294, 392], 1.2, 0.12, 5000, 0.1);
+    [0, 4, 7, 12, 16, 19, 24].forEach((st, i) =>
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'square', gain: 0.05, delay: 0.15 + i * 0.06 }),
+    );
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 1.2, gain: 0.1 });
+  }
+
+  /** One frenzy tap: a blip that climbs with the count. */
+  frenzyTap(count: number) {
+    const scale = [0, 2, 4, 7, 9];
+    const step = count % scale.length;
+    const oct = Math.min(3, Math.floor(count / 15));
+    const freq = 330 * Math.pow(2, (scale[step] + oct * 12) / 12);
+    this.tone({ freq, duration: 0.07, type: 'square', gain: 0.045 });
+    if (count % 5 === 0) this.thump(130, 0.18, 0.08);
+  }
+
+  /** Frenzy over: the ducks are counted in. */
+  frenzyEnd(count: number) {
+    const big = count >= 50;
+    this.stab([262, 330, 392, 523], 0.9, 0.12, 4000);
+    this.thump(70, 0.4, 0.4);
+    if (big) this.reveal('legendary');
   }
 
   // --- Skin abilities -----------------------------------------------------
