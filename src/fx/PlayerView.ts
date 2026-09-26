@@ -16,6 +16,10 @@ export class PlayerView {
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private squash = 1;
   private wasRainbow = false;
+  // Bonus-universe costume: googly eyes and a party hat.
+  private party: Phaser.GameObjects.Container;
+  private pupils: Phaser.GameObjects.Graphics;
+  private pupil = { x: 0, y: 0, vx: 0, vy: 0 };
 
   constructor(scene: Phaser.Scene, radius: number) {
     // Trail first so it renders under the orb.
@@ -58,7 +62,18 @@ export class PlayerView {
     const orb = scene.add.image(0, 0, TEX.orb).setScale((radius * 2.1) / 96);
     this.body = scene.add.container(0, 0, [orb]);
 
-    this.root = scene.add.container(0, 0, [this.halo, this.ring, this.body]).setDepth(6);
+    this.pupils = scene.add.graphics();
+    const eyes = scene.add.graphics();
+    eyes.fillStyle(0xffffff, 1).fillCircle(-5, -2, 5.5).fillCircle(5.5, -2, 5.5);
+    eyes.lineStyle(1, 0x222222, 0.6).strokeCircle(-5, -2, 5.5).strokeCircle(5.5, -2, 5.5);
+    const hat = scene.add.graphics();
+    hat.fillStyle(0xff2f9e, 1).fillTriangle(-8, -9, 8, -9, 0, -30);
+    hat.fillStyle(0xffd21f, 1).fillTriangle(-5.2, -14, 5.2, -14, 0, -23);
+    hat.fillStyle(0xff2f9e, 1).fillTriangle(-2.6, -18, 2.6, -18, 0, -23);
+    hat.fillStyle(0x2be8ff, 1).fillCircle(0, -30, 3.2);
+    this.party = scene.add.container(0, 0, [hat, eyes, this.pupils]).setVisible(false);
+
+    this.root = scene.add.container(0, 0, [this.halo, this.ring, this.body, this.party]).setDepth(6);
     this.trail.startFollow(this.root);
     this.sparks.startFollow(this.root);
   }
@@ -70,6 +85,17 @@ export class PlayerView {
   /** A quick squash, as if the orb pushes off the new direction. */
   onTurn() {
     this.squash = 0.62;
+    // Googly eyes rattle on every turn.
+    this.pupil.vx += (Math.random() - 0.5) * 60;
+    this.pupil.vy += (Math.random() - 0.5) * 60;
+  }
+
+  setParty(on: boolean) {
+    this.party.setVisible(on);
+    if (on) {
+      this.party.setScale(0);
+      this.party.scene.tweens.add({ targets: this.party, scale: 1, duration: 500, ease: 'Back.easeOut' });
+    }
   }
 
   update(time: number, dt: number, heading: number, speedNorm: number, radius: number) {
@@ -84,6 +110,20 @@ export class PlayerView {
     this.ring.setRotation(time * 0.9).setScale(ringR / 116, (ringR / 116) * 0.4);
 
     this.trail.frequency = speedNorm > 0.5 ? 5 : 8;
+
+    if (this.party.visible) {
+      // Pupils look where you're going, on a wobbly spring.
+      const tx = Math.cos(heading) * 2.4;
+      const ty = Math.sin(heading) * 2.4;
+      const p = this.pupil;
+      p.vx += ((tx - p.x) * 120 - p.vx * 7) * dt;
+      p.vy += ((ty - p.y) * 120 - p.vy * 7) * dt;
+      p.x = Phaser.Math.Clamp(p.x + p.vx * dt, -3, 3);
+      p.y = Phaser.Math.Clamp(p.y + p.vy * dt, -3, 3);
+      this.pupils.clear().fillStyle(0x111111, 1);
+      this.pupils.fillCircle(-5 + p.x, -2 + p.y, 2.6).fillCircle(5.5 + p.x, -2 + p.y, 2.6);
+      this.party.setRotation(Math.sin(time * 6) * 0.08);
+    }
 
     // Easter egg: a trail that cycles through the rainbow.
     if (save.rainbow) this.trail.setParticleTint(hueColor(time * 240));
@@ -106,6 +146,7 @@ export class PlayerView {
   }
 
   reset() {
+    this.party.setVisible(false);
     this.root.setAlpha(1).setScale(1).setVisible(true);
     this.squash = 1;
     this.trail.killAll();

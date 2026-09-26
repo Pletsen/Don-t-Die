@@ -17,7 +17,16 @@ export interface Course {
   segmentLengthRange(distPx: number, loopIndex: number): { min: number; max: number };
   hazardsAt(distPx: number): HazardRules | null;
   accentAt(distPx: number): number;
+  /** Where the hidden warp star sits (track px), or null if this course has none. */
+  warpAtPx: number | null;
+  /** True after the warp star was hit: the rest of the run is the bonus universe. */
+  warped: boolean;
+  /** Switch to the bonus universe at this distance. */
+  enterWarp(distPx: number): void;
 }
+
+/** Bonus universe: harmless rubber ducks instead of saws and bombs. */
+const DUCKS: HazardRules = { chance: 0.75, kinds: ['duck'], placement: 'any', perSegment: 2 };
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -35,6 +44,9 @@ export function endlessCourse(): Course {
       return chance > 0 ? { chance, kinds: ['saw', 'bomb'], placement: 'side', moving: 0.3 } : null;
     },
     accentAt: sectorColorAt,
+    warpAtPx: null,
+    warped: false,
+    enterWarp: () => {},
   };
 }
 
@@ -42,15 +54,19 @@ export function levelCourse(level: LevelDef): Course {
   const goalPx = level.goal / METERS_PER_PX;
   const progress = (d: number) => clamp01(d / goalPx);
   const color = WORLDS[level.world].color;
-  return {
+  // In the bonus universe speed and width freeze at the moment of the warp.
+  let warpSpeed = 0;
+  let warpWidth = 0;
+  const course: Course = {
     level,
     // Fixed per level, so the track is identical on every attempt.
     seed: level.id * 7919 + 13,
     goalPx,
-    speedAt: (d) => lerp(level.speed[0], level.speed[1], progress(d)),
-    halfWidthAt: (d) => lerp(level.width[0], level.width[1], progress(d)),
+    speedAt: (d) => (course.warped ? warpSpeed : lerp(level.speed[0], level.speed[1], progress(d))),
+    halfWidthAt: (d) => (course.warped ? warpWidth : lerp(level.width[0], level.width[1], progress(d))),
     segmentLengthRange: () => ({ min: level.arm[0], max: level.arm[1] }),
     hazardsAt: (d) => {
+      if (course.warped) return DUCKS;
       const h = level.hazards;
       if (!h) return null;
       const m = d * METERS_PER_PX;
@@ -58,5 +74,16 @@ export function levelCourse(level: LevelDef): Course {
       return h;
     },
     accentAt: () => color,
+    // Somewhere between 28 % and 43 % of the way, different per level.
+    warpAtPx: goalPx * (0.28 + (((level.id * 37) % 13) / 13) * 0.15),
+    warped: false,
+    enterWarp: (d) => {
+      warpSpeed = course.speedAt(d) * 1.05;
+      warpWidth = course.halfWidthAt(d, 0) + 8;
+      course.warped = true;
+      // "The track gets twice as long."
+      course.goalPx = goalPx * 2;
+    },
   };
+  return course;
 }

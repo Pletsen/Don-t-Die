@@ -1,14 +1,20 @@
 import { sfx, midiToFreq } from './Sfx';
 
-// Calm background music, generated live. A slow A-minor progression
-// (Am, F, C, G, two bars each) played as soft pads, a deep bass and a sparse
-// plucked arpeggio with echo. While you play, the filter opens a little and a
-// faint hi-hat joins in; on death the music dips for a moment.
+// Background music, generated live. An A-minor synthwave groove
+// (Am, F, C, G, two bars each):
+//
+//   menus    soft pads, long bass notes and a sparse echoing pluck
+//   playing  + four-on-the-floor kick, claps, hi-hats, a pumping 8th-note
+//            bass and a running 16th-note arpeggio
+//   warp     the "other universe": faster, a key change up and extra sparkle
+//
+// Everything is scheduled on a 16th-note grid slightly ahead of time, which
+// keeps the timing tight even if the game stutters.
 
-const BPM = 84;
-const STEP = 60 / BPM / 2; // eighth notes
-const STEPS_PER_CHORD = 16; // two bars of 4/4
-const VOLUME = 0.3;
+const BPM = 108;
+const PARTY_BPM = 124;
+const STEPS_PER_CHORD = 32; // two bars of 16th notes
+const VOLUME = 0.36;
 
 interface Chord {
   pad: number[];
@@ -23,6 +29,9 @@ const CHORDS: Chord[] = [
   { pad: [55, 59, 62], bass: 43, arp: [67, 71, 74, 79] }, // G
 ];
 
+/** Order the arpeggio walks through the chord tones. */
+const ARP_PATTERN = [0, 1, 2, 3, 2, 1, 2, 3];
+
 class MusicEngine {
   private ctx: AudioContext | null = null;
   private bus: GainNode | null = null;
@@ -31,9 +40,14 @@ class MusicEngine {
   private nextTime = 0;
   private step = 0;
   private energy = 0;
+  private party = false;
 
   constructor() {
     sfx.onUnlock = () => this.start();
+  }
+
+  private get stepLength() {
+    return 60 / (this.party ? PARTY_BPM : BPM) / 4;
   }
 
   private start() {
@@ -43,38 +57,42 @@ class MusicEngine {
 
     this.bus = ctx.createGain();
     this.bus.gain.setValueAtTime(0, ctx.currentTime);
-    this.bus.gain.linearRampToValueAtTime(VOLUME, ctx.currentTime + 4); // fade in
+    this.bus.gain.linearRampToValueAtTime(VOLUME, ctx.currentTime + 3); // fade in
     this.bus.connect(sfx.master);
 
     this.padFilter = ctx.createBiquadFilter();
     this.padFilter.type = 'lowpass';
-    this.padFilter.frequency.value = 700;
+    this.padFilter.frequency.value = 800;
     this.padFilter.Q.value = 0.5;
     this.padFilter.connect(this.bus);
 
     // Echo: a delay that feeds back into itself, fading each repeat.
     const delay = ctx.createDelay(2);
-    delay.delayTime.value = STEP * 3;
+    delay.delayTime.value = (60 / BPM) * 0.75; // dotted eighth
     const feedback = ctx.createGain();
-    feedback.gain.value = 0.38;
+    feedback.gain.value = 0.35;
     const wet = ctx.createGain();
-    wet.gain.value = 0.35;
+    wet.gain.value = 0.3;
     delay.connect(feedback).connect(delay);
     delay.connect(wet).connect(this.bus);
     this.echo = ctx.createGain();
     this.echo.connect(delay);
 
     this.nextTime = ctx.currentTime + 0.1;
-    // Schedule notes slightly ahead of time; timers alone are too jittery.
-    setInterval(() => this.schedule(), 60);
+    setInterval(() => this.schedule(), 50);
   }
 
   /** 0 in menus, 1 while playing. */
   setEnergy(e: number) {
     this.energy = e;
     if (this.ctx && this.padFilter) {
-      this.padFilter.frequency.setTargetAtTime(700 + e * 700, this.ctx.currentTime, 1.5);
+      this.padFilter.frequency.setTargetAtTime(800 + e * 900, this.ctx.currentTime, 1);
     }
+  }
+
+  /** Party mode for the warp universe. */
+  setParty(on: boolean) {
+    this.party = on;
   }
 
   /** Dip the volume briefly (on death). */
@@ -91,9 +109,9 @@ class MusicEngine {
     if (!this.ctx || this.ctx.state !== 'running') return;
     // Catch up after the tab was hidden instead of playing a burst of notes.
     if (this.nextTime < this.ctx.currentTime - 0.5) this.nextTime = this.ctx.currentTime + 0.05;
-    while (this.nextTime < this.ctx.currentTime + 0.3) {
+    while (this.nextTime < this.ctx.currentTime + 0.25) {
       this.playStep(this.step, this.nextTime);
-      this.nextTime += STEP;
+      this.nextTime += this.stepLength;
       this.step++;
     }
   }
@@ -101,16 +119,32 @@ class MusicEngine {
   private playStep(i: number, t: number) {
     const chord = CHORDS[Math.floor(i / STEPS_PER_CHORD) % CHORDS.length];
     const within = i % STEPS_PER_CHORD;
+    const beatStep = i % 16; // position in the bar
+    const shift = this.party ? 3 : 0; // key change up in the warp universe
+    const note = (m: number) => midiToFreq(m + shift);
+    const playing = this.energy > 0.5;
+    const len = this.stepLength;
 
-    if (within === 0) chord.pad.forEach((m) => this.pad(midiToFreq(m), t, STEPS_PER_CHORD * STEP));
-    if (within === 0 || within === 8) this.bass(midiToFreq(chord.bass - 12), t, STEP * 7);
+    if (within === 0) chord.pad.forEach((m) => this.pad(note(m), t, STEPS_PER_CHORD * len));
 
-    const arpChance = within % 2 === 0 ? 0.5 + this.energy * 0.2 : this.energy * 0.25;
-    if (Math.random() < arpChance) {
-      const m = chord.arp[Math.floor(Math.random() * chord.arp.length)];
-      this.pluck(midiToFreq(m), t);
+    if (playing) {
+      // Drums.
+      if (beatStep % 4 === 0) this.kick(t);
+      if (beatStep === 4 || beatStep === 12) this.clap(t);
+      if (beatStep % 2 === 1) this.hat(t, 0.02);
+      else if (this.party) this.hat(t, 0.012);
+      // Pumping eighth-note bass, jumping an octave on the off-beats.
+      if (i % 2 === 0) this.bass(note(chord.bass - 12 + (beatStep % 4 === 2 ? 12 : 0)), t, len * 1.6, 0.1);
+      // Running arpeggio.
+      const arp = chord.arp[ARP_PATTERN[i % ARP_PATTERN.length]] + (this.party && i % 4 === 3 ? 12 : 0);
+      if (i % 2 === 0 || this.party) this.pluck(note(arp), t, 0.03);
+    } else {
+      // Menus: calm.
+      if (within === 0 || within === 16) this.bass(note(chord.bass - 12), t, len * 14, 0.08);
+      if (i % 4 === 0 && Math.random() < 0.55) {
+        this.pluck(note(chord.arp[Math.floor(Math.random() * chord.arp.length)]), t, 0.035);
+      }
     }
-    if (this.energy > 0.5 && within % 2 === 1) this.hat(t);
   }
 
   private pad(f: number, t: number, dur: number) {
@@ -122,60 +156,94 @@ class MusicEngine {
       osc.frequency.value = f;
       osc.detune.value = detune;
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.022, t + 1.4);
-      g.gain.setValueAtTime(0.022, t + dur - 1.2);
-      g.gain.linearRampToValueAtTime(0, t + dur + 0.6);
+      g.gain.linearRampToValueAtTime(0.02, t + 1);
+      g.gain.setValueAtTime(0.02, t + dur - 0.8);
+      g.gain.linearRampToValueAtTime(0, t + dur + 0.4);
       osc.connect(g).connect(this.padFilter!);
       osc.start(t);
-      osc.stop(t + dur + 0.7);
+      osc.stop(t + dur + 0.5);
     }
   }
 
-  private bass(f: number, t: number, dur: number) {
+  private bass(f: number, t: number, dur: number, gain: number) {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
+    const sub = ctx.createOscillator();
+    const filter = ctx.createBiquadFilter();
     const g = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = 'sawtooth';
     osc.frequency.value = f;
+    sub.type = 'sine';
+    sub.frequency.value = f / 2;
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(900, t);
+    filter.frequency.exponentialRampToValueAtTime(200, t + Math.min(dur, 0.3));
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.09, t + 0.06);
-    g.gain.exponentialRampToValueAtTime(0.03, t + dur * 0.6);
+    g.gain.linearRampToValueAtTime(gain, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(gain * 0.3, t + dur * 0.7);
     g.gain.linearRampToValueAtTime(0, t + dur);
-    osc.connect(g).connect(this.bus!);
+    osc.connect(filter);
+    sub.connect(filter);
+    filter.connect(g).connect(this.bus!);
     osc.start(t);
+    sub.start(t);
     osc.stop(t + dur + 0.05);
+    sub.stop(t + dur + 0.05);
   }
 
-  private pluck(f: number, t: number) {
+  private pluck(f: number, t: number, gain: number) {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = 'triangle';
     osc.frequency.value = f;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.035, t + 0.008);
-    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.6);
+    g.gain.linearRampToValueAtTime(gain, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0005, t + 0.35);
     osc.connect(g);
     g.connect(this.bus!);
     g.connect(this.echo!);
     osc.start(t);
-    osc.stop(t + 0.65);
+    osc.stop(t + 0.4);
   }
 
-  private hat(t: number) {
+  private kick(t: number) {
+    const ctx = this.ctx!;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(140, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.12);
+    g.gain.setValueAtTime(0.28, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    osc.connect(g).connect(this.bus!);
+    osc.start(t);
+    osc.stop(t + 0.32);
+  }
+
+  private noiseHit(t: number, type: BiquadFilterType, freq: number, gain: number, dur: number) {
     const ctx = this.ctx!;
     if (!sfx.noise) return;
     const src = ctx.createBufferSource();
     src.buffer = sfx.noise;
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 7000;
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
     const g = ctx.createGain();
-    g.gain.setValueAtTime(0.012 * this.energy, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    src.connect(hp).connect(g).connect(this.bus!);
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(this.bus!);
     src.start(t);
-    src.stop(t + 0.05);
+    src.stop(t + dur + 0.02);
+  }
+
+  private clap(t: number) {
+    this.noiseHit(t, 'bandpass', 1500, 0.09, 0.14);
+    this.noiseHit(t + 0.012, 'bandpass', 1800, 0.06, 0.1);
+  }
+
+  private hat(t: number, gain: number) {
+    this.noiseHit(t, 'highpass', 7500, gain, 0.035);
   }
 }
 

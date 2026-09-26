@@ -15,6 +15,19 @@ Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et le
 
 Vil man hellere bare køre, er **SURVIVAL** altid åben: en uendelig bane, der bliver hurtigere og hurtigere, med rekord for længste distance.
 
+### Warp-stjernen
+
+I hvert level er der gemt en lillebitte, regnbuefarvet stjerne et stykke inde på banen. Den står ude ved den ene væg, så man skal dreje tidligt eller sent med vilje for at ramme den. Rammer du den, bliver du sendt til **Universe 2** resten af turen:
+
+- banen bliver dobbelt så lang
+- baggrunden bliver en psykedelisk regnbue-spiral, og en discokugle hænger på himlen
+- kuglen får googly eyes og festhat
+- saw blades og bomber bliver skiftet ud med gummiænder, som du kan vælte (QUACK)
+- en pizza med solbriller flyver forbi på en regnbue, og der dukker skøre beskeder op
+- musikken skifter toneart og tempo
+
+Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på level-kortet. Logikken ligger i `Track.placeWarpStar`, `course.enterWarp` og `GameScene.warp`.
+
 ### I baggrunden
 
 Langt ude i rummet sker der ting: stjerneskud (en sjælden gang en hel regn af dem), en planet med ringe, en UFO der stopper op og lyser med sin traktorstråle, en astronaut der tumler forbi og siger hej, og en sjælden gang en neon-hval. Alt det styres af `src/fx/BackgroundEvents.ts`.
@@ -87,11 +100,12 @@ src/
 │   ├── CorridorView.ts   Tegner korridoren med neon-kanter
 │   ├── PlayerView.ts     Kuglen: glød, ring og partikel-spor
 │   ├── HazardView.ts     Savklinger og bomber
-│   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut og hval i baggrunden
+│   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
+│   ├── WarpStarView.ts   Den gemte warp-stjerne
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
     ├── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)
-    └── Music.ts          Rolig baggrundsmusik, genereret live i A-mol
+    └── Music.ts          Baggrundsmusik i A-mol, genereret live (rolig i menuer, med trommer når man spiller)
 ```
 
 **Grundidé:** Logik og grafik er holdt adskilt. `Track.ts` ved kun, hvor banen er (rektangler og tal). `CorridorView.ts` ved kun, hvordan den skal se ud. Derfor kan du ændre udseendet uden at ødelægge reglerne, og omvendt.
@@ -114,7 +128,7 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
 - **Ny lyd:** `src/audio/Sfx.ts`. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
-- **Musikken:** `src/audio/Music.ts`. `CHORDS` er akkordrækken, `BPM` tempoet og `VOLUME` lydstyrken.
+- **Musikken:** `src/audio/Music.ts`. `CHORDS` er akkordrækken, `BPM` tempoet og `VOLUME` lydstyrken. Trommer og bas ligger i `playStep`.
 
 Mens `npm run dev` kører, opdateres spillet i browseren, hver gang du gemmer en fil.
 

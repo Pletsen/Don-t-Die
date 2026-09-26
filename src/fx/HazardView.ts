@@ -3,7 +3,7 @@ import type { Hazard } from '../game/Track';
 import { palette } from '../game/palette';
 import { TEX } from './textures';
 
-/** Visuals for one saw blade or bomb. Follows its `Hazard` data every frame. */
+/** Visuals for one saw blade, bomb or rubber duck. Follows its `Hazard` data every frame. */
 export class HazardView {
   private root: Phaser.GameObjects.Container;
   private body: Phaser.GameObjects.Image;
@@ -13,11 +13,12 @@ export class HazardView {
   private color: number;
 
   constructor(
-    scene: Phaser.Scene,
+    private scene: Phaser.Scene,
     readonly hazard: Hazard,
   ) {
     const isSaw = hazard.kind === 'saw';
-    this.color = isSaw ? palette.magenta : palette.orange;
+    const isDuck = hazard.kind === 'duck';
+    this.color = isSaw ? palette.magenta : isDuck ? 0xffd21f : palette.orange;
     const d = hazard.radius * 2;
 
     this.warn = scene.add.image(0, 0, TEX.ring).setTint(this.color).setBlendMode(Phaser.BlendModes.ADD);
@@ -26,10 +27,16 @@ export class HazardView {
       .setTint(this.color)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setScale((d * 2.6) / 128);
-    this.body = scene.add.image(0, 0, isSaw ? TEX.saw : TEX.bomb).setScale((d * (isSaw ? 1.05 : 1.1)) / 128);
+    this.body = isDuck
+      ? scene.add.image(0, 0, TEX.duck).setScale((d * 1.5) / 96).setFlipX(Math.random() < 0.5)
+      : scene.add.image(0, 0, isSaw ? TEX.saw : TEX.bomb).setScale((d * (isSaw ? 1.05 : 1.1)) / 128);
+    if (isDuck) {
+      this.warn.setVisible(false);
+      this.halo.setAlpha(0.35);
+    }
 
     const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
-    if (!isSaw) {
+    if (hazard.kind === 'bomb') {
       this.fuse = scene.add
         .image(0, 0, TEX.glow)
         .setTint(0xfff1b0)
@@ -54,7 +61,10 @@ export class HazardView {
     const k = (time * 1.2 + h.movePhase) % 1;
     this.warn.setScale((r * (1.4 + k * 1.1)) / 116).setAlpha((1 - k) * 0.5);
 
-    if (h.kind === 'saw') {
+    if (h.kind === 'duck') {
+      // Bob on invisible water.
+      this.body.setY(Math.sin(time * 4 + h.movePhase) * 2).setRotation(Math.sin(time * 3 + h.movePhase) * 0.15);
+    } else if (h.kind === 'saw') {
       this.body.rotation += dt * 9;
       this.halo.setAlpha(0.55 + 0.15 * Math.sin(time * 12));
     } else {
@@ -68,6 +78,22 @@ export class HazardView {
           .setAlpha(0.7 + 0.3 * Math.random());
       }
     }
+  }
+
+  /** Duck got bonked: it spins off into space and is gone. */
+  knockAway(dirX: number, dirY: number) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    this.scene.tweens.add({
+      targets: this.root,
+      x: this.root.x + dirX * 160 - dirY * side * 120,
+      y: this.root.y + dirY * 160 + dirX * side * 120,
+      angle: 720 * side,
+      scale: 1.6,
+      alpha: 0,
+      duration: 700,
+      ease: 'Cubic.easeOut',
+      onComplete: () => this.destroy(),
+    });
   }
 
   setVisible(v: boolean) {

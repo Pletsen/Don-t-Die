@@ -28,7 +28,8 @@ export const DIRS: readonly Vec[] = [
 
 export const isHorizontal = (dir: Dir) => dir === 0 || dir === 2;
 
-export type HazardKind = 'saw' | 'bomb';
+/** `duck` only appears in the bonus universe and is harmless (you bonk it). */
+export type HazardKind = 'saw' | 'bomb' | 'duck';
 
 export interface Hazard {
   kind: HazardKind;
@@ -62,6 +63,14 @@ export interface Segment {
   hazards: Hazard[];
   /** Where the finish line crosses this segment, if it does. */
   finish: Vec | null;
+  /** The hidden warp star, if it's on this segment. */
+  warpStar: WarpStar | null;
+}
+
+export interface WarpStar {
+  x: number;
+  y: number;
+  taken: boolean;
 }
 
 export const pointInRect = (x: number, y: number, r: Rect) =>
@@ -112,6 +121,7 @@ export class Track {
   segments: Segment[] = [];
   private nextId = 0;
   private rng: Rng;
+  private warpPlaced = false;
 
   constructor(
     private course: Course,
@@ -208,6 +218,7 @@ export class Track {
       perfect,
       hazards: [],
       finish: null,
+      warpStar: null,
     };
 
     if (finishAt !== null) {
@@ -215,8 +226,37 @@ export class Track {
     }
 
     seg.hazards = this.makeHazards(seg);
+    this.placeWarpStar(seg);
     this.segments.push(seg);
     return seg;
+  }
+
+  /**
+   * The warp star goes on the first straight at or after `warpAtPx`, near
+   * one wall, so reaching it means turning early or late on purpose.
+   */
+  private placeWarpStar(seg: Segment) {
+    const at = this.course.warpAtPx;
+    if (at === null || this.warpPlaced || this.course.warped) return;
+    const margin = seg.halfWidth + 30;
+    if (seg.length < margin * 2 + 20 || seg.travelled + seg.length - margin < at) return;
+    const along = Math.max(margin, Math.min(seg.length - margin, at - seg.travelled));
+    const side = this.rng() < 0.5 ? -1 : 1;
+    const lateral = side * seg.halfWidth * this.rand(0.5, 0.66);
+    const d = DIRS[seg.dir];
+    seg.warpStar = {
+      x: seg.start.x + d.x * along - d.y * lateral,
+      y: seg.start.y + d.y * along + d.x * lateral,
+      taken: false,
+    };
+    // Keep the star's straight clear, so it's a pure skill shot.
+    seg.hazards = [];
+    this.warpPlaced = true;
+  }
+
+  /** Re-roll a segment's hazards under the course's current rules. */
+  refillHazards(seg: Segment) {
+    seg.hazards = this.makeHazards(seg);
   }
 
   private makeHazards(seg: Segment): Hazard[] {
@@ -267,7 +307,7 @@ export class Track {
       y,
       baseX: x,
       baseY: y,
-      radius: kind === 'saw' ? 15 : 14,
+      radius: kind === 'saw' ? 15 : kind === 'duck' ? 13 : 14,
       moving,
       moveAxis: horizontal ? 'y' : 'x',
       moveRange: seg.halfWidth * 0.5,

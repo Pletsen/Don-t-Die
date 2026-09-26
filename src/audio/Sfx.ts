@@ -88,6 +88,44 @@ class SfxEngine {
     osc.stop(t0 + dur + 0.02);
   }
 
+  /**
+   * A warm synth chord: detuned sawtooth voices through a low-pass filter
+   * that closes quickly. Gives a deep "bwom" instead of a thin beep.
+   */
+  private stab(freqs: number[], dur: number, gain: number, cutoff: number, delay = 0) {
+    if (!this.ctx || !this.master) return;
+    const t0 = this.ctx.currentTime + delay;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 4;
+    filter.frequency.setValueAtTime(cutoff, t0);
+    filter.frequency.exponentialRampToValueAtTime(Math.max(80, cutoff * 0.15), t0 + dur);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    filter.connect(g).connect(this.master);
+    for (const f of freqs) {
+      for (const detune of [-8, 8]) {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = f;
+        osc.detune.value = detune;
+        osc.connect(filter);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.02);
+      }
+    }
+  }
+
+  /** A soft kick-drum style thump for weight. */
+  private thump(freq = 110, gain = 0.3, dur = 0.16, delay = 0) {
+    this.tone({ freq, glideTo: freq * 0.4, duration: dur, type: 'sine', gain, delay });
+  }
+
+  /** In the bonus universe some sounds turn silly. */
+  party = false;
+
   private burst(o: NoiseOpts) {
     if (!this.ctx || !this.master || !this.noise) return;
     const t0 = this.ctx.currentTime;
@@ -111,12 +149,18 @@ class SfxEngine {
    * of turns becomes a little melody in the same key as the music.
    */
   turn(step: number) {
-    const f = midiToFreq(PENTATONIC[step % PENTATONIC.length] - 12);
-    this.burst({ filterType: 'highpass', filterFreq: 2400, duration: 0.05, gain: 0.12 });
-    this.tone({ freq: f, duration: 0.18, type: 'triangle', gain: 0.1 });
-    this.tone({ freq: f * 2, duration: 0.08, type: 'sine', gain: 0.04 });
-    // A quick airy "whip" for the change of direction.
-    this.burst({ filterType: 'bandpass', filterFreq: 1200, duration: 0.12, gain: 0.07, rate: 1.6 });
+    if (this.party) {
+      // Cartoon "boing".
+      this.tone({ freq: 140, glideTo: 520, duration: 0.18, type: 'sine', gain: 0.18 });
+      this.thump(90, 0.2);
+      return;
+    }
+    // Two octaves lower than before: a low note with a thump under it and a
+    // soft "whoosh" for the change of direction.
+    const f = midiToFreq(PENTATONIC[step % PENTATONIC.length] - 24);
+    this.thump(95, 0.26, 0.14);
+    this.stab([f], 0.22, 0.09, 1400);
+    this.burst({ filterType: 'bandpass', filterFreq: 600, duration: 0.14, gain: 0.08, rate: 0.8 });
   }
 
   /** Bomb nearby: a dry tick that gets brighter the closer you are (0..1). */
@@ -157,9 +201,53 @@ class SfxEngine {
   perfect(combo: number) {
     const scale = [0, 3, 5, 7, 10, 12, 15, 17];
     const semis = scale[Math.min(combo - 1, scale.length - 1)];
-    const f = 880 * Math.pow(2, semis / 12);
-    this.tone({ freq: f, glideTo: f * 1.5, duration: 0.14, type: 'sine', gain: 0.26 });
-    this.tone({ freq: f * 2, duration: 0.1, type: 'triangle', gain: 0.07, delay: 0.03 });
+    const root = 110 * Math.pow(2, semis / 12);
+    // Deep chord stab (root, fifth, octave) with a sub-bass drop under it,
+    // and only a light sparkle on top.
+    this.stab([root, root * 1.5, root * 2], 0.45, 0.12, 2600);
+    this.tone({ freq: root / 2, glideTo: root / 4, duration: 0.35, type: 'sine', gain: 0.3 });
+    this.thump(120, 0.28, 0.2);
+    this.tone({ freq: root * 8, duration: 0.12, type: 'sine', gain: 0.025, delay: 0.04 });
+  }
+
+  /** Hit the warp star: a huge rising sweep into a boom and a bright chord. */
+  warp() {
+    this.tone({ freq: 60, glideTo: 1200, duration: 0.9, type: 'sawtooth', gain: 0.07 });
+    this.burst({ filterType: 'highpass', filterFreq: 1500, duration: 0.9, gain: 0.12, rate: 0.6 });
+    this.thump(70, 0.45, 0.6, 0.85);
+    this.stab([220, 277, 330, 440], 1.4, 0.1, 4000, 0.85);
+    [0, 4, 7, 12, 16, 19].forEach((st, i) =>
+      this.tone({ freq: 880 * Math.pow(2, st / 12), duration: 0.25, type: 'triangle', gain: 0.06, delay: 0.9 + i * 0.05 }),
+    );
+  }
+
+  /** Bonked a rubber duck. */
+  quack() {
+    if (!this.ctx || !this.master) return;
+    for (const d of [0, 0.11]) {
+      const t0 = this.ctx.currentTime + d;
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(620, t0);
+      osc.frequency.exponentialRampToValueAtTime(380, t0 + 0.1);
+      const formant = this.ctx.createBiquadFilter();
+      formant.type = 'bandpass';
+      formant.frequency.value = 1100;
+      formant.Q.value = 3;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.22, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+      osc.connect(formant).connect(g).connect(this.master);
+      osc.start(t0);
+      osc.stop(t0 + 0.12);
+    }
+  }
+
+  /** A gentle sparkle when the warp star is close. */
+  starNear() {
+    this.tone({ freq: 2093, duration: 0.2, type: 'sine', gain: 0.03 });
+    this.tone({ freq: 2637, duration: 0.2, type: 'sine', gain: 0.02, delay: 0.06 });
   }
 
   near() {

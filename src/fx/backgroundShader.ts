@@ -25,6 +25,12 @@ uniform float uTime;      // seconds
 uniform vec3 uAccent;     // sector colour, 0..1
 uniform float uIntensity; // 0 slow .. 1 top speed
 uniform float uPulse;     // flash on perfect turns
+uniform float uWarp;      // 0 normal .. 1 bonus universe
+
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + vec3(0.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
+}
 
 float hash(vec2 p) {
   p = fract(p * vec2(123.34, 456.21));
@@ -104,6 +110,21 @@ void main() {
 
   // Energy pulse from PERFECT turns.
   col += uAccent * uPulse * 0.1 * (1.0 - smoothstep(0.0, 0.9, r));
+
+  // 5. Bonus universe: a slowly turning rainbow spiral, ripples and
+  // hyperspace streaks rushing out from the centre. Kept dim so the track
+  // stays readable.
+  if (uWarp > 0.001) {
+    float rad = length(q * vec2(aspect, 1.0));
+    float ang = atan(q.y, q.x);
+    float spiral = sin(ang * 5.0 + log(rad + 0.02) * 9.0 - uTime * 2.5);
+    float ripples = sin(rad * 28.0 - uTime * 5.0);
+    vec3 rainbow = hsv2rgb(vec3(fract(ang / 6.2831 + uTime * 0.07 + rad * 0.5), 0.8, 1.0));
+    vec3 psy = rainbow * (0.07 + 0.13 * smoothstep(0.1, 1.0, spiral) + 0.03 * ripples);
+    float streak = pow(abs(sin(ang * 23.0)), 80.0) * fract(rad * 1.5 - uTime * 1.2) * smoothstep(0.15, 0.9, rad);
+    psy += vec3(1.0) * streak * 0.25;
+    col = mix(col, col * 0.5 + psy, uWarp);
+  }
 
   // Tiny dither kills gradient banding on 8-bit screens.
   col += (hash(gl_FragCoord.xy + fract(uTime)) - 0.5) / 255.0;

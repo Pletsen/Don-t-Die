@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment } from '../game/Track';
+import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment, type WarpStar } from '../game/Track';
 import { tuning, METERS_PER_PX } from '../game/tuning';
 import { shared, EV, type DeathData, type ClearData, type PlayRequest } from '../game/shared';
 import { endlessCourse, levelCourse, type Course } from '../game/course';
 import { levelById } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, palette } from '../game/palette';
+import { css, palette, hueColor } from '../game/palette';
 import { sfx, haptic } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
@@ -15,6 +15,7 @@ import { HazardView } from '../fx/HazardView';
 import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
+import { WarpStarView } from '../fx/WarpStarView';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
 
@@ -65,6 +66,9 @@ export class GameScene extends Phaser.Scene {
   private visitors!: BackgroundEvents;
   private milestonesHit = new Set<number>();
   private hazardViews = new Map<Hazard, HazardView>();
+  private starView: WarpStarView | null = null;
+  private starSparkled = false;
+  private ducks = 0;
 
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
   private grade?: Phaser.Filters.ColorMatrix;
@@ -135,6 +139,11 @@ export class GameScene extends Phaser.Scene {
     this.hazardViews.forEach((v) => v.destroy());
     this.hazardViews.clear();
     this.effects.clear();
+    this.starView?.destroy();
+    this.starView = null;
+    this.starSparkled = false;
+    this.ducks = 0;
+    this.setUniverse(false);
 
     this.state = 'ready';
     this.course = course;
@@ -271,6 +280,7 @@ export class GameScene extends Phaser.Scene {
       seconds: this.elapsed,
       goal: this.goalMeters(),
       level: this.course.level?.id ?? null,
+      warped: this.course.warped,
       best: save.best,
       isNewBest,
       cause,
@@ -295,6 +305,7 @@ export class GameScene extends Phaser.Scene {
     const stars = 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.9 ? 1 : 0);
     const previousStars = save.starsFor(level.id);
     save.recordStars(level.id, stars);
+    if (this.course.warped) save.recordWarp(level.id);
 
     const { x, y } = this.player;
     const color = this.course.accentAt(this.distance);
@@ -317,6 +328,8 @@ export class GameScene extends Phaser.Scene {
       previousStars,
       perfects: this.perfects,
       turns: this.gateTurns,
+      warped: this.course.warped,
+      ducks: this.ducks,
     };
     this.time.delayedCall(650, () => this.game.events.emit(EV.cleared, data));
   }
@@ -333,7 +346,10 @@ export class GameScene extends Phaser.Scene {
 
     const speed = this.course.speedAt(this.distance);
     const speedNorm = clamp((speed - 230) / 390, 0, 1);
-    const accent = this.course.accentAt(this.distance);
+    // The bonus universe cycles through the rainbow.
+    const accent = this.course.warped ? hueColor(t * 70) : this.course.accentAt(this.distance);
+    shared.warp = lerp(shared.warp, this.course.warped ? 1 : 0, damp(this.course.warped ? 0.2 : 0.0001, dt));
+    this.updateWarpStar(t);
 
     // Hazards animate even while the menu is up. Only those on visible
     // segments are shown; ones on track already passed are hidden.
@@ -425,6 +441,10 @@ export class GameScene extends Phaser.Scene {
 
     if (!this.course.level) this.checkMilestones();
     this.tickNearbyBombs(cur, next);
+    for (const seg of [cur, next]) {
+      if (seg?.warpStar && !seg.warpStar.taken) this.checkWarpStar(seg.warpStar);
+      if (this.state !== 'play') return;
+    }
 
     // Near miss against the walls: once per segment.
     const edge = distToRectEdge(this.player.x, this.player.y, inCur ? cur.rect : next!.rect);
@@ -447,9 +467,13 @@ export class GameScene extends Phaser.Scene {
         else hz.x = hz.baseX + osc;
       }
       const dist = Math.hypot(this.player.x - hz.x, this.player.y - hz.y);
+      if (hz.kind === 'duck') {
+        if (dist < hz.radius + tuning.playerRadius) this.bonkDuck(hz);
+        continue;
+      }
       if (dist < hz.radius + tuning.playerRadius) {
         // The hazard stays on screen: you should see what got you.
-        this.die(hz.kind, hz.kind === 'saw' ? palette.magenta : palette.orange);
+        this.die(hz.kind === 'saw' ? 'saw' : 'bomb', hz.kind === 'saw' ? palette.magenta : palette.orange);
         return;
       }
       if (dist < hz.radius + tuning.playerRadius + 16 && !this.nearHazardFlags.has(hz)) {
@@ -459,6 +483,84 @@ export class GameScene extends Phaser.Scene {
         sfx.near();
       }
     }
+  }
+
+  // --- The warp star and the bonus universe ---------------------------------
+
+  /** Show the star while its segment is on screen. */
+  private updateWarpStar(t: number) {
+    const seg = this.visibleSegments().find((s) => s.warpStar && !s.warpStar.taken);
+    if (seg && !this.starView) this.starView = new WarpStarView(this, seg.warpStar!);
+    if (!seg && this.starView) {
+      this.starView.destroy();
+      this.starView = null;
+    }
+    this.starView?.update(t);
+  }
+
+  private checkWarpStar(star: WarpStar) {
+    const dist = Math.hypot(this.player.x - star.x, this.player.y - star.y);
+    if (dist < 80 && !this.starSparkled) {
+      this.starSparkled = true;
+      sfx.starNear();
+    }
+    // Deliberately tiny pickup radius: it should be hard to hit.
+    if (dist < tuning.playerRadius + 5) this.warp(star);
+  }
+
+  /** You hit the star: off to the bonus universe for the rest of the run. */
+  private warp(star: WarpStar) {
+    star.taken = true;
+    this.starView?.destroy();
+    this.starView = null;
+    this.course.enterWarp(this.distance);
+
+    // Hazards already generated ahead are swapped out: the new universe
+    // brings its own (harmless, but loud) residents.
+    for (const seg of this.track.segments.slice(this.current + 1)) {
+      seg.finish = null; // the finish moves twice as far away
+      for (const hz of seg.hazards) {
+        this.hazardViews.get(hz)?.destroy();
+        this.hazardViews.delete(hz);
+      }
+      this.track.refillHazards(seg);
+    }
+
+    const { x, y } = this.player;
+    const rainbow = [0xff2f9e, 0xffd21f, 0x2be8ff, 0x7cff6b, 0xff9a2e, 0xb36bff];
+    rainbow.forEach((c, i) => this.time.delayedCall(i * 70, () => this.effects.shockwave(x, y, c, 120 + i * 60, 700)));
+    this.effects.burst(x, y, rainbow, save.fxReduced ? 20 : 70);
+    this.effects.floater(x, y - 34, 'WARP!', '#ffffff', 26);
+    if (!save.fxReduced) this.cameras.main.flash(400, 255, 255, 255);
+    this.cam.punch = 0.25;
+    this.slowMo = 0.5;
+    shared.pulse = 1;
+    sfx.warp();
+    haptic([40, 30, 40, 30, 80]);
+    this.setUniverse(true);
+    this.game.events.emit(EV.warp);
+  }
+
+  /** Switch everything between the normal and the bonus universe. */
+  private setUniverse(on: boolean) {
+    sfx.party = on;
+    music.setParty(on);
+    this.playerView.setParty(on);
+    this.visitors.setParty(on);
+  }
+
+  /** Rubber ducks are harmless: bonk them out of the way. */
+  private bonkDuck(hz: Hazard) {
+    hz.alive = false;
+    const view = this.hazardViews.get(hz);
+    this.hazardViews.delete(hz);
+    const d = DIRS[this.player.dir];
+    view?.knockAway(d.x, d.y);
+    this.ducks++;
+    sfx.quack();
+    const lines = ['QUACK', 'BONK', 'SORRY DUCK', 'QUACK QUACK', 'DUCK OFF', 'WHEEE'];
+    this.effects.floater(hz.x, hz.y - 20, lines[this.ducks % lines.length], '#ffd21f', 14);
+    this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 6 : 16);
   }
 
   /** Bombs tick when you get close, faster the closer you are. */

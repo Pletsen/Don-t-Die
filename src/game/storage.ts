@@ -8,6 +8,7 @@ const KEYS = {
   fxReduced: 'dontdie_fx_reduced',
   stars: 'dontdie_level_stars',
   rainbow: 'dontdie_rainbow',
+  warps: 'dontdie_warps',
 };
 
 function read(key: string): string | null {
@@ -43,6 +44,12 @@ export const save = {
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
   muted: read(KEYS.muted) === '1',
   rainbow: read(KEYS.rainbow) === '1',
+  /** Level ids where the warp star has been hit. */
+  warps: new Set<number>((read(KEYS.warps) ?? '').split(',').filter(Boolean).map(Number)),
+  recordWarp(levelId: number) {
+    this.warps.add(levelId);
+    write(KEYS.warps, [...this.warps].join(','));
+  },
   fxReduced: read(KEYS.fxReduced) === null ? prefersReducedMotion : read(KEYS.fxReduced) === '1',
 
   /** Best star rating per level id (0 = never cleared). */

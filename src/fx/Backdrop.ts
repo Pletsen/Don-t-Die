@@ -28,6 +28,7 @@ export class Backdrop {
             setUniform('uAccent', [accent[0] / 255, accent[1] / 255, accent[2] / 255]);
             setUniform('uIntensity', shared.intensity);
             setUniform('uPulse', shared.pulse);
+            setUniform('uWarp', shared.warp);
           },
         },
         0,

@@ -112,6 +112,10 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on(EV.died, this.onDied, this);
     this.game.events.on(EV.cleared, this.onCleared, this);
     this.game.events.on(EV.combo, this.onCombo, this);
+    this.game.events.on(EV.warp, () => {
+      this.toast('WELCOME TO UNIVERSE 2', 2600);
+      this.glitchUntil = this.time.now + 400;
+    });
     this.scale.on('resize', (size: Phaser.Structs.Size) => {
       cam.setSize(size.width, size.height);
       this.layout();
@@ -135,13 +139,13 @@ export class UIScene extends Phaser.Scene {
     this.toast(save.rainbow ? 'RAINBOW MODE' : 'RAINBOW MODE OFF');
   }
 
-  private toast(msg: string) {
+  private toast(msg: string, hold = 1600) {
     const { w, h } = display.size(this);
     this.toastText.setText(msg).setPosition(w / 2, h - 60 - display.safeTop());
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(1).setScale(1.4);
     this.tweens.add({ targets: this.toastText, scale: 1, duration: 250, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: this.toastText, alpha: 0, delay: 1600, duration: 400 });
+    this.tweens.add({ targets: this.toastText, alpha: 0, delay: hold, duration: 400 });
   }
 
   private onBackgroundTap() {
@@ -425,7 +429,7 @@ export class UIScene extends Phaser.Scene {
     this.onHud(d);
 
     const causes = { wall: 'HIT THE WALL', saw: 'SLICED', bomb: 'BLOWN UP' };
-    this.causeText.setText(causes[d.cause]);
+    this.causeText.setText(d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]);
     this.bestText.setShadow(0, 0, 'transparent', 0);
 
     if (d.goal !== null && d.level !== null) {
@@ -505,7 +509,7 @@ export class UIScene extends Phaser.Scene {
     }
 
     if (this.mode === 'select') this.select.update(time);
-    if (save.rainbow && this.toastText.alpha > 0) this.toastText.setColor(hexColor(hueColor(time / 3)));
+    if (this.toastText.alpha > 0 && (save.rainbow || this.mode === 'play')) this.toastText.setColor(hexColor(hueColor(time / 3)));
     this.clearScreen.update(time);
 
     if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {

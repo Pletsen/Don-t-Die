@@ -28,6 +28,10 @@ export const TEX = {
   ufo: 'ufo',
   whale: 'whale',
   astronaut: 'astronaut',
+  warpStar: 'warpStar',
+  duck: 'duck',
+  pizza: 'pizza',
+  disco: 'disco',
 } as const;
 
 export function createTextures(scene: Phaser.Scene) {
@@ -315,5 +319,122 @@ export function createTextures(scene: Phaser.Scene) {
     ctx.beginPath();
     ctx.ellipse(28, 17, 3.5, 2, -0.5, 0, Math.PI * 2);
     ctx.fill();
+  });
+  // --- The warp star and the bonus universe --------------------------------
+
+  // Tiny star: white-hot centre fading to gold. Tinted rainbow in game.
+  paint(scene, TEX.warpStar, 64, 64, (ctx, w) => {
+    const c = w / 2;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? c * 0.95 : c * 0.42;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      ctx.lineTo(c + Math.cos(a) * r, c + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    const g = ctx.createRadialGradient(c, c, 0, c, c, c);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.5, '#fff6c2');
+    g.addColorStop(1, '#ffc93a');
+    ctx.fillStyle = g;
+    ctx.fill();
+  });
+
+  // Rubber duck, facing right.
+  paint(scene, TEX.duck, 96, 84, (ctx) => {
+    ctx.fillStyle = '#ffd21f';
+    ctx.strokeStyle = '#c99400';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(44, 58, 34, 20, 0, 0, Math.PI * 2); // body
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(12, 50);
+    ctx.lineTo(4, 34);
+    ctx.lineTo(22, 44);
+    ctx.fill(); // tail
+    ctx.beginPath();
+    ctx.arc(60, 30, 18, 0, Math.PI * 2); // head
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ff8a1f';
+    ctx.beginPath();
+    ctx.ellipse(81, 34, 11, 5.5, 0.1, 0, Math.PI * 2); // beak
+    ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(66, 25, 3.5, 0, Math.PI * 2); // eye
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(67, 24, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath();
+    ctx.ellipse(38, 50, 14, 5, -0.3, 0, Math.PI * 2); // shine
+    ctx.fill();
+  });
+
+  // Pizza slice wearing sunglasses.
+  paint(scene, TEX.pizza, 110, 110, (ctx) => {
+    ctx.beginPath();
+    ctx.moveTo(10, 16);
+    ctx.lineTo(100, 16);
+    ctx.lineTo(55, 104);
+    ctx.closePath();
+    ctx.fillStyle = '#ffcf5a';
+    ctx.fill();
+    ctx.fillStyle = '#d9822b'; // crust
+    ctx.beginPath();
+    ctx.roundRect(6, 8, 98, 14, 7);
+    ctx.fill();
+    ctx.fillStyle = '#d6333f'; // pepperoni
+    for (const [x, y, r] of [[34, 44, 7], [70, 40, 8], [55, 72, 6]] as const) {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#111111'; // sunglasses
+    ctx.beginPath();
+    ctx.roundRect(30, 30, 20, 11, 4);
+    ctx.roundRect(58, 30, 20, 11, 4);
+    ctx.fill();
+    ctx.fillRect(48, 33, 12, 3);
+    ctx.strokeStyle = '#111111';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(55, 52, 9, 0.2, Math.PI - 0.2); // smile
+    ctx.stroke();
+  });
+
+  // Disco ball.
+  paint(scene, TEX.disco, 96, 96, (ctx, w) => {
+    const c = w / 2;
+    const r = c - 4;
+    const g = ctx.createRadialGradient(c - 12, c - 14, 4, c, c, r);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.6, '#a9b6c4');
+    g.addColorStop(1, '#4a5663');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(c, c, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(30,40,50,0.55)';
+    ctx.lineWidth = 1.2;
+    for (let i = -r; i <= r; i += 9) {
+      ctx.beginPath();
+      ctx.moveTo(c - r, c + i);
+      ctx.lineTo(c + r, c + i);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(c, c, Math.abs(i) + 1, r, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    for (let i = 0; i < 9; i++) ctx.fillRect(c - 20 + ((i * 13) % 34), c - 22 + ((i * 7) % 30), 5, 5);
+    ctx.restore();
   });
 }

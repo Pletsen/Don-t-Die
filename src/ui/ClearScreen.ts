@@ -77,7 +77,8 @@ export class ClearScreen {
     this.stats.setText(`PERFECT ${d.perfects}/${d.turns}  ·  ${d.seconds.toFixed(1)} SEC`);
     this.next.setLabel(last ? 'LEVELS' : 'NEXT LEVEL');
 
-    if (d.stars < 2) this.hint.setText('2 STARS: HALF YOUR TURNS PERFECT').setColor(css.inkDim);
+    if (d.warped) this.hint.setText(`WARP STAR FOUND  ·  ${d.ducks} DUCKS BONKED`).setColor(css.orange);
+    else if (d.stars < 2) this.hint.setText('2 STARS: HALF YOUR TURNS PERFECT').setColor(css.inkDim);
     else if (d.stars < 3) this.hint.setText('3 STARS: 90% OF TURNS PERFECT').setColor(css.inkDim);
     else this.hint.setText(d.previousStars < 3 ? 'FLAWLESS' : '').setColor(css.orange);
 

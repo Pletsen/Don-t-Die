@@ -128,6 +128,8 @@ export class LevelSelect {
       if (stars > 0) {
         for (let i = 0; i < 3; i++) drawStar(t.stars, (i - 1) * 12, s * 0.26, 4.6, i < stars ? 0xffffff : 0x3a4756, i < stars);
       }
+      // A tiny golden star in the corner: you found this level's warp star.
+      if (save.warps.has(t.level.id)) drawStar(t.stars, s / 2 - 9, -s / 2 + 9, 5.5, 0xffd21f, true);
       if (t.level.id === next) {
         for (let i = 3; i >= 1; i--) {
           const grow = i * 4;

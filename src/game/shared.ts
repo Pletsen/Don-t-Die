@@ -11,6 +11,8 @@ export const shared = {
   intensity: 0,
   /** Brief flash of energy on PERFECT turns, decays to 0. */
   pulse: 0,
+  /** 0 normal, 1 in the bonus universe (after the warp star). */
+  warp: 0,
 };
 
 /** Event names sent over `game.events` between scenes. */
@@ -27,6 +29,8 @@ export const EV = {
   died: 'dd-died',
   cleared: 'dd-cleared',
   combo: 'dd-combo',
+  /** Game -> UI: the warp star was hit. */
+  warp: 'dd-warp',
   fxChanged: 'dd-fx-changed',
 } as const;
 
@@ -44,6 +48,7 @@ export interface HudData {
 
 export interface DeathData extends HudData {
   level: number | null;
+  warped: boolean;
   best: number;
   isNewBest: boolean;
   cause: 'wall' | 'saw' | 'bomb';
@@ -57,4 +62,6 @@ export interface ClearData extends HudData {
   previousStars: number;
   perfects: number;
   turns: number;
+  warped: boolean;
+  ducks: number;
 }
