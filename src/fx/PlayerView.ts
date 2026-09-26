@@ -4,6 +4,7 @@ import { save } from '../game/storage';
 import { skinById, skinTexture, type Skin } from '../game/skins';
 import { TEX } from './textures';
 import { glowFx } from './glow';
+import { setParticleColors } from './Effects';
 
 /**
  * The player's look: a glossy orb with a halo, a tilted orbiting ring and a
@@ -16,6 +17,8 @@ export class PlayerView {
   private ring: Phaser.GameObjects.Image;
   private trail: Phaser.GameObjects.Particles.ParticleEmitter;
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
+  private embers: Phaser.GameObjects.Particles.ParticleEmitter;
+  private emberColor = -1;
   private squash = 1;
   private skin: Skin = skinById('classic');
   private aura: Phaser.GameObjects.Image;
@@ -40,6 +43,20 @@ export class PlayerView {
         scale: { start: (radius * 2.2) / 128, end: 0 },
         alpha: { start: 0.6, end: 0 },
         tint: palette.cyan,
+        blendMode: Phaser.BlendModes.ADD,
+      })
+      .setDepth(5);
+
+    // Glowing embers shed from the ball as it moves: they hang back, spread
+    // a little and fade, so the trail looks hot rather than like a tube.
+    this.embers = scene.add
+      .particles(0, 0, TEX.glow, {
+        lifespan: { min: 500, max: 900 },
+        frequency: 22,
+        speed: { min: 4, max: 26 },
+        scale: { start: (radius * 0.9) / 128, end: 0 },
+        alpha: { start: 0.9, end: 0 },
+        color: [0xffffff, palette.cyan, palette.cyan],
         blendMode: Phaser.BlendModes.ADD,
       })
       .setDepth(5);
@@ -97,6 +114,7 @@ export class PlayerView {
       .container(0, 0, [this.aura, this.halo, this.ring, this.body, this.party, this.bubble])
       .setDepth(6);
     this.trail.startFollow(this.root);
+    this.embers.startFollow(this.root);
     this.sparks.startFollow(this.root);
   }
 
@@ -181,6 +199,7 @@ export class PlayerView {
     this.ring.setRotation(time * 0.9).setScale(ringR / 116, (ringR / 116) * 0.4);
 
     this.trail.frequency = speedNorm > 0.5 ? 5 : 8;
+    this.embers.frequency = 26 - speedNorm * 12;
 
     if (this.party.visible) {
       // Pupils look where you're going, on a wobbly spring.
@@ -198,14 +217,24 @@ export class PlayerView {
 
     // Easter egg: a trail that cycles through the rainbow.
     const trail = this.skin.trail;
-    if (save.rainbow || trail === 'rainbow') this.trail.setParticleTint(hueColor(time * 240));
-    else if (Array.isArray(trail)) this.trail.setParticleTint(trail[Math.floor(time * 8) % trail.length]);
-    else this.trail.setParticleTint(trail);
+    const color =
+      save.rainbow || trail === 'rainbow'
+        ? hueColor(time * 240)
+        : Array.isArray(trail)
+          ? trail[Math.floor(time * 8) % trail.length]
+          : trail;
+    this.trail.setParticleTint(color);
+    // Embers start white-hot and cool into the trail's colour.
+    if (color !== this.emberColor) {
+      this.emberColor = color;
+      setParticleColors(this.embers, [0xffffff, color, color]);
+    }
   }
 
   setEmitting(on: boolean) {
     this.trail.emitting = on;
     this.sparks.emitting = on;
+    this.embers.emitting = on;
   }
 
   setVisible(v: boolean) {
@@ -227,6 +256,7 @@ export class PlayerView {
     this.root.setAlpha(1).setScale(1).setVisible(true);
     this.squash = 1;
     this.trail.killAll();
+    this.embers.killAll();
     this.sparks.killAll();
   }
 }

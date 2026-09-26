@@ -18,6 +18,7 @@ import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
 import { TEX } from '../fx/textures';
 import { glowFx } from '../fx/glow';
+import { Ambient } from '../fx/Ambient';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
 
@@ -70,12 +71,15 @@ export class GameScene extends Phaser.Scene {
 
   private cam = { x: 0, y: 0, zoom: 1, punch: 0 };
   private deathFade = 0;
+  /** When the crash happened (ms), so the colour drains only after the blast. */
+  private diedAt = 0;
 
   private corridor!: CorridorView;
   private playerView!: PlayerView;
   private effects!: Effects;
   private backdrop!: Backdrop;
   private visitors!: BackgroundEvents;
+  private ambient!: Ambient;
   private milestonesHit = new Set<number>();
   private hazardViews = new Map<Hazard, HazardView>();
   private starView: WarpStarView | null = null;
@@ -115,6 +119,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     this.backdrop = new Backdrop(this);
     this.visitors = new BackgroundEvents(this);
+    this.ambient = new Ambient(this);
     this.corridor = new CorridorView(this);
     this.playerView = new PlayerView(this, tuning.playerRadius);
     this.effects = new Effects(this);
@@ -162,6 +167,7 @@ export class GameScene extends Phaser.Scene {
   private applyFxSetting() {
     if (this.bloom) this.bloom.parallelFilters.active = !save.fxReduced;
     glowFx.setEnabled(!save.fxReduced);
+    this.ambient?.setEnabled(!save.fxReduced);
   }
 
   /** Base zoom so the track looks similar on a phone and a big monitor. */
@@ -323,16 +329,15 @@ export class GameScene extends Phaser.Scene {
     if (this.tryRevive()) return;
     this.endAbility(true);
     this.state = 'dead';
+    this.diedAt = this.time.now;
     music.duck();
     music.setEnergy(0);
     this.slowMo = 0.6;
 
     const { x, y } = this.player;
     const fx = save.fxReduced;
-    this.effects.burst(x, y, [color, 0xffffff], fx ? 16 : 46);
+    this.effects.deathBlast(x, y, color, skinById(save.skin).glow, fx);
     this.effects.debris(x, y, color, fx ? 8 : 22);
-    this.effects.shockwave(x, y, color, 220, 650);
-    this.effects.flare(x, y, color, 140);
     this.playerView.fadeOut(this);
 
     const cam = this.cameras.main;
@@ -462,6 +467,7 @@ export class GameScene extends Phaser.Scene {
 
     this.updateCamera(dt, speedNorm, t);
     this.visitors.update(this.cam.x, this.cam.y, this.cameras.main, dt, t, save.fxReduced);
+    this.ambient.update(this.cameras.main, t);
     this.updateGrade(dt);
 
     shared.accent = accent;
@@ -1152,7 +1158,8 @@ export class GameScene extends Phaser.Scene {
   /** Drain colour from the world after death; restore it on a new run. */
   private updateGrade(dt: number) {
     if (!this.grade) return;
-    const target = this.state === 'dead' ? 1 : 0;
+    // Let the explosion burn in full neon for a moment before the grey sets in.
+    const target = this.state === 'dead' && this.time.now - this.diedAt > 450 ? 1 : 0;
     this.deathFade = lerp(this.deathFade, target, damp(this.state === 'dead' ? 0.02 : 0.0001, dt));
     shared.gloom = this.deathFade;
     if (this.deathFade < 0.01) {

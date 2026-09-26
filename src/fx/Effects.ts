@@ -4,6 +4,17 @@ import { css, fonts } from '../game/palette';
 import { TEX } from './textures';
 
 /**
+ * Change the colours a particle fades through over its life. The emitter
+ * must have been created with a `color` array. (Assigning `particleColor`
+ * only works for single colours, so the colour op is refilled directly.)
+ */
+export function setParticleColors(emitter: Phaser.GameObjects.Particles.ParticleEmitter, colors: number[]) {
+  const op = emitter.ops.color;
+  op.propertyValue = colors;
+  op.setMethods();
+}
+
+/**
  * One-shot effects: particle bursts, shockwaves and floating text.
  * Emitters are created once and re-used, which is far cheaper than making
  * new ones for every explosion.
@@ -12,6 +23,7 @@ export class Effects {
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private shards: Phaser.GameObjects.Particles.ParticleEmitter;
   private drift: Phaser.GameObjects.Particles.ParticleEmitter;
+  private embers: Phaser.GameObjects.Particles.ParticleEmitter;
   private floaters: Phaser.GameObjects.Text[] = [];
 
   constructor(private scene: Phaser.Scene) {
@@ -48,6 +60,61 @@ export class Effects {
         blendMode: Phaser.BlendModes.ADD,
       })
       .setDepth(7);
+
+    // Slow, glowing embers that hang in the air after an explosion and sink.
+    // `color` fades each one from white-hot through its colour to nothing.
+    this.embers = scene.add
+      .particles(0, 0, TEX.glow, {
+        emitting: false,
+        speed: { min: 20, max: 150 },
+        lifespan: { min: 900, max: 1900 },
+        gravityY: 60,
+        scale: { start: 0.2, end: 0 },
+        color: [0xffffff, 0xffffff],
+        alpha: { start: 1, end: 0 },
+        blendMode: Phaser.BlendModes.ADD,
+      })
+      .setDepth(7);
+  }
+
+  /**
+   * The big one, for a crash: needle-sharp streaks fly out, a hot core
+   * flashes, two shockwaves (hazard colour, then your colour) roll out and
+   * embers drift down afterwards. Everything is additive light on the dark
+   * background, so it reads as neon.
+   */
+  deathBlast(x: number, y: number, color: number, own: number, fxReduced: boolean) {
+    const streaks = fxReduced ? 8 : 18;
+    for (let i = 0; i < streaks; i++) {
+      const a = (i / streaks) * Math.PI * 2 + Math.random() * 0.3;
+      const len = 90 + Math.random() * 150;
+      const s = this.scene.add
+        .image(x, y, TEX.streak)
+        .setTint(i % 3 === 0 ? 0xffffff : i % 2 ? color : own)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setRotation(a)
+        .setScale(0.8 + Math.random() * 0.5, 0.6)
+        .setDepth(7);
+      const duration = 380 + Math.random() * 260;
+      // Shoot out fast and slow down; fade late, so they stay bright in flight.
+      this.scene.tweens.add({
+        targets: s,
+        x: x + Math.cos(a) * len,
+        y: y + Math.sin(a) * len,
+        scaleX: 0.15,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => s.destroy(),
+      });
+      this.scene.tweens.add({ targets: s, alpha: 0, duration, ease: 'Quad.easeIn' });
+    }
+    this.burst(x, y, [color, own, 0xffffff], fxReduced ? 16 : 46);
+    setParticleColors(this.embers, [0xffffff, own, color]);
+    this.embers.explode(fxReduced ? 8 : 26, x, y);
+    this.flare(x, y, 0xffffff, 110);
+    this.flare(x, y, color, 170);
+    this.shockwave(x, y, color, 230, 650);
+    this.scene.time.delayedCall(90, () => this.shockwave(x, y, own, 150, 520));
   }
 
   /**
@@ -191,5 +258,6 @@ export class Effects {
   clear() {
     this.sparks.killAll();
     this.shards.killAll();
+    this.embers.killAll();
   }
 }
