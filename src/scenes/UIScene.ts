@@ -346,6 +346,7 @@ export class UIScene extends Phaser.Scene {
     if (this.clearScreen.root.visible) this.clearScreen.hide();
     if (fromRun) this.game.events.emit(EV.menu);
 
+    sfx.swoosh();
     this.select.refresh();
     this.select.root.setAlpha(0);
     this.fadeIn(this.select.root);

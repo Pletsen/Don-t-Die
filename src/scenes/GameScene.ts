@@ -8,6 +8,7 @@ import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { sfx, haptic } from '../audio/Sfx';
+import { music } from '../audio/Music';
 import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
 import { PlayerView } from '../fx/PlayerView';
 import { HazardView } from '../fx/HazardView';
@@ -46,6 +47,9 @@ export class GameScene extends Phaser.Scene {
   private combo = 0;
   private perfects = 0;
   private gateTurns = 0;
+  private turnCount = 0;
+  private nextTickAt = 0;
+  private lastSector = 0;
   private coast = 0;
   private slowMo = 0;
   private nearWallFlags = new Set<number>();
@@ -142,6 +146,9 @@ export class GameScene extends Phaser.Scene {
     this.combo = 0;
     this.perfects = 0;
     this.gateTurns = 0;
+    this.turnCount = 0;
+    this.nextTickAt = 0;
+    this.lastSector = 0;
     this.slowMo = 0;
     this.nearWallFlags.clear();
     this.milestonesHit.clear();
@@ -160,12 +167,14 @@ export class GameScene extends Phaser.Scene {
     sfx.unlock();
     sfx.start();
     this.state = 'play';
+    music.setEnergy(1);
     this.playerView.setEmitting(true);
     this.effects.shockwave(0, 0, this.course.accentAt(0), 90, 500);
     this.game.events.emit(EV.started, { meters: 0, seconds: 0, goal: this.goalMeters() });
   }
 
   private onMenu() {
+    music.setEnergy(0);
     this.resetRun(endlessCourse());
   }
 
@@ -200,10 +209,11 @@ export class GameScene extends Phaser.Scene {
     const inGate = !!next?.gate && pointInRect(this.player.x, this.player.y, next.gate);
     const perfect = inGate && !!next?.perfect && pointInRect(this.player.x, this.player.y, next.perfect);
 
+    const oldHeading = Math.atan2(DIRS[this.player.dir].y, DIRS[this.player.dir].x);
     this.player.dir = ((this.player.dir + 1) % 4) as Dir;
     this.playerView.onTurn();
-    this.effects.burst(this.player.x, this.player.y, palette.cyan, save.fxReduced ? 4 : 10);
-    sfx.turn();
+    this.effects.turn(this.player.x, this.player.y, oldHeading, palette.cyan, save.fxReduced);
+    sfx.turn(this.turnCount++);
     haptic(8);
 
     if (!inGate) return;
@@ -228,6 +238,8 @@ export class GameScene extends Phaser.Scene {
   private die(cause: DeathData['cause'], color: number) {
     if (this.state !== 'play') return;
     this.state = 'dead';
+    music.duck();
+    music.setEnergy(0);
     this.slowMo = 0.6;
 
     const { x, y } = this.player;
@@ -293,6 +305,7 @@ export class GameScene extends Phaser.Scene {
     this.cam.punch = 0.1;
     shared.pulse = 1;
     sfx.clear();
+    music.setEnergy(0);
     haptic([20, 40, 20]);
 
     const data: ClearData = {
@@ -411,6 +424,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!this.course.level) this.checkMilestones();
+    this.tickNearbyBombs(cur, next);
 
     // Near miss against the walls: once per segment.
     const edge = distToRectEdge(this.player.x, this.player.y, inCur ? cur.rect : next!.rect);
@@ -447,9 +461,27 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Bombs tick when you get close, faster the closer you are. */
+  private tickNearbyBombs(cur: Segment, next: Segment | undefined) {
+    let closest = Infinity;
+    for (const hz of [...cur.hazards, ...(next?.hazards ?? [])]) {
+      if (hz.kind === 'bomb') closest = Math.min(closest, Math.hypot(this.player.x - hz.x, this.player.y - hz.y));
+    }
+    if (closest > 170 || this.elapsed < this.nextTickAt) return;
+    const closeness = 1 - closest / 170;
+    sfx.bombTick(closeness);
+    this.nextTickAt = this.elapsed + 0.42 - closeness * 0.32;
+  }
+
   /** Survival easter eggs: a little message at special distances. */
   private checkMilestones() {
     const m = this.distance * METERS_PER_PX;
+    // A rising sweep each time the world changes colour.
+    const sector = [250, 550, 950].filter((s) => m >= s).length;
+    if (sector > this.lastSector) {
+      this.lastSector = sector;
+      sfx.sweep();
+    }
     for (const [at, text] of MILESTONES) {
       if (m < at || this.milestonesHit.has(at)) continue;
       this.milestonesHit.add(at);

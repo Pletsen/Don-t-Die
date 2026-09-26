@@ -69,6 +69,7 @@ export class LevelSelect {
       hit.on('pointerdown', () => {
         sfx.unlock();
         if (!isUnlocked(level.id)) {
+          sfx.denied();
           scene.tweens.add({ targets: root, x: root.x + 4, duration: 40, yoyo: true, repeat: 2 });
           return;
         }

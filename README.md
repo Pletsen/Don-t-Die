@@ -90,7 +90,8 @@ src/
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut og hval i baggrunden
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
-    └── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)
+    ├── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)
+    └── Music.ts          Rolig baggrundsmusik, genereret live i A-mol
 ```
 
 **Grundidé:** Logik og grafik er holdt adskilt. `Track.ts` ved kun, hvor banen er (rektangler og tal). `CorridorView.ts` ved kun, hvordan den skal se ud. Derfor kan du ændre udseendet uden at ødelægge reglerne, og omvendt.
@@ -112,7 +113,8 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 - **Gør SURVIVAL nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
-- **Ny lyd:** `src/audio/Sfx.ts`. Prøv fx at ændre `freq` i `turn()`.
+- **Ny lyd:** `src/audio/Sfx.ts`. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
+- **Musikken:** `src/audio/Music.ts`. `CHORDS` er akkordrækken, `BPM` tempoet og `VOLUME` lydstyrken.
 
 Mens `npm run dev` kører, opdateres spillet i browseren, hver gang du gemmer en fil.
 

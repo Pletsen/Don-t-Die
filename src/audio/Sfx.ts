@@ -20,10 +20,17 @@ interface NoiseOpts {
   rate?: number;
 }
 
+export const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+
+/** A minor pentatonic: every note sounds good over the background music. */
+const PENTATONIC = [69, 72, 74, 76, 79, 81, 84, 86];
+
 class SfxEngine {
-  private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
-  private noise: AudioBuffer | null = null;
+  ctx: AudioContext | null = null;
+  master: GainNode | null = null;
+  noise: AudioBuffer | null = null;
+  /** Called once when audio first becomes available (used to start the music). */
+  onUnlock: (() => void) | null = null;
 
   /** Browsers only allow audio after a user gesture, so call this on the first tap. */
   unlock() {
@@ -48,6 +55,13 @@ class SfxEngine {
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+
+      // Pause all sound while the tab or app is in the background.
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) this.ctx?.suspend();
+        else this.ctx?.resume();
+      });
+      this.onUnlock?.();
     } catch {
       this.ctx = null;
     }
@@ -92,9 +106,51 @@ class SfxEngine {
     src.stop(t0 + dur + 0.02);
   }
 
-  turn() {
-    this.burst({ filterType: 'highpass', filterFreq: 1800, duration: 0.06, gain: 0.18 });
-    this.tone({ freq: 520, glideTo: 380, duration: 0.05, type: 'triangle', gain: 0.06 });
+  /**
+   * Turning plays a soft pluck that walks up the pentatonic scale, so a run
+   * of turns becomes a little melody in the same key as the music.
+   */
+  turn(step: number) {
+    const f = midiToFreq(PENTATONIC[step % PENTATONIC.length] - 12);
+    this.burst({ filterType: 'highpass', filterFreq: 2400, duration: 0.05, gain: 0.12 });
+    this.tone({ freq: f, duration: 0.18, type: 'triangle', gain: 0.1 });
+    this.tone({ freq: f * 2, duration: 0.08, type: 'sine', gain: 0.04 });
+    // A quick airy "whip" for the change of direction.
+    this.burst({ filterType: 'bandpass', filterFreq: 1200, duration: 0.12, gain: 0.07, rate: 1.6 });
+  }
+
+  /** Bomb nearby: a dry tick that gets brighter the closer you are (0..1). */
+  bombTick(closeness: number) {
+    this.tone({ freq: 1400 + closeness * 900, duration: 0.03, type: 'square', gain: 0.025 + closeness * 0.03 });
+  }
+
+  /** Tapped a locked level. */
+  denied() {
+    this.tone({ freq: 180, duration: 0.09, type: 'square', gain: 0.05 });
+    this.tone({ freq: 150, duration: 0.12, type: 'square', gain: 0.05, delay: 0.09 });
+  }
+
+  /** Screen change. */
+  swoosh() {
+    this.burst({ filterType: 'bandpass', filterFreq: 900, duration: 0.3, gain: 0.08, rate: 0.7 });
+  }
+
+  /** New sector colour in survival: a rising sweep. */
+  sweep() {
+    this.tone({ freq: 220, glideTo: 880, duration: 0.6, type: 'sawtooth', gain: 0.04 });
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 0.6, gain: 0.05 });
+  }
+
+  // Quiet sounds for the background visitors.
+  ufo() {
+    for (let i = 0; i < 3; i++) this.tone({ freq: 900, glideTo: 500, duration: 0.22, type: 'sine', gain: 0.02, delay: i * 0.22 });
+  }
+  shimmer() {
+    this.tone({ freq: 2600, glideTo: 1800, duration: 0.5, type: 'sine', gain: 0.012 });
+  }
+  whaleSong() {
+    this.tone({ freq: 220, glideTo: 150, duration: 1.6, type: 'sine', gain: 0.035 });
+    this.tone({ freq: 160, glideTo: 240, duration: 1.4, type: 'sine', gain: 0.025, delay: 1.2 });
   }
 
   /** Each combo step plays a higher note, so streaks sound like they climb. */

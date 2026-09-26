@@ -105,6 +105,9 @@ function shrinkAlong(r: Rect, axis: 'x' | 'y', fraction: number): Rect {
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
+/** Straight track left after the finish line, in px (plus the end wall's half width). */
+const FINISH_RUNOUT = 170;
+
 export class Track {
   segments: Segment[] = [];
   private nextId = 0;
@@ -126,9 +129,14 @@ export class Track {
     return this.segments[i];
   }
 
+  /** True once the segment with the finish line exists: the track ends there. */
+  get ended() {
+    return !!this.segments[this.segments.length - 1]?.finish;
+  }
+
   /** Keep at least `ahead` segments in front of index `current`. */
   ensureAhead(current: number, ahead: number) {
-    while (this.segments.length - current < ahead) this.push();
+    while (!this.ended && this.segments.length - current < ahead) this.push();
   }
 
   /** Drop segments far behind the player. Returns how many were removed. */
@@ -150,19 +158,19 @@ export class Track {
     let length = this.rand(range.min, range.max);
 
     // The finish line must sit on a straight, never inside a turn square.
-    // If the goal would land near this segment's end, stretch the segment so
-    // the line fits before the turn.
+    // If the goal would land near this segment's end, this segment becomes
+    // the last one and is sized to fit the line and its run-out.
     const goal = this.course.goalPx;
     const margin = halfWidth + 30;
     let finishAt: number | null = null;
     if (goal !== null && goal >= travelled) {
       const k = goal - travelled;
       if (k >= margin && k <= length - margin) finishAt = k;
-      else if (k > length - margin && k < length + margin + 40) {
-        length = k + margin;
-        finishAt = k;
-      }
+      else if (k > length - margin && k < length + margin + 40) finishAt = k;
     }
+    // The last segment ends in a closed run-out just past the finish line:
+    // no more turns after it, only room to glide to a stop.
+    if (finishAt !== null) length = finishAt + FINISH_RUNOUT;
     const end = { x: start.x + DIRS[dir].x * length, y: start.y + DIRS[dir].y * length };
 
     const rect: Rect = isHorizontal(dir)

@@ -11,6 +11,7 @@ import { TEX } from './textures';
 export class Effects {
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private shards: Phaser.GameObjects.Particles.ParticleEmitter;
+  private drift: Phaser.GameObjects.Particles.ParticleEmitter;
 
   constructor(private scene: Phaser.Scene) {
     this.sparks = scene.add
@@ -19,6 +20,17 @@ export class Effects {
         speed: { min: 60, max: 360 },
         lifespan: { min: 280, max: 800 },
         scale: { start: 0.6, end: 0 },
+        alpha: { start: 1, end: 0 },
+        blendMode: Phaser.BlendModes.ADD,
+      })
+      .setDepth(7);
+
+    this.drift = scene.add
+      .particles(0, 0, TEX.spark, {
+        emitting: false,
+        speed: { min: 140, max: 340 },
+        lifespan: { min: 180, max: 420 },
+        scale: { start: 0.42, end: 0 },
         alpha: { start: 1, end: 0 },
         blendMode: Phaser.BlendModes.ADD,
       })
@@ -35,6 +47,34 @@ export class Effects {
         blendMode: Phaser.BlendModes.ADD,
       })
       .setDepth(7);
+  }
+
+  /**
+   * Turn effect: sparks spray out along the old heading (like a drift), a
+   * ghost of the orb stays behind at the corner, and a small ring pops.
+   */
+  turn(x: number, y: number, oldHeading: number, color: number, fxReduced: boolean) {
+    const deg = Phaser.Math.RadToDeg(oldHeading);
+    this.drift.setEmitterAngle({ min: deg - 28, max: deg + 28 });
+    this.drift.setParticleTint([color, 0xffffff]);
+    this.drift.explode(fxReduced ? 5 : 14, x, y);
+
+    const ghost = this.scene.add
+      .image(x, y, TEX.orb)
+      .setScale(0.26)
+      .setAlpha(0.55)
+      .setTint(color)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(5);
+    this.scene.tweens.add({
+      targets: ghost,
+      scale: 0.6,
+      alpha: 0,
+      duration: 380,
+      ease: 'Quad.easeOut',
+      onComplete: () => ghost.destroy(),
+    });
+    this.shockwave(x, y, color, 46, 280);
   }
 
   burst(x: number, y: number, color: number | number[], count: number) {

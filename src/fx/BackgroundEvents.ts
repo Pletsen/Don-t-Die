@@ -4,6 +4,7 @@ import { mixColor } from '../game/palette';
 import { display } from '../game/display';
 import { fonts } from '../game/palette';
 import { TEX } from './textures';
+import { sfx } from '../audio/Sfx';
 
 /**
  * Little things happening far away behind the track: shooting stars, a
@@ -92,8 +93,10 @@ export class BackgroundEvents {
     if (r < 0.55 && !this.has('whale')) return this.whale();
     if (Math.random() < 0.15) {
       // Meteor shower.
+      sfx.shimmer();
       for (let i = 0; i < 6; i++) this.scene.time.delayedCall(i * rand(120, 320), () => this.shootingStar());
     } else {
+      sfx.shimmer();
       this.shootingStar();
     }
   }
@@ -163,6 +166,7 @@ export class BackgroundEvents {
     const obj = this.scene.add.container(0, 0, [beam, body, ...lights]);
     const cruise = 170;
     const hoverAt = ((this.vw / 2 + 120) / cruise) * rand(0.7, 1.15);
+    let beeped = false;
     this.add({
       kind: 'ufo',
       obj,
@@ -175,6 +179,10 @@ export class BackgroundEvents {
       tick: (v, _dt, t) => {
         // Cruise in, stop and beam for a moment, then zip away.
         const hovering = v.age > hoverAt && v.age < hoverAt + 1.8;
+        if (hovering && !beeped) {
+          beeped = true;
+          sfx.ufo();
+        }
         const leaving = v.age >= hoverAt + 1.8;
         v.vx = hovering ? 0 : leaving ? dir * 720 : dir * cruise;
         v.vy = leaving ? -90 : 0;
@@ -229,6 +237,7 @@ export class BackgroundEvents {
     const speed = rand(26, 36);
     const edge = this.vw / 2 + 220;
     let nextSpout = 2;
+    let sang = false;
     this.add({
       kind: 'whale',
       obj,
@@ -241,6 +250,10 @@ export class BackgroundEvents {
       tick: (v, _dt, t) => {
         art.setY(Math.sin(t * 0.8) * 8).setRotation(Math.sin(t * 0.8 + 1) * 0.04);
         art.setTint(mixColor(shared.accent, 0xffffff, 0.35));
+        if (!sang && v.age > v.life * 0.4) {
+          sang = true;
+          sfx.whaleSong();
+        }
         if (v.age > nextSpout) {
           nextSpout = v.age + rand(3, 6);
           this.spout(obj, dir * 70, art.y - 40);
