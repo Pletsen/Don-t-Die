@@ -340,10 +340,12 @@ export class GameScene extends Phaser.Scene {
     this.effects.debris(x, y, color, fx ? 8 : 22);
     this.playerView.fadeOut(this);
 
-    const cam = this.cameras.main;
-    cam.shake(fx ? 150 : 320, fx ? 0.004 : 0.012);
-    if (!fx) cam.flash(220, 255, 255, 255);
-    this.cam.punch = 0.12;
+    // Impact: freeze on the crash for a split second, then a short, hard
+    // shake and a flash in the colour of whatever got you.
+    this.hitStop(50);
+    this.cameras.main.shake(fx ? 140 : 240, fx ? 0.004 : 0.01);
+    this.flash(color === palette.ink ? 0xffffff : color, 160, 0.55);
+    this.cam.punch = 0.14;
 
     if (cause === 'wall') sfx.death();
     else sfx.hazard();
@@ -400,7 +402,8 @@ export class GameScene extends Phaser.Scene {
     this.effects.shockwave(x, y, 0xffffff, 160, 600);
     this.effects.burst(x, y, [color, 0xffffff, palette.orange], save.fxReduced ? 20 : 60);
     this.effects.flare(x, y, color, 160);
-    this.cam.punch = 0.1;
+    this.flash(color, 260, 0.35);
+    this.cam.punch = 0.16;
     shared.pulse = 1;
     sfx.clear();
     music.setEnergy(0);
@@ -554,6 +557,8 @@ export class GameScene extends Phaser.Scene {
       const extreme = edge < 3;
       this.effects.floater(this.player.x, this.player.y - 20, extreme ? '1PX' : 'CLOSE', css.cyan, extreme ? 16 : 12);
       this.slowMo = Math.max(this.slowMo, 0.1);
+      // Zoom punch: the camera jolts in, like a flinch. Harder for 1 px.
+      this.cam.punch = Math.max(this.cam.punch, extreme ? 0.09 : 0.05);
       sfx.near();
       haptic(5);
     }
@@ -605,6 +610,7 @@ export class GameScene extends Phaser.Scene {
         this.nearHazardFlags.add(hz);
         this.effects.floater(this.player.x, this.player.y - 20, 'CLOSE', css.magenta, 12);
         this.slowMo = Math.max(this.slowMo, 0.09);
+        this.cam.punch = Math.max(this.cam.punch, 0.07);
         sfx.near();
       }
     }
@@ -656,7 +662,7 @@ export class GameScene extends Phaser.Scene {
     rainbow.forEach((c, i) => this.time.delayedCall(i * 70, () => this.effects.shockwave(x, y, c, 120 + i * 60, 700)));
     this.effects.burst(x, y, rainbow, save.fxReduced ? 20 : 70);
     this.effects.floater(x, y - 34, 'WARP!', '#ffffff', 26);
-    if (!save.fxReduced) this.cameras.main.flash(400, 255, 255, 255);
+    this.flash(0xffffff, 400, 0.8);
     this.cam.punch = 0.25;
     this.slowMo = 0.5;
     shared.pulse = 1;
@@ -739,7 +745,8 @@ export class GameScene extends Phaser.Scene {
     [0, 1, 2].forEach((i) =>
       this.time.delayedCall(i * 90, () => this.effects.shockwave(hz.x, hz.y, gold[i], 160 + i * 90, 700)),
     );
-    if (!save.fxReduced) this.cameras.main.flash(350, 255, 220, 90);
+    this.hitStop(40);
+    this.flash(0xffdc5a, 350, 0.7);
     this.cam.punch = 0.3;
     shared.pulse = 1;
     sfx.frenzyStart();
@@ -1011,6 +1018,9 @@ export class GameScene extends Phaser.Scene {
     this.effects.debris(hz.x, hz.y, color, save.fxReduced ? 5 : 14);
     this.effects.burst(hz.x, hz.y, [color, 0xffffff], save.fxReduced ? 6 : 16);
     this.effects.floater(hz.x, hz.y - 18, this.ability?.def.word ?? 'SMASH', '#ffffff', 13);
+    this.hitStop(25);
+    this.cameras.main.shake(90, 0.004);
+    this.cam.punch = Math.max(this.cam.punch, 0.06);
     sfx.smash();
   }
 
@@ -1030,10 +1040,42 @@ export class GameScene extends Phaser.Scene {
     this.effects.flare(x, y, 0xffffff, 150);
     this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
     this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18);
+    this.hitStop(40);
     this.cameras.main.shake(200, 0.006);
+    this.flash(0xffffff, 200, 0.45);
+    this.cam.punch = 0.12;
     sfx.revive();
     haptic([40, 40, 40]);
     return true;
+  }
+
+  // --- Camera juice -----------------------------------------------------------
+
+  /**
+   * Hit-stop: freeze the whole world for a few milliseconds so an impact
+   * lands. The scene keeps rendering while paused, so you see the frozen
+   * moment of the hit, then everything carries on. Real time (setTimeout),
+   * because the scene's own clock is the thing being stopped.
+   */
+  private hitStop(ms: number) {
+    // `sys.pause()` takes effect at once. (`this.scene.pause()` is queued to
+    // the next frame, which could land after the resume and never lift.)
+    if (this.sys.isPaused()) return;
+    this.sys.pause();
+    window.setTimeout(() => {
+      if (this.sys.isPaused()) this.sys.resume();
+    }, ms);
+  }
+
+  /**
+   * A flash over the screen in any colour, starting at `strength` opacity
+   * and fading out. Skipped in reduced FX (flashing can be uncomfortable).
+   */
+  private flash(color: number, ms: number, strength: number) {
+    if (save.fxReduced) return;
+    const cam = this.cameras.main;
+    cam.flashEffect.alpha = strength;
+    cam.flash(ms, (color >> 16) & 255, (color >> 8) & 255, color & 255, true);
   }
 
   // --- Automatic quality ---------------------------------------------------
