@@ -61,7 +61,7 @@ export const SKINS: Skin[] = [
 export const skinById = (id: string) => SKINS.find((s) => s.id === id) ?? SKINS[0];
 export const skinTexture = (id: string) => `skin:${id}`;
 
-export const SPIN_COST = 20;
+export const SPIN_COST = 50;
 export const DUPLICATE_REFUND = 5;
 
 /** Pick a rarity by its chance, then a random skin of that rarity. */

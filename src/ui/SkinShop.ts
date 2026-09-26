@@ -24,7 +24,7 @@ interface Reel {
 /**
  * Skins screen: the DUCK-O-MATIC slot machine on top, your collection below.
  *
- * One pull costs 20 ducks (the first one is free). All three reels land on
+ * One pull costs 50 ducks. All three reels land on
  * the prize; a duplicate gives 5 ducks back. Owned skins can be tapped to
  * wear them.
  */
@@ -254,7 +254,7 @@ export class SkinShop {
   refresh() {
     this.balance.setText(String(save.ducks));
     this.balanceIcon.setPosition(this.balance.x - this.balance.width - 16, this.balance.y);
-    this.pull.setLabel(save.freeSpin ? 'FREE SPIN!' : `PULL  ·  ${SPIN_COST} DUCKS`);
+    this.pull.setLabel(`PULL  ·  ${SPIN_COST} DUCKS`);
     const owned = SKINS.filter((s) => save.skins.has(s.id)).length;
     this.collectionLabel.setText(`COLLECTION  ${owned} / ${SKINS.length}`);
 
@@ -298,12 +298,10 @@ export class SkinShop {
   private spin() {
     if (this.spinning || this.reveal.visible) return;
     sfx.unlock();
-    if (save.freeSpin) {
-      save.useFreeSpin();
-    } else if (save.ducks < SPIN_COST) {
+    if (save.ducks < SPIN_COST) {
       sfx.nope();
       this.scene.tweens.add({ targets: this.machine, x: this.machine.x + 6, duration: 45, yoyo: true, repeat: 3 });
-      this.say(`NEED ${SPIN_COST} DUCKS · FIND WARP STARS AND FINISH THE LEVEL`);
+      this.say(`NEED ${SPIN_COST} DUCKS · FINISH A WARP LEVEL`);
       return;
     } else {
       save.addDucks(-SPIN_COST);

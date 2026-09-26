@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
 import { LEVELS, WORLDS, type LevelDef } from '../game/levels';
-import { SKINS } from '../game/skins';
 import { save } from '../game/storage';
-import { css, palette } from '../game/palette';
+import { css } from '../game/palette';
 import { sfx } from '../audio/Sfx';
 import { drawStar, hexColor, makeButton, makeText, type Button } from './widgets';
 
@@ -28,7 +27,7 @@ export function nextLevelToPlay(): number {
 
 /**
  * Level map: one row of five tiles per world. Levels unlock one at a time;
- * survival mode (endless) is always open below the map.
+ * BACK returns to the main menu.
  */
 export class LevelSelect {
   readonly root: Phaser.GameObjects.Container;
@@ -37,10 +36,7 @@ export class LevelSelect {
   private totalStars: Phaser.GameObjects.Text;
   private totalIcon: Phaser.GameObjects.Graphics;
   private worldLabels: Phaser.GameObjects.Text[] = [];
-  private survival: Button;
-  private skins: Button;
-  private skinsNote: Phaser.GameObjects.Text;
-  private survivalNote: Phaser.GameObjects.Text;
+  private back: Button;
   private size = 58;
   private pokes = 0;
   private lastPoke = 0;
@@ -49,8 +45,9 @@ export class LevelSelect {
     private scene: Phaser.Scene,
     private onPick: (level: number | null) => void,
     private onSecret: () => void,
-    onSkins: () => void,
+    onBack: () => void,
   ) {
+    this.back = makeButton(scene, { label: 'BACK', width: 84, height: 34, style: 'ghost', onPress: onBack });
     this.header = makeText(scene, 0, 0, 'SELECT LEVEL', { size: 22, spacing: 1.5 });
     // Easter egg: poke the header. It complains at 5, and at 10 you get a secret.
     this.header.setInteractive().on('pointerdown', () => this.poke());
@@ -83,18 +80,6 @@ export class LevelSelect {
       this.tiles.push({ level, root, glow, bg, num, stars });
     }
 
-    this.survival = makeButton(scene, {
-      label: 'SURVIVAL',
-      width: 300,
-      style: 'ghost',
-      color: palette.cyan,
-      onPress: () => {
-        this.onPick(null);
-      },
-    });
-    this.survivalNote = makeText(scene, 0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
-    this.skins = makeButton(scene, { label: 'SKINS', width: 300, style: 'ghost', color: 0xffd21f, onPress: onSkins });
-    this.skinsNote = makeText(scene, 0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
 
     this.root = scene.add.container(0, 0, [
       this.header,
@@ -102,10 +87,7 @@ export class LevelSelect {
       this.totalIcon,
       ...this.worldLabels,
       ...this.tiles.map((t) => t.root),
-      this.survival,
-      this.survivalNote,
-      this.skins,
-      this.skinsNote,
+      this.back,
     ]);
     this.root.setVisible(false);
   }
@@ -150,12 +132,6 @@ export class LevelSelect {
     this.totalStars.setText(`${total} / ${LEVELS.length * 3}`);
     this.totalIcon.clear();
     drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7, 0xffffff, true);
-    this.survivalNote.setText(
-      save.best > 0 ? `ENDLESS RUN  ·  BEST ${save.best.toFixed(1)} M` : 'ENDLESS RUN  ·  HOW FAR CAN YOU GO?',
-    );
-    this.skinsNote.setText(
-      save.freeSpin ? 'A FREE SPIN IS WAITING' : `${save.ducks} DUCKS  ·  ${save.skins.size} / ${SKINS.length} SKINS`,
-    );
   }
 
   layout(w: number, h: number, top: number) {
@@ -165,9 +141,11 @@ export class LevelSelect {
     const left = -width / 2;
 
     let y = 0;
+    this.back.setPosition(left + 42, y + 17);
+    this.totalStars.setPosition(-left, y + 17);
+    y += 46;
     this.header.setPosition(left, y);
-    this.totalStars.setPosition(-left, y + 15);
-    y += 50;
+    y += 46;
 
     WORLDS.forEach((_, wi) => {
       this.worldLabels[wi].setPosition(left, y);
@@ -177,12 +155,7 @@ export class LevelSelect {
       y += s + 22;
     });
 
-    y += 8;
-    this.survival.setPosition(0, y + 20);
-    this.survivalNote.setPosition(0, y + 54);
-    this.skins.setPosition(0, y + 92);
-    this.skinsNote.setPosition(0, y + 126);
-    const contentH = y + 136;
+    const contentH = y;
 
     // Shrink to fit short screens (small phones, landscape).
     const avail = h - top - 16;

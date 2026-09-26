@@ -5,13 +5,13 @@ import { save } from '../game/storage';
 import { css, palette, hueColor } from '../game/palette';
 import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
-import { TEX } from '../fx/textures';
 import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
+import { SKINS } from '../game/skins';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 
-type Mode = 'title' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
+type Mode = 'menu' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
 
 /**
  * Top layer: HUD, title, level map, game-over and level-clear screens.
@@ -24,7 +24,7 @@ type Mode = 'title' | 'select' | 'skins' | 'play' | 'dead' | 'clear';
  * top-left, so every position here is in plain CSS pixels.
  */
 export class UIScene extends Phaser.Scene {
-  private mode: Mode = 'title';
+  private mode: Mode = 'menu';
   /** The level being played, or null for survival. */
   private level: number | null = null;
   /** Ignore background taps until this time, so a panicked tap doesn't skip a screen. */
@@ -44,9 +44,13 @@ export class UIScene extends Phaser.Scene {
   private title!: Phaser.GameObjects.Container;
   private titleLayers: Phaser.GameObjects.Text[] = [];
   private subtitle!: Phaser.GameObjects.Text;
-  private tapRing!: Phaser.GameObjects.Image;
-  private tapHint!: Phaser.GameObjects.Text;
   private statsLine!: Phaser.GameObjects.Text;
+  private playBtn!: Button;
+  private survivalBtn!: Button;
+  private skinsBtn!: Button;
+  private playNote!: Phaser.GameObjects.Text;
+  private survivalNote!: Phaser.GameObjects.Text;
+  private skinsNote!: Phaser.GameObjects.Text;
 
   private scrim!: Phaser.GameObjects.Rectangle;
   private select!: LevelSelect;
@@ -74,20 +78,20 @@ export class UIScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setOrigin(0, 0).setZoom(display.dpr);
 
-    // Creation order is drawing order: HUD, title, scrim, then the screens on top.
+    // Creation order is drawing order: HUD, scrim, then the screens on top.
     this.buildHud();
-    this.buildTitle();
     this.scrim = this.add.rectangle(0, 0, 10, 10, 0x020305, 0.62).setOrigin(0, 0).setAlpha(0);
+    this.buildTitle();
     this.buildGameOver();
     this.select = new LevelSelect(
       this,
       (level) => this.play(level),
       () => this.toggleRainbow(),
-      () => this.showSkins(),
+      () => this.showMenu(),
     );
     this.shop = new SkinShop(
       this,
-      () => this.showSelect(),
+      () => this.showMenu(),
       () => this.game.events.emit(EV.skin),
     );
     this.clearScreen = new ClearScreen(this, {
@@ -99,7 +103,7 @@ export class UIScene extends Phaser.Scene {
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
-    this.showTitle();
+    this.showMenu();
 
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       if (over.length === 0) this.onBackgroundTap();
@@ -109,9 +113,10 @@ export class UIScene extends Phaser.Scene {
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
         e.preventDefault();
         if (this.mode === 'select') this.play(nextLevelToPlay());
+        else if (this.mode === 'menu') this.showSelect();
         else this.onBackgroundTap();
-      } else if (e.code === 'Escape' && this.mode !== 'play') {
-        this.showSelect();
+      } else if (e.code === 'Escape' && this.mode !== 'play' && this.mode !== 'menu') {
+        this.showMenu();
       }
     });
 
@@ -159,11 +164,6 @@ export class UIScene extends Phaser.Scene {
   private onBackgroundTap() {
     if (this.time.now < this.tapsFrom) return;
     switch (this.mode) {
-      case 'title':
-        sfx.unlock();
-        sfx.click();
-        this.showSelect();
-        break;
       case 'play':
         this.game.events.emit(EV.tap);
         break;
@@ -258,11 +258,35 @@ export class UIScene extends Phaser.Scene {
     this.titleLayers = [magenta, cyan, main];
 
     this.subtitle = this.text(0, 0, 'CHAOS ARCADE', { font: 'mono', size: 12, color: css.inkDim, spacing: 5 }).setOrigin(0.5);
-    this.tapRing = this.add.image(0, 0, TEX.ring).setTint(palette.cyan).setBlendMode(Phaser.BlendModes.ADD);
-    this.tapHint = this.text(0, 0, 'TAP TO START', { font: 'mono', size: 11, color: css.cyan, spacing: 3 }).setOrigin(0.5);
     this.statsLine = this.text(0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
 
-    this.title = this.add.container(0, 0, [...this.titleLayers, this.subtitle, this.tapRing, this.tapHint, this.statsLine]);
+    // Main menu: the game opens here.
+    const note = () => this.text(0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
+    this.playBtn = makeButton(this, { label: 'PLAY', width: 260, height: 56, onPress: () => this.showSelect() });
+    this.survivalBtn = makeButton(this, { label: 'SURVIVAL', width: 260, style: 'ghost', onPress: () => this.play(null) });
+    this.skinsBtn = makeButton(this, {
+      label: 'SKINS',
+      width: 260,
+      style: 'ghost',
+      color: 0xffd21f,
+      onPress: () => this.showSkins(),
+    });
+    this.playNote = note();
+    this.survivalNote = note();
+    this.skinsNote = note();
+
+    // (Named `title` for history: it is the whole main menu.)
+    this.title = this.add.container(0, 0, [
+      ...this.titleLayers,
+      this.subtitle,
+      this.playBtn,
+      this.playNote,
+      this.survivalBtn,
+      this.survivalNote,
+      this.skinsBtn,
+      this.skinsNote,
+      this.statsLine,
+    ]);
   }
 
   private buildGameOver() {
@@ -272,7 +296,12 @@ export class UIScene extends Phaser.Scene {
     this.bestText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
     this.retryPill = makeButton(this, { label: 'TAP TO RETRY', width: 184, onPress: () => this.play(this.level) });
-    this.overLevels = makeButton(this, { label: 'LEVELS', width: 120, style: 'ghost', onPress: () => this.showSelect() });
+    this.overLevels = makeButton(this, {
+      label: 'LEVELS',
+      width: 120,
+      style: 'ghost',
+      onPress: () => (this.level === null ? this.showMenu() : this.showSelect()),
+    });
 
     this.over = this.add.container(0, 0, [
       this.causeText,
@@ -302,11 +331,16 @@ export class UIScene extends Phaser.Scene {
 
     const titleSize = Phaser.Math.Clamp(w * 0.14, 44, 96);
     this.titleLayers.forEach((t) => t.setFontSize(titleSize));
-    const cy = h * 0.4;
+    const cy = this.titleY();
     this.titleLayers.forEach((t) => t.setPosition(w / 2, cy));
     this.subtitle.setPosition(w / 2, cy + titleSize * 0.62);
-    this.tapRing.setPosition(w / 2, h * 0.7);
-    this.tapHint.setPosition(w / 2, h * 0.7 + 50);
+    const my = Math.max(cy + titleSize * 0.62 + 70, h * 0.5);
+    this.playBtn.setPosition(w / 2, my);
+    this.playNote.setPosition(w / 2, my + 42);
+    this.survivalBtn.setPosition(w / 2, my + 96);
+    this.survivalNote.setPosition(w / 2, my + 132);
+    this.skinsBtn.setPosition(w / 2, my + 186);
+    this.skinsNote.setPosition(w / 2, my + 222);
     this.statsLine.setPosition(w / 2, h - 28);
 
     this.scrim.setSize(w, h);
@@ -337,9 +371,29 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: target, alpha, duration: 220 });
   }
 
-  private showTitle() {
-    this.mode = 'title';
-    this.title.setVisible(true).setAlpha(1);
+  private titleY() {
+    return display.size(this).h * 0.24 + display.safeTop();
+  }
+
+  /** The main menu: logo, PLAY, SURVIVAL and SKINS. */
+  private showMenu() {
+    const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    this.mode = 'menu';
+    this.fadeOut(this.select.root);
+    this.fadeOut(this.shop.root);
+    this.fadeOut(this.over);
+    this.fadeOut(this.hud);
+    if (this.clearScreen.root.visible) this.clearScreen.hide();
+    if (fromRun) this.game.events.emit(EV.menu);
+    this.tweens.add({ targets: this.scrim, alpha: 0.5, duration: 220 });
+
+    const next = nextLevelToPlay();
+    this.playNote.setText(save.totalStars() > 0 ? `NEXT UP  ·  LEVEL ${next}` : '20 LEVELS  ·  4 WORLDS');
+    this.survivalNote.setText(save.best > 0 ? `ENDLESS  ·  BEST ${save.best.toFixed(1)} M` : 'ENDLESS  ·  HOW FAR CAN YOU GO?');
+    this.skinsNote.setText(`${save.ducks} DUCKS  ·  ${save.skins.size} / ${SKINS.length} SKINS`);
+
+    this.title.setVisible(true).setAlpha(0);
+    this.fadeIn(this.title);
     const stars = save.totalStars();
     this.statsLine.setText(
       stars > 0
@@ -353,6 +407,7 @@ export class UIScene extends Phaser.Scene {
   private showSkins() {
     this.mode = 'skins';
     sfx.swoosh();
+    this.fadeOut(this.title);
     this.fadeOut(this.select.root);
     this.shop.refresh();
     this.shop.root.setVisible(true).setAlpha(0);
@@ -451,6 +506,7 @@ export class UIScene extends Phaser.Scene {
     this.causeText.setText(d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]);
     this.bestText.setShadow(0, 0, 'transparent', 0);
 
+    this.overLevels.setLabel(d.level === null ? 'MENU' : 'LEVELS');
     if (d.goal !== null && d.level !== null) {
       const level = levelById(d.level)!;
       const pct = Math.floor((d.meters / d.goal) * 100);
@@ -519,14 +575,12 @@ export class UIScene extends Phaser.Scene {
       const glitching = time < this.glitchUntil;
       const amp = glitching ? 6 : 1.6;
       const [m, c, main] = this.titleLayers;
-      const { w, h } = display.size(this);
-      const cy = h * 0.4;
+      const { w } = display.size(this);
+      const cy = this.titleY();
       m.setPosition(w / 2 - amp + (glitching ? Math.random() * 4 : 0), cy + (glitching ? Math.random() * 3 - 1.5 : 0));
       c.setPosition(w / 2 + amp - (glitching ? Math.random() * 4 : 0), cy - (glitching ? Math.random() * 3 - 1.5 : 0));
       main.setPosition(w / 2, cy).setScale(1 + Math.sin(t * 2) * 0.01);
-
-      const k = (t * 0.9) % 1;
-      this.tapRing.setScale(0.22 + k * 0.12).setAlpha(1 - k);
+      if (this.mode === 'menu') this.playBtn.setScale(1 + 0.02 * Math.sin(t * 3));
     }
 
     if (this.mode === 'select') this.select.update(time);

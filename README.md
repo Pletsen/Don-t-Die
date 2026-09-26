@@ -2,7 +2,7 @@
 
 Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, som drejer i en spiral. Hvert tryk drejer dig 90° med uret. Rammer du væggen, en savklinge eller en bombe, er det slut.
 
-Spillet har **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
+Spillet åbner i en hovedmenu med **PLAY** (level-kortet), **SURVIVAL** og **SKINS**. Der er **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
 
 | Verden | Farve | Nyt |
 |---|---|---|
@@ -30,7 +30,7 @@ Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på le
 
 ### Skins og DUCK-O-MATIC
 
-Ænderne, du vælter i Universe 2, bliver til valuta, når du **gennemfører** banen. Dør du, er de tabt. Under **SKINS** på level-kortet står spillemaskinen DUCK-O-MATIC: ét træk koster 20 ænder (det første er gratis), og hjulene lander på et tilfældigt skin. Får du et, du allerede har, får du 5 ænder tilbage.
+Ænderne, du vælter i Universe 2, bliver til valuta, når du **gennemfører** banen. Dør du, er de tabt. Under **SKINS** i hovedmenuen står spillemaskinen DUCK-O-MATIC: ét træk koster 50 ænder (cirka to warp-baner), og hjulene lander på et tilfældigt skin. Får du et, du allerede har, får du 5 ænder tilbage.
 
 | Sjældenhed | Chance | Skins |
 |---|---|---|
@@ -93,7 +93,7 @@ src/
 │   ├── GameScene.ts      Verdenen: regler, bevægelse, kollisioner og kamera
 │   └── UIScene.ts        Skifter mellem skærmene og styrer tryk
 ├── ui/
-│   ├── LevelSelect.ts    Level-kortet
+│   ├── LevelSelect.ts    Level-kortet (hovedmenuen ligger i UIScene)
 │   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen
 │   ├── ClearScreen.ts    "LEVEL CLEAR" med stjerner
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges

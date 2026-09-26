@@ -12,7 +12,6 @@ const KEYS = {
   ducks: 'dontdie_ducks',
   skins: 'dontdie_skins',
   skin: 'dontdie_skin',
-  freeSpin: 'dontdie_free_spin_used',
 };
 
 function read(key: string): string | null {
@@ -65,12 +64,6 @@ export const save = {
   setSkin(id: string) {
     this.skin = id;
     write(KEYS.skin, id);
-  },
-  /** Everyone gets one free spin, so the machine can be tried right away. */
-  freeSpin: read(KEYS.freeSpin) !== '1',
-  useFreeSpin() {
-    this.freeSpin = false;
-    write(KEYS.freeSpin, '1');
   },
 
   /** Level ids where the warp star has been hit. */
