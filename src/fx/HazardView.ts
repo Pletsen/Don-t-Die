@@ -37,7 +37,8 @@ export class HazardView {
     this.body = isDuck
       ? scene.add
           .image(0, 0, { normal: TEX.duck, red: TEX.duckRed, golden: TEX.duckGold }[variant])
-          .setScale((d * 1.5) / (96 * DUCK_RES))
+          // The red runner is drawn a little larger so its details read at speed.
+          .setScale((d * (variant === 'red' ? 1.75 : 1.5)) / (96 * DUCK_RES))
           .setFlipX(Math.random() < 0.5)
       : scene.add.image(0, 0, isSaw ? TEX.saw : TEX.bomb).setScale((d * (isSaw ? 1.05 : 1.1)) / 128);
     if (isDuck) {
