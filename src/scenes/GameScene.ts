@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment, type WarpStar } from '../game/Track';
-import { tuning, METERS_PER_PX } from '../game/tuning';
+import { tuning, METERS_PER_PX, SECTOR_METERS } from '../game/tuning';
 import { shared, EV, type DeathData, type ClearData, type PlayRequest } from '../game/shared';
 import { endlessCourse, levelCourse, type Course } from '../game/course';
 import { levelById } from '../game/levels';
@@ -921,7 +921,7 @@ export class GameScene extends Phaser.Scene {
       this.emitAbility();
     }
     // A rising sweep each time the world changes colour.
-    const sector = [250, 550, 950].filter((s) => m >= s).length;
+    const sector = SECTOR_METERS.filter((s) => m >= s).length;
     if (sector > this.lastSector) {
       this.lastSector = sector;
       sfx.sweep();

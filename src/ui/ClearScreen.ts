@@ -2,13 +2,14 @@ import Phaser from 'phaser';
 import { LEVELS, WORLDS, levelById } from '../game/levels';
 import type { ClearData } from '../game/shared';
 import { css } from '../game/palette';
+import { save } from '../game/storage';
 import { sfx } from '../audio/Sfx';
 import { drawStar, hexColor, makeButton, makeText, type Button } from './widgets';
 
 const STAR_R = 24;
 const STAR_GAP = 64;
 
-/** "LEVEL CLEAR" screen: stars pop in one by one, then next / retry / levels. */
+/** "LEVEL CLEAR" screen: stars pop in one by one, then next / retry / levels / menu. */
 export class ClearScreen {
   readonly root: Phaser.GameObjects.Container;
   private label: Phaser.GameObjects.Text;
@@ -17,13 +18,15 @@ export class ClearScreen {
   private starFills: Phaser.GameObjects.Graphics[] = [];
   private stats: Phaser.GameObjects.Text;
   private hint: Phaser.GameObjects.Text;
+  private ducksLine: Phaser.GameObjects.Text;
   private next: Button;
   private retry: Button;
   private levels: Button;
+  private menu: Button;
 
   constructor(
     private scene: Phaser.Scene,
-    handlers: { next: () => void; retry: () => void; levels: () => void },
+    handlers: { next: () => void; retry: () => void; levels: () => void; menu: () => void },
   ) {
     this.label = makeText(scene, 0, 0, '', { font: 'mono', size: 12, spacing: 3 }).setOrigin(0.5);
     this.title = makeText(scene, 0, 0, 'CLEAR', { size: 68, glow: true }).setOrigin(0.5);
@@ -35,9 +38,11 @@ export class ClearScreen {
     }
     this.stats = makeText(scene, 0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.hint = makeText(scene, 0, 0, '', { size: 13, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
+    this.ducksLine = makeText(scene, 0, 0, '', { font: 'mono', size: 13, weight: '700', color: '#ffd21f', spacing: 1.2 }).setOrigin(0.5);
     this.next = makeButton(scene, { label: 'NEXT LEVEL', width: 200, onPress: handlers.next });
-    this.retry = makeButton(scene, { label: 'RETRY', width: 120, style: 'ghost', onPress: handlers.retry });
-    this.levels = makeButton(scene, { label: 'LEVELS', width: 120, style: 'ghost', onPress: handlers.levels });
+    this.retry = makeButton(scene, { label: 'RETRY', width: 100, style: 'ghost', onPress: handlers.retry });
+    this.levels = makeButton(scene, { label: 'LEVELS', width: 100, style: 'ghost', onPress: handlers.levels });
+    this.menu = makeButton(scene, { label: 'MENU', width: 100, style: 'ghost', onPress: handlers.menu });
 
     this.root = scene.add.container(0, 0, [
       this.label,
@@ -46,9 +51,11 @@ export class ClearScreen {
       ...this.starFills,
       this.stats,
       this.hint,
+      this.ducksLine,
       this.next,
       this.retry,
       this.levels,
+      this.menu,
     ]);
     this.root.setVisible(false);
   }
@@ -62,9 +69,11 @@ export class ClearScreen {
     this.starFills.forEach((g, i) => g.setPosition(cx + (i - 1) * STAR_GAP, oy + 74));
     this.stats.setPosition(cx, oy + 124);
     this.hint.setPosition(cx, oy + 148);
-    this.next.setPosition(cx, oy + 210);
-    this.retry.setPosition(cx - 66, oy + 270);
-    this.levels.setPosition(cx + 66, oy + 270);
+    this.ducksLine.setPosition(cx, oy + 172);
+    this.next.setPosition(cx, oy + 228);
+    this.retry.setPosition(cx - 110, oy + 290);
+    this.levels.setPosition(cx, oy + 290);
+    this.menu.setPosition(cx + 110, oy + 290);
   }
 
   show(d: ClearData) {
@@ -77,8 +86,10 @@ export class ClearScreen {
     this.stats.setText(`PERFECT ${d.perfects}/${d.turns}  ·  ${d.seconds.toFixed(1)} SEC`);
     this.next.setLabel(last ? 'LEVELS' : 'NEXT LEVEL');
 
-    if (d.warped) this.hint.setText(`WARP STAR FOUND  ·  +${d.ducks} DUCKS BANKED`).setColor(css.orange);
-    else if (d.ducks > 0) this.hint.setText(`+${d.ducks} DUCKS BANKED`).setColor(css.orange);
+    // Ducks earned this run, and what you have in total now.
+    this.ducksLine.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
+
+    if (d.warped) this.hint.setText('WARP STAR FOUND').setColor(css.orange);
     else if (d.stars < 2) this.hint.setText('2 STARS: HALF YOUR TURNS PERFECT').setColor(css.inkDim);
     else if (d.stars < 3) this.hint.setText('3 STARS: 90% OF TURNS PERFECT').setColor(css.inkDim);
     else this.hint.setText(d.previousStars < 3 ? 'FLAWLESS' : '').setColor(css.orange);
@@ -104,7 +115,7 @@ export class ClearScreen {
       });
     });
 
-    [this.next, this.retry, this.levels].forEach((b, i) => {
+    [this.next, this.retry, this.levels, this.menu].forEach((b, i) => {
       b.setAlpha(0);
       this.scene.tweens.add({ targets: b, alpha: 1, delay: 500 + d.stars * 300 + i * 60, duration: 250 });
     });

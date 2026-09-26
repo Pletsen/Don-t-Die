@@ -8,19 +8,25 @@ export const METERS_PER_PX = 1 / 9;
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
+/**
+ * How fast Survival gets harder. Every difficulty curve below uses the
+ * distance divided by this, so 2 = everything ramps up half as fast.
+ */
+const RAMP = 2;
+
 export const tuning = {
   playerRadius: 11,
   segmentsAhead: 5,
 
   /** Forward speed in px/s. Ramps up with distance. */
   speedAt(distPx: number) {
-    const m = distPx * METERS_PER_PX;
+    const m = (distPx * METERS_PER_PX) / RAMP;
     return clamp(230 + m * 0.62, 230, 620);
   },
 
   /** Half the corridor width. Narrows with distance and "breathes" per loop. */
   corridorHalfWidthAt(distPx: number, loopIndex: number) {
-    const m = distPx * METERS_PER_PX;
+    const m = (distPx * METERS_PER_PX) / RAMP;
     const base = clamp(76 - m * 0.012, 46, 76);
     const breathe = Math.sin(loopIndex * 0.55) * 7 + Math.sin(loopIndex * 0.13) * 5;
     return clamp(base + breathe, 40, 86);
@@ -32,7 +38,7 @@ export const tuning = {
    * shortens them (more frequent turns) without ever cancelling the growth.
    */
   segmentLengthRange(distPx: number, loopIndex: number) {
-    const m = distPx * METERS_PER_PX;
+    const m = (distPx * METERS_PER_PX) / RAMP;
     const growth = 1 + Math.min(loopIndex * 0.05, 3.2);
     const difficulty = clamp(1 - m * 0.00055, 0.5, 1);
     const jitter = 1 + Math.sin(loopIndex * 0.9) * 0.18;
@@ -41,25 +47,28 @@ export const tuning = {
     return { min, max: Math.max(max, min + 40) };
   },
 
-  /** Chance that a new segment gets a hazard. The first 55 m are clean. */
+  /** Chance that a new segment gets a hazard. The first 110 m are clean. */
   hazardChanceAt(distPx: number) {
-    const m = distPx * METERS_PER_PX;
+    const m = (distPx * METERS_PER_PX) / RAMP;
     if (m < 55) return 0;
     return clamp((m - 55) / 900, 0, 0.62);
   },
 };
 
+/** Where Survival changes colour, in metres (spread out to match RAMP). */
+export const SECTOR_METERS = [250 * RAMP, 550 * RAMP, 950 * RAMP];
+
 /**
- * Sector colour: cyan -> orange (250 m) -> magenta (550 m) -> red (950 m).
+ * Sector colour: cyan -> orange -> magenta -> red, at SECTOR_METERS.
  * Each colour holds for most of its sector and blends quickly (over 40 m) at
  * the border. Blending goes round the colour wheel (hue), so it stays vivid
  * instead of passing through muddy grey-green.
  */
 const sectors = [
   { m: 0, c: palette.cyan },
-  { m: 250, c: palette.orange },
-  { m: 550, c: palette.magenta },
-  { m: 950, c: palette.red },
+  { m: SECTOR_METERS[0], c: palette.orange },
+  { m: SECTOR_METERS[1], c: palette.magenta },
+  { m: SECTOR_METERS[2], c: palette.red },
 ];
 const BLEND_M = 40;
 

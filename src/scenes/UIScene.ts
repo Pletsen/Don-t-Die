@@ -7,7 +7,7 @@ import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
-import { SKINS, skinById, skinTexture, RARITIES } from '../game/skins';
+import { SKINS, skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
 import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
@@ -70,6 +70,7 @@ export class UIScene extends Phaser.Scene {
   private flavorText!: Phaser.GameObjects.Text;
   private retryPill!: Phaser.GameObjects.Container;
   private overLevels!: Button;
+  private overMenu!: Button;
 
   private glitchUntil = 0;
   private toastText!: Phaser.GameObjects.Text;
@@ -103,6 +104,7 @@ export class UIScene extends Phaser.Scene {
       next: () => this.nextLevel(),
       retry: () => this.play(this.level),
       levels: () => this.showSelect(),
+      menu: () => this.showMenu(),
     });
     this.buildToggles();
     this.buildAbilityPill();
@@ -353,12 +355,9 @@ export class UIScene extends Phaser.Scene {
     this.bestText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
     this.retryPill = makeButton(this, { label: 'TAP TO RETRY', width: 184, onPress: () => this.play(this.level) });
-    this.overLevels = makeButton(this, {
-      label: 'LEVELS',
-      width: 120,
-      style: 'ghost',
-      onPress: () => (this.level === null ? this.showMenu() : this.showSelect()),
-    });
+    this.overLevels = makeButton(this, { label: 'LEVELS', width: 110, style: 'ghost', onPress: () => this.showSelect() });
+    this.overMenu = makeButton(this, { label: 'MENU', width: 110, style: 'ghost', onPress: () => this.showMenu() });
+    this.buildSpinBanner();
 
     this.over = this.add.container(0, 0, [
       this.causeText,
@@ -368,6 +367,7 @@ export class UIScene extends Phaser.Scene {
       this.flavorText,
       this.retryPill,
       this.overLevels,
+      this.overMenu,
     ]);
     this.over.setAlpha(0).setVisible(false);
   }
@@ -409,7 +409,9 @@ export class UIScene extends Phaser.Scene {
     this.bestText.setPosition(w / 2, oy + 60);
     this.flavorText.setPosition(w / 2, oy + 92);
     this.retryPill.setPosition(w / 2, oy + 150);
-    this.overLevels.setPosition(w / 2, oy + 212);
+    this.overLevels.setPosition(w / 2 - 62, oy + 212);
+    this.overMenu.setPosition(w / 2 + 62, oy + 212);
+    this.spinBanner?.setPosition(w / 2, top + 88);
 
     this.select.layout(w, h, top + 52);
     this.shop.layout(w, h, top + 48);
@@ -437,6 +439,7 @@ export class UIScene extends Phaser.Scene {
   private showMenu() {
     const fromRun = this.mode === 'dead' || this.mode === 'clear';
     this.mode = 'menu';
+    this.hideSpinBanner();
     this.fadeOut(this.select.root);
     this.fadeOut(this.shop.root);
     this.fadeOut(this.over);
@@ -463,10 +466,17 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showSkins() {
+    const fromRun = this.mode === 'dead' || this.mode === 'clear';
     this.mode = 'skins';
     sfx.swoosh();
+    this.hideSpinBanner();
     this.fadeOut(this.title);
     this.fadeOut(this.select.root);
+    this.fadeOut(this.over);
+    this.fadeOut(this.hud);
+    if (this.clearScreen.root.visible) this.clearScreen.hide();
+    if (fromRun) this.game.events.emit(EV.menu);
+    this.fadeIn(this.scrim);
     this.shop.refresh();
     this.shop.root.setVisible(true).setAlpha(0);
     this.fadeIn(this.shop.root);
@@ -474,6 +484,7 @@ export class UIScene extends Phaser.Scene {
 
   private showSelect() {
     const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    this.hideSpinBanner();
     this.fadeOut(this.shop.root);
     this.mode = 'select';
     this.fadeOut(this.title);
@@ -491,6 +502,7 @@ export class UIScene extends Phaser.Scene {
 
   private play(level: number | null) {
     this.level = level;
+    this.hideSpinBanner();
     this.fadeOut(this.title);
     this.fadeOut(this.over);
     this.fadeOut(this.select.root);
@@ -576,7 +588,9 @@ export class UIScene extends Phaser.Scene {
     this.causeText.setText(d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]);
     this.bestText.setShadow(0, 0, 'transparent', 0);
 
-    this.overLevels.setLabel(d.level === null ? 'MENU' : 'LEVELS');
+    // Survival has no level map to go back to, so only MENU.
+    this.overLevels.setVisible(d.level !== null);
+    this.overMenu.setX(d.level === null ? display.size(this).w / 2 : display.size(this).w / 2 + 62);
     if (d.goal !== null && d.level !== null) {
       const level = levelById(d.level)!;
       const pct = Math.floor((d.meters / d.goal) * 100);
@@ -591,7 +605,8 @@ export class UIScene extends Phaser.Scene {
       this.bestText.setText(d.isNewBest ? 'NEW BEST' : `BEST ${d.best.toFixed(1)} M`);
       this.bestText.setColor(d.isNewBest ? css.orange : css.inkDim);
       if (d.isNewBest) this.bestText.setShadow(0, 0, css.orange, 14, false, true);
-      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS BANKED` : this.flavorLine(d));
+      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : this.flavorLine(d));
+      if (d.ducks > 0) this.maybeShowSpinBanner();
     }
 
     this.over.setVisible(true).setAlpha(0);
@@ -609,7 +624,7 @@ export class UIScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onUpdate: () => this.scoreText.setText(`${counter.v.toFixed(1)} M`),
     });
-    [this.retryPill, this.overLevels].forEach((b, i) => {
+    [this.retryPill, this.overLevels, this.overMenu].forEach((b, i) => {
       b.setScale(0.9).setAlpha(0);
       this.tweens.add({ targets: b, alpha: 1, scale: 1, delay: 350 + i * 80, duration: 300, ease: 'Back.easeOut' });
     });
@@ -622,6 +637,60 @@ export class UIScene extends Phaser.Scene {
     this.fadeOut(this.hud);
     this.fadeIn(this.scrim);
     this.clearScreen.show(d);
+    if (d.ducks > 0) this.maybeShowSpinBanner(1600);
+  }
+
+  // --- "You can spin" banner -------------------------------------------------
+
+  private spinBanner!: Phaser.GameObjects.Container;
+  private spinBannerText!: Phaser.GameObjects.Text;
+
+  private buildSpinBanner() {
+    const w = 300;
+    const h = 74;
+    const bg = this.add.graphics();
+    for (let i = 3; i >= 1; i--) {
+      bg.fillStyle(0xffd21f, 0.07).fillRoundedRect(-w / 2 - i * 5, -h / 2 - i * 5, w + i * 10, h + i * 10, 20 + i * 5);
+    }
+    bg.fillStyle(0x1c1404, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, 20);
+    bg.lineStyle(2, 0xffd21f, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, 20);
+    const icon = this.add.image(-w / 2 + 34, 0, 'duck').setScale(0.42);
+    const title = this.text(-w / 2 + 64, -14, 'DUCK-O-MATIC READY!', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0, 0.5);
+    this.spinBannerText = this.text(-w / 2 + 64, 10, '', { font: 'mono', size: 10, color: css.ink, spacing: 1 }).setOrigin(0, 0.5);
+    const go = this.text(w / 2 - 18, 10, 'SPIN NOW', { size: 12, color: '#ffd21f', spacing: 2 }).setOrigin(1, 0.5);
+    const hit = this.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', () => {
+      sfx.click();
+      this.hideSpinBanner();
+      this.showSkins();
+    });
+    this.spinBanner = this.add.container(0, 0, [bg, icon, title, this.spinBannerText, go, hit]).setVisible(false);
+  }
+
+  /** Pops up when you've got enough ducks for a pull on the slot machine. */
+  private maybeShowSpinBanner(delay = 900) {
+    if (save.ducks < SPIN_COST) return;
+    this.spinBannerText.setText(`YOU HAVE ${save.ducks} DUCKS`);
+    const b = this.spinBanner;
+    this.tweens.killTweensOf(b);
+    b.setVisible(true).setAlpha(0).setScale(0.6);
+    this.tweens.add({
+      targets: b,
+      alpha: 1,
+      scale: 1,
+      delay,
+      duration: 420,
+      ease: 'Back.easeOut',
+      onStart: () => sfx.reveal('rare'),
+    });
+    this.tweens.add({ targets: b, angle: { from: -2, to: 2 }, delay: delay + 420, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  private hideSpinBanner() {
+    const b = this.spinBanner;
+    if (!b.visible) return;
+    this.tweens.killTweensOf(b);
+    this.tweens.add({ targets: b, alpha: 0, duration: 150, onComplete: () => b.setVisible(false).setAngle(0) });
   }
 
   private flavorLine(d: DeathData) {
