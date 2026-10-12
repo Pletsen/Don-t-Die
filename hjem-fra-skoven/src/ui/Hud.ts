@@ -4,7 +4,9 @@ export interface HudState {
   stamina: number;
   maxStamina: number;
   exhausted: boolean;
-  arrows: number;
+  weaponName: string;
+  ammoText: string;
+  slots: { key: string; name: string; active: boolean; locked: boolean; count: number }[];
   meat: number;
   shards: number;
   trophies: number;
@@ -30,7 +32,7 @@ const CSS = `
 .hud .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.8}
 .hud .inv{position:absolute;right:24px;bottom:24px;text-align:right;font-size:18px;line-height:1.55}
 .hud .inv b{font-size:26px}
-.hud .weap{margin-top:8px;font-size:12px;opacity:.75;letter-spacing:.08em}
+.hud .weap{margin-top:8px;font-size:13px;opacity:.8;letter-spacing:.05em}
 .hud .wind{position:absolute;right:24px;top:20px;text-align:center;width:96px}
 .hud .wind .dial{width:64px;height:64px;margin:0 auto;border:2px solid rgba(255,255,255,.45);border-radius:50%;background:rgba(0,0,0,.4);position:relative}
 .hud .wind .arrow{position:absolute;left:50%;top:50%;width:0;height:0;transform-origin:0 0}
@@ -74,9 +76,9 @@ export class Hud {
         <div class="bar st" data-k="stbar"><i data-k="st"></i></div><div class="lbl" style="margin-top:2px">Udholdenhed</div>
       </div>
       <div class="inv">
-        <div>Pile <b data-k="arrows"></b></div>
+        <div><span data-k="wname"></span> <b data-k="arrows"></b></div>
         <div>Kød <b data-k="meat"></b> &nbsp; Skærv <b data-k="shards"></b> &nbsp; Trofæer <b data-k="trophies"></b></div>
-        <div class="weap">[1] Bue og pil &nbsp; <span style="opacity:.45">[2] [3] [4] låst</span></div>
+        <div class="weap" data-k="slots"></div>
       </div>`;
     parent.appendChild(this.root);
     this.root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.q[e.dataset.k!] = e));
@@ -100,7 +102,11 @@ export class Hud {
     this.q.hp.style.width = `${(100 * s.hp) / s.maxHp}%`;
     this.q.st.style.width = `${(100 * s.stamina) / s.maxStamina}%`;
     this.q.stbar.classList.toggle('low', s.exhausted);
-    this.q.arrows.textContent = String(s.arrows);
+    this.q.arrows.textContent = s.ammoText;
+    this.q.wname.textContent = s.weaponName;
+    this.q.slots.innerHTML = s.slots
+      .map((x) => `<span style="margin-left:12px;${x.active ? 'color:#ffd98a;opacity:1' : x.locked ? 'opacity:.3' : ''}">[${x.key}] ${x.locked ? 'låst' : x.name}${x.count > 1 ? ' ▾' : ''}</span>`)
+      .join('');
     this.q.meat.textContent = String(s.meat);
     this.q.shards.textContent = String(s.shards);
     this.q.trophies.textContent = String(s.trophies);

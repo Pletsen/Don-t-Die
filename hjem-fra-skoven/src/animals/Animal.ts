@@ -7,7 +7,7 @@ import { lerpAngle } from '../player/Player';
 import { Rng } from '../game/rng';
 import { buildAnimalModel, type AnimalModel } from './models';
 
-export type AnimalState = 'idle' | 'alert' | 'flee' | 'chase' | 'windup' | 'strike' | 'recover' | 'dead';
+export type AnimalState = 'idle' | 'lured' | 'alert' | 'flee' | 'chase' | 'windup' | 'strike' | 'recover' | 'dead';
 
 export interface AnimalContext {
   player: Player;
@@ -65,6 +65,13 @@ export class Animal {
   private corpseT = 0;
   private lastSpeed = 0;
   private stuck = 0;
+  /** Seconds left held by a trap. */
+  rooted = 0;
+  onDeath: (a: Animal) => void = () => {};
+  private poisonDps = 0;
+  private poisonTime = 0;
+  private lureTarget?: THREE.Vector3;
+  private lureTime = 0;
   private baseEmissive: { color: THREE.Color; intensity: number }[];
 
   constructor(readonly def: SpeciesDef, x: number, z: number, world: World, seed: number) {
@@ -113,7 +120,32 @@ export class Animal {
     return false;
   }
 
+  /** Poison does damage over time and does not alert the animal by itself. */
+  poison(dps: number, time: number) {
+    if (this.dead) return;
+    this.poisonDps = Math.max(this.poisonDps, dps);
+    this.poisonTime = Math.max(this.poisonTime, time);
+  }
+
+  root(seconds: number) {
+    this.rooted = Math.max(this.rooted, seconds);
+  }
+
+  get isLured(): boolean {
+    return this.state === 'lured';
+  }
+
+  /** Bait pulls calm animals towards a point for a while. */
+  lure(at: THREE.Vector3, seconds: number) {
+    if (this.dead || (this.state !== 'idle' && this.state !== 'alert' && this.state !== 'lured')) return;
+    if (this.state !== 'lured') this.state = 'lured';
+    this.lureTarget = at;
+    this.lureTime = seconds;
+  }
+
   private die() {
+    if (this.dead) return;
+    this.onDeath(this);
     this.dead = true;
     this.state = 'dead';
     this.sprite.visible = false;
@@ -143,6 +175,17 @@ export class Animal {
       return;
     }
 
+    if (this.rooted > 0) this.rooted -= dt;
+    if (this.poisonTime > 0) {
+      this.poisonTime -= dt;
+      this.hp -= this.poisonDps * dt;
+      this.flash = Math.max(this.flash, 0.05);
+      if (this.hp <= 0) {
+        this.die();
+        return;
+      }
+    } else this.poisonDps = 0;
+
     const P = ctx.player.pos;
     let dx = P.x - this.pos.x;
     let dz = P.z - this.pos.z;
@@ -158,6 +201,17 @@ export class Animal {
       case 'idle':
         speed = this.wander(dt, ctx);
         break;
+      case 'lured': {
+        const t = this.lureTarget;
+        this.lureTime -= dt;
+        if (!t || this.lureTime <= 0) {
+          this.state = 'idle';
+          break;
+        }
+        const dd = Math.hypot(t.x - this.pos.x, t.z - this.pos.z);
+        if (dd > 1.4) speed = this.steer(Math.atan2(t.x - this.pos.x, t.z - this.pos.z), this.def.walk * 2.4, dt, ctx);
+        break;
+      }
       case 'alert':
         // freeze and look at the hunter
         this.turn(Math.atan2(dx, dz), dt, 6);
@@ -200,8 +254,8 @@ export class Animal {
         break;
       case 'strike': {
         this.strikeT -= dt;
-        speed = def.lunge / 0.2;
-        this.pos.addScaledVector(this.lungeDir, speed * dt);
+        speed = this.rooted > 0 ? 0 : def.lunge / 0.2;
+        if (this.rooted <= 0) this.pos.addScaledVector(this.lungeDir, speed * dt);
         ctx.world.collide(this.pos, def.radius * 0.5);
         if (!this.struck && d < def.attackRange + 0.7) {
           this.struck = true;
@@ -227,7 +281,7 @@ export class Animal {
     }
 
     // defenders that were noticed from afar only react once you get close
-    if ((this.state === 'alert' || this.state === 'idle') && def.role === 'defender' && this.awareness >= 1 && d < def.aggroRange) {
+    if ((this.state === 'alert' || this.state === 'idle' || this.state === 'lured') && def.role === 'defender' && this.awareness >= 1 && d < def.aggroRange) {
       this.state = 'chase';
       this.chaseTime = 0;
     }
@@ -265,7 +319,7 @@ export class Animal {
       this.state = 'alert';
       ctx.onAlert(this);
     }
-    if (this.awareness >= 1 && (this.state === 'idle' || this.state === 'alert')) {
+    if (this.awareness >= 1 && (this.state === 'idle' || this.state === 'alert' || this.state === 'lured')) {
       if (def.role === 'prey') {
         this.state = 'flee';
         this.fleeTime = 0;
@@ -296,6 +350,10 @@ export class Animal {
 
   /** Moves towards a heading, bending around trees. Returns the speed achieved. */
   private steer(angle: number, speed: number, dt: number, ctx: AnimalContext): number {
+    if (this.rooted > 0) {
+      this.turn(angle, dt, 9);
+      return 0;
+    }
     const r = this.def.radius * 0.55;
     let chosen = angle;
     const offsets = [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6];

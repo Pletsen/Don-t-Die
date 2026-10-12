@@ -7,6 +7,7 @@ export class Input {
   leftPressed = false;
   dx = 0;
   dy = 0;
+  wheel = 0;
   locked = false;
   onLockChange: (locked: boolean) => void = () => {};
 
@@ -39,6 +40,9 @@ export class Input {
       this.dx += e.movementX;
       this.dy += e.movementY;
     });
+    addEventListener('wheel', (e) => {
+      if (this.locked) this.wheel += Math.sign(e.deltaY);
+    });
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.el;
       if (!this.locked) this.left = this.right = false;
@@ -64,5 +68,6 @@ export class Input {
     this.pressed.clear();
     this.leftPressed = false;
     this.dx = this.dy = 0;
+    this.wheel = 0;
   }
 }

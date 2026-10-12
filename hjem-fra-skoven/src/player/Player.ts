@@ -8,8 +8,6 @@ import type { Bank } from '../game/save';
 export interface PlayerStats {
   maxHealth: number;
   maxStamina: number;
-  arrows: number;
-  damage: number;
   scentMul: number;
 }
 
@@ -19,7 +17,9 @@ export class Player {
   heading = Math.PI;
   hp: number;
   stamina: number;
-  arrows: number;
+  /** Ammo left per weapon id (melee weapons have none). */
+  ammo: Record<string, number> = {};
+  weaponId = 'jagtbue';
   carried: Bank;
   startMeat: number;
   aiming = false;
@@ -47,7 +47,6 @@ export class Player {
   constructor(readonly stats: PlayerStats, meatPack: number) {
     this.hp = stats.maxHealth;
     this.stamina = stats.maxStamina;
-    this.arrows = stats.arrows;
     this.carried = { meat: meatPack, shards: 0, trophies: 0 };
     this.startMeat = meatPack;
     this.buildModel();
@@ -193,8 +192,8 @@ export class Player {
   }
 
   /** Call when an arrow leaves the bow. */
-  fired() {
-    this.burst = NOISE.shot;
+  fired(noise: number) {
+    this.burst = Math.max(this.burst, noise);
   }
 
   private animate(dt: number, speed: number) {

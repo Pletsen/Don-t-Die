@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { BOW, PLAYER } from '../data/balance';
+import { PLAYER } from '../data/balance';
 import { getLevel, LEVEL_COUNT, type LevelDef } from '../data/levels';
 import { UPGRADES, type UpgradeId } from '../data/upgrades';
+import { effective, FAMILIES, MAX_UPGRADE, upgradeCost, weaponById, WEAPONS, type Effective, type Track, type WeaponDef } from '../data/weapons';
 import { Animal, type AnimalContext } from '../animals/Animal';
 import { spawnAnimals } from '../animals/spawner';
 import { Sound } from '../audio/Sound';
@@ -9,7 +10,8 @@ import { CameraRig } from '../player/CameraRig';
 import { Player, type PlayerStats } from '../player/Player';
 import { Hud } from '../ui/Hud';
 import { canAfford, Screens, type RunSummary } from '../ui/Screens';
-import { Arrows } from '../weapons/Arrows';
+import { Projectiles } from '../weapons/Projectiles';
+import { Traps } from '../weapons/Traps';
 import { Drift } from '../world/Drift';
 import { Wind } from '../world/Wind';
 import { World } from '../world/World';
@@ -37,7 +39,9 @@ export class Game {
   player!: Player;
   wind!: Wind;
   animals: Animal[] = [];
-  arrows!: Arrows;
+  projectiles!: Projectiles;
+  traps!: Traps;
+  eff: Record<string, Effective> = {};
   drops!: Drops;
   drift!: Drift;
   bursts!: Bursts;
@@ -106,6 +110,14 @@ export class Game {
         this.buy(id);
         this.showHub();
       },
+      buyWeapon: (id) => {
+        this.buyWeapon(id);
+        this.showHub();
+      },
+      upgradeWeapon: (id, track) => {
+        this.upgradeWeapon(id, track);
+        this.showHub();
+      },
     });
   }
 
@@ -129,11 +141,15 @@ export class Game {
     this.stats = {
       maxHealth: PLAYER.maxHealth + 15 * u.health,
       maxStamina: PLAYER.maxStamina + 15 * u.stamina,
-      arrows: BOW.startArrows + 4 * u.quiver,
-      damage: BOW.damage + 6 * u.arrows,
       scentMul: 1 - 0.08 * u.wind,
     };
     this.player = new Player(this.stats, Math.min(this.save.bank.meat, PLAYER.startingMeatPack));
+    this.eff = {};
+    for (const w of WEAPONS) {
+      this.eff[w.id] = effective(w, this.save.weaponLv[w.id]);
+      if (this.save.owned[w.id] && w.ammo > 0) this.player.ammo[w.id] = Math.round(this.eff[w.id].ammo);
+    }
+    this.player.weaponId = 'jagtbue';
     this.player.pos.copy(this.world.spawn);
     this.player.onRoll = () => this.sound.roll();
     this.player.onHurt = () => {
@@ -158,18 +174,26 @@ export class Game {
     this.scene = new THREE.Scene();
     this.world = new World(this.scene, this.level);
     this.wind = new Wind(this.level.windAngle, this.level.windStrength);
-    this.arrows = new Arrows(this.scene, this.world);
-    this.arrows.onHit = (e) => this.onArrowHit(e.animal, e.killed, e.point);
+    this.projectiles = new Projectiles(this.scene, this.world);
+    this.projectiles.onHit = (e) => this.onHit(e.killed, e.point);
+    this.traps = new Traps(this.scene, this.world);
+    this.traps.onTrigger = () => {
+      this.sound.hit();
+      this.hud.toast('Fælden klaprede!', 1400);
+    };
     this.drops = new Drops(this.scene, this.world);
     this.bursts = new Bursts(this.scene);
     this.drift = new Drift(this.world.night > 0.5 ? 0x9fb4d8 : 0xd9c58a);
     this.scene.add(this.drift.points);
     this.animals = spawnAnimals(this.level, this.world);
-    for (const a of this.animals) this.scene.add(a.group);
+    for (const a of this.animals) {
+      this.scene.add(a.group);
+      a.onDeath = (an) => this.onKilled(an);
+    }
     this.renderer.toneMappingExposure = this.world.light.exposure;
     // placeholder player so the menu backdrop has something to follow
     this.player = new Player(
-      { maxHealth: 100, maxStamina: 100, arrows: 0, damage: 0, scentMul: 1 },
+      { maxHealth: 100, maxStamina: 100, scentMul: 1 },
       0,
     );
     this.player.pos.copy(this.world.spawn);
@@ -229,12 +253,65 @@ export class Game {
 
   // ---------- gameplay ----------
 
-  private shoot() {
+  // ---------- weapons ----------
+
+  private ownedWeapons(): WeaponDef[] {
+    return WEAPONS.filter((w) => this.save.owned[w.id]);
+  }
+
+  selectFamily(f: number) {
+    const list = this.ownedWeapons().filter((w) => w.family === f);
+    if (!list.length) {
+      this.hud.toast(`Du har ingen våben i "${FAMILIES[f - 1].name}" endnu. Køb dem i hulen.`, 2200);
+      return;
+    }
+    const cur = list.findIndex((w) => w.id === this.player.weaponId);
+    this.equip(list[(cur + 1) % list.length].id);
+  }
+
+  private cycleWeapon(dir: number) {
+    const list = this.ownedWeapons();
+    const cur = list.findIndex((w) => w.id === this.player.weaponId);
+    this.equip(list[(cur + dir + list.length) % list.length].id);
+  }
+
+  private equip(id: string) {
+    if (id === this.player.weaponId) return;
+    this.player.weaponId = id;
+    this.player.shotCooldown = Math.max(this.player.shotCooldown, 0.25);
+    this.hud.toast(weaponById(id).name, 900);
+  }
+
+  /** Called when the use button is pressed (or held, for weapons that can repeat). */
+  private useWeapon(pressed: boolean) {
+    const p = this.player;
+    const w = weaponById(p.weaponId);
+    const e = this.eff[w.id];
+    if (p.shotCooldown > 0 || p.rolling) return;
+    // traps and bait are placed with a click, not while holding the button
+    if ((w.kind === 'trap' || w.kind === 'bait') && !pressed) return;
+    if (w.ammo > 0 && (p.ammo[w.id] ?? 0) <= 0) {
+      if (pressed) {
+        p.shotCooldown = 0.4;
+        this.hud.toast(`Ingen ${w.name.toLowerCase()} tilbage. Find dem i skoven.`, 1500);
+      }
+      return;
+    }
+    if (w.kind === 'proj') this.fireProjectile(w, e);
+    else if (w.kind === 'melee') this.melee(w, e);
+    else if (w.kind === 'trap') this.placeTrap(w, e);
+    else this.placeBait(w, e);
+    if (w.ammo > 0) p.ammo[w.id]--;
+    p.shotCooldown = e.cooldown;
+    p.fired(e.noise);
+  }
+
+  private fireProjectile(w: WeaponDef, e: Effective) {
     const p = this.player;
     const forward = this.rig.forward;
     const origin = p.chest.addScaledVector(new THREE.Vector3(Math.sin(this.rig.heading), 0, Math.cos(this.rig.heading)), 0.55);
     // Aim at what the crosshair is on: the nearest animal under the camera ray, otherwise a point 40 m out.
-    // The arrow leaves the chest, not the camera, so this keeps close shots from missing sideways.
+    // The shot leaves the chest, not the camera, so this keeps close shots from missing sideways.
     let range = 40;
     for (const a of this.animals) {
       if (a.dead) continue;
@@ -246,33 +323,87 @@ export class Game {
       if (miss2 < r * r) range = Math.min(range, Math.max(1, along - Math.sqrt(r * r - miss2)), 40);
     }
     const aim = this.camera.position.clone().addScaledVector(forward, range);
-    const t = aim.distanceTo(origin) / BOW.speed;
-    aim.y += 0.5 * BOW.gravity * t * t; // compensate the drop so the arrow lands where the crosshair points
+    const t = aim.distanceTo(origin) / e.speed;
+    aim.y += 0.5 * e.gravity * t * t; // compensate the drop so it lands where the crosshair points
     const dir = aim.sub(origin).normalize();
-    const spread = p.aiming ? BOW.spreadAim : BOW.spreadHip;
+    const spread = p.aiming ? e.spreadAim : e.spread;
     const right = this.rig.right;
     const up = new THREE.Vector3().crossVectors(right, dir).normalize();
     dir.addScaledVector(right, (Math.random() - 0.5) * 2 * spread).addScaledVector(up, (Math.random() - 0.5) * 2 * spread).normalize();
-    this.arrows.fire(origin, dir);
-    p.arrows--;
-    p.shotCooldown = BOW.cooldown;
-    p.fired();
-    this.sound.shoot();
+    this.projectiles.fire(origin, dir, {
+      weaponId: w.id,
+      look: w.look!,
+      speed: e.speed,
+      gravity: e.gravity,
+      damage: e.damage,
+      retrievable: !!w.retrievable,
+      spin: !!w.spin,
+      poison: w.poison ? { dps: e.poisonDps, time: e.poisonTime } : undefined,
+    });
+    if (w.look === 'arrow') this.sound.shoot();
+    else this.sound.throwSound();
     this.rig.kick(0.04);
   }
 
-  private onArrowHit(a: Animal, killed: boolean, point: THREE.Vector3) {
+  private melee(w: WeaponDef, e: Effective) {
+    const p = this.player;
+    p.heading = this.rig.heading;
+    const fx = Math.sin(p.heading);
+    const fz = Math.cos(p.heading);
+    let hit = false;
+    for (const a of this.animals) {
+      if (a.dead) continue;
+      const dx = a.pos.x - p.pos.x;
+      const dz = a.pos.z - p.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d - a.def.radius > e.reach) continue;
+      if (d > 0.01 && (dx * fx + dz * fz) / d < 0.5) continue;
+      a.hurt(e.damage, this.world, p.pos);
+      this.onHit(a.dead, a.hitCenter());
+      hit = true;
+    }
+    this.sound.swing();
+    if (!hit) this.bursts.emit(p.chest.add(new THREE.Vector3(fx * (e.reach * 0.8), 0, fz * (e.reach * 0.8))), 0xcfd6da, 4, 2);
+    this.rig.kick(hit ? 0.1 : 0.03);
+    void w;
+  }
+
+  private placeAt(dist: number): THREE.Vector3 {
+    const h = this.rig.heading;
+    this.player.heading = h;
+    return this.player.pos.clone().add(new THREE.Vector3(Math.sin(h) * dist, 0, Math.cos(h) * dist));
+  }
+
+  private placeTrap(w: WeaponDef, e: Effective) {
+    this.traps.placeTrap(this.placeAt(2.2), { weaponId: w.id, type: w.trap!, radius: w.radius!, damage: e.damage, root: e.root });
+    this.sound.pickup();
+    this.hud.toast(`${w.name} lagt ud`, 1000);
+  }
+
+  private placeBait(w: WeaponDef, e: Effective) {
+    this.traps.placeBait(this.placeAt(8), {
+      weaponId: w.id,
+      life: e.damage,
+      lure: e.lure,
+      poison: w.poison ? { dps: e.poisonDps, time: e.poisonTime } : undefined,
+    });
+    this.sound.eat();
+    this.hud.toast(`${w.name} lagt ud`, 1000);
+  }
+
+  private onHit(killed: boolean, point: THREE.Vector3) {
     this.sound.hit();
     this.hud.hitMarker();
     this.bursts.emit(point, killed ? 0xe8d9b0 : 0xd9b27a, killed ? 22 : 10);
-    if (killed) {
-      this.sound.kill();
-      const d = a.def;
-      this.drops.spawn('meat', d.meat, a.pos);
-      this.drops.spawn('shards', d.shards, a.pos);
-      this.drops.spawn('trophies', d.trophies, a.pos);
-      this.hud.toast(`${cap(d.name)} nedlagt`, 1600);
-    }
+  }
+
+  private onKilled(a: Animal) {
+    this.sound.kill();
+    const d = a.def;
+    this.drops.spawn('meat', d.meat, a.pos);
+    this.drops.spawn('shards', d.shards, a.pos);
+    this.drops.spawn('trophies', d.trophies, a.pos);
+    this.hud.toast(`${cap(d.name)} nedlagt`, 1600);
   }
 
   private interact(): boolean {
@@ -285,11 +416,12 @@ export class Game {
       this.drops.take(d);
       any = true;
     }
-    const n = this.arrows.collect(p.pos, PLAYER.pickupRange, 99);
-    if (n > 0) {
-      const room = Math.max(0, this.stats.arrows - p.arrows);
-      p.arrows += Math.min(n, room);
-      got.push(`+${n} pil`);
+    const back: Record<string, number> = { ...this.projectiles.collect(p.pos, PLAYER.pickupRange) };
+    for (const [id, n] of Object.entries(this.traps.collect(p.pos, PLAYER.pickupRange))) back[id] = (back[id] ?? 0) + n;
+    for (const [id, n] of Object.entries(back)) {
+      const room = Math.max(0, Math.round(this.eff[id].ammo) - (p.ammo[id] ?? 0));
+      p.ammo[id] = (p.ammo[id] ?? 0) + Math.min(n, room);
+      got.push(`+${n} ${weaponById(id).name.toLowerCase()}`);
       any = true;
     }
     if (any) {
@@ -307,17 +439,44 @@ export class Game {
     return false;
   }
 
+  // ---------- cave shop ----------
+
+  private buyWeapon(id: string) {
+    const w = weaponById(id);
+    if (this.save.owned[id] || !canAfford(this.save.bank, w.price)) return;
+    this.spend(w.price);
+    this.save.owned[id] = true;
+    writeSave(this.save);
+    this.sound.pickup();
+  }
+
+  private upgradeWeapon(id: string, track: Track) {
+    const w = weaponById(id);
+    const lv = this.save.weaponLv[id];
+    if (!this.save.owned[id] || lv[track] >= MAX_UPGRADE) return;
+    const cost = upgradeCost(w, track, lv[track]);
+    if (!canAfford(this.save.bank, cost)) return;
+    this.spend(cost);
+    lv[track]++;
+    writeSave(this.save);
+    this.sound.pickup();
+  }
+
+  private spend(c: { meat?: number; shards?: number; trophies?: number }) {
+    this.save.bank.meat -= c.meat ?? 0;
+    this.save.bank.shards -= c.shards ?? 0;
+    this.save.bank.trophies -= c.trophies ?? 0;
+  }
+
   private updatePlaying(dt: number) {
     const p = this.player;
     this.wind.update(dt);
     if (this.input.dx || this.input.dy) this.rig.look(this.input.dx, this.input.dy);
     p.update(dt, this.input, this.rig, this.world);
 
-    if (this.input.left && p.shotCooldown <= 0 && p.arrows > 0 && !p.rolling) this.shoot();
-    else if (this.input.leftPressed && p.arrows <= 0 && p.shotCooldown <= 0) {
-      p.shotCooldown = 0.4;
-      this.hud.toast('Ingen pile tilbage. Find dem i skoven.', 1500);
-    }
+    for (let f = 1; f <= 4; f++) if (this.input.was(`Digit${f}`)) this.selectFamily(f);
+    if (this.input.wheel) this.cycleWeapon(this.input.wheel > 0 ? 1 : -1);
+    if (this.input.left || this.input.leftPressed) this.useWeapon(this.input.leftPressed);
     if (this.input.was('KeyE')) {
       if (!this.interact()) this.hud.toast('Intet at samle op her', 900);
     }
@@ -342,7 +501,8 @@ export class Game {
         this.animals.splice(i, 1);
       }
     }
-    this.arrows.update(dt, this.animals, this.stats.damage);
+    this.projectiles.update(dt, this.animals);
+    this.traps.update(dt, this.animals);
     this.drops.update(this.time);
     this.bursts.update(dt);
 
@@ -365,7 +525,7 @@ export class Game {
     const wz = this.wind.dz;
     const xs = wx * -Math.cos(heading) + wz * Math.sin(heading);
     const ys = wx * Math.sin(heading) + wz * Math.cos(heading);
-    const nearLoot = this.drops.near(p.pos, PLAYER.pickupRange).length > 0 || this.arrows.nearestStuck(p.pos, PLAYER.pickupRange);
+    const nearLoot = this.drops.near(p.pos, PLAYER.pickupRange).length > 0 || this.projectiles.nearestStuck(p.pos, PLAYER.pickupRange) || this.traps.nearTrap(p.pos, PLAYER.pickupRange);
     let hint = '';
     if (nearLoot) hint = '[E] Saml op';
     else if (p.hp < this.stats.maxHealth * 0.6 && p.carried.meat > 0) hint = '[E] Spis kød';
@@ -377,7 +537,7 @@ export class Game {
         stamina: p.stamina,
         maxStamina: this.stats.maxStamina,
         exhausted: p.stamina < PLAYER.exhaustedUntil && !p.sprinting && p.stamina < 5,
-        arrows: p.arrows,
+        ...this.weaponHud(),
         meat: p.carried.meat,
         shards: p.carried.shards,
         trophies: p.carried.trophies,
@@ -454,6 +614,21 @@ export class Game {
     this.input.endFrame();
   }
 
+  private weaponHud() {
+    const p = this.player;
+    const w = weaponById(p.weaponId);
+    const owned = this.ownedWeapons();
+    return {
+      weaponName: w.name,
+      ammoText: w.ammo > 0 ? String(p.ammo[w.id] ?? 0) : '∞',
+      slots: FAMILIES.map((f, i) => {
+        const inFam = owned.filter((o) => o.family === i + 1);
+        const active = w.family === i + 1;
+        return { key: f.key, name: active ? w.name : inFam[0]?.name ?? '', active, locked: inFam.length === 0, count: inFam.length };
+      }),
+    };
+  }
+
   private deadCtx(): AnimalContext {
     // dead hunters smell of nothing, animals just wander off
     return {
@@ -471,7 +646,7 @@ export class Game {
     const p = this.player;
     return {
       hp: p.hp, maxHp: this.stats.maxHealth, stamina: p.stamina, maxStamina: this.stats.maxStamina, exhausted: false,
-      arrows: p.arrows, meat: p.carried.meat, shards: p.carried.shards, trophies: p.carried.trophies,
+      ...this.weaponHud(), meat: p.carried.meat, shards: p.carried.shards, trophies: p.carried.trophies,
       windDeg: 0, windLabel: this.wind.label(), progress: 0, distLeft: 0, level: this.level.n, hint: '', aiming: false, hurt: 1,
     };
   }

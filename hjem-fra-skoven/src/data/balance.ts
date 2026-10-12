@@ -28,16 +28,6 @@ export const NOISE = {
   shotDecay: 1.6, // seconds
 };
 
-export const BOW = {
-  startArrows: 14,
-  damage: 30,
-  speed: 62,
-  gravity: 5,
-  cooldown: 0.65,
-  spreadHip: 0.055, // radians
-  spreadAim: 0.006,
-};
-
 export const CAMERA = {
   sensitivity: 0.0022,
   hip: { distance: 3.4, shoulder: 0.7, height: 1.65, fov: 68 },
