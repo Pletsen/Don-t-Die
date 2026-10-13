@@ -22,8 +22,9 @@ export class CameraRig {
     this.shake = Math.max(this.shake, amount);
   }
 
-  update(dt: number, target: THREE.Vector3, aiming: boolean, world: World) {
-    this.blend += ((aiming ? 1 : 0) - this.blend) * Math.min(1, dt * 10);
+  /** `aim` is 0 (hip) .. 1 (fully aimed). */
+  update(dt: number, target: THREE.Vector3, aim: number, world: World) {
+    this.blend += (aim - this.blend) * Math.min(1, dt * 10);
     const k = this.blend;
     const dist = lerp(CAMERA.hip.distance, CAMERA.aim.distance, k);
     const shoulder = lerp(CAMERA.hip.shoulder, CAMERA.aim.shoulder, k);

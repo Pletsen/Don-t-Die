@@ -4,6 +4,8 @@ export interface HudState {
   stamina: number;
   maxStamina: number;
   exhausted: boolean;
+  crossSize: number;
+  drawP: number;
   weaponName: string;
   ammoText: string;
   slots: { key: string; name: string; active: boolean; locked: boolean; count: number }[];
@@ -42,9 +44,8 @@ const CSS = `
 .hud .prog{position:absolute;left:50%;top:18px;transform:translateX(-50%);width:340px;text-align:center;font-size:13px}
 .hud .prog .track{height:6px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);margin-top:6px;position:relative;border-radius:3px}
 .hud .prog .track i{position:absolute;left:0;top:-4px;width:12px;height:12px;border-radius:50%;background:#ffb04a;margin-left:-6px;box-shadow:0 0 8px #ff9a2a}
-.hud .cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 0 1px rgba(0,0,0,.6);transition:all .12s}
-.hud .cross.aim{width:22px;height:22px;margin:-11px;background:transparent;border:2px solid rgba(255,255,255,.85)}
-.hud .cross.hit{border-color:#ff6a4a;background:#ff6a4a}
+.hud .cross{position:absolute;left:50%;top:50%;overflow:visible;transform:translate(-50%,-50%);filter:drop-shadow(0 0 2px #000)}
+.hud .cross.hit *{stroke:#ff6a4a}
 .hud .hint{position:absolute;left:50%;bottom:130px;transform:translateX(-50%);font-size:20px;background:rgba(0,0,0,.45);padding:6px 16px;border-radius:4px;display:none}
 .hud .toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);font-size:24px;opacity:0;transition:opacity .4s;text-align:center}
 .hud .toast.on{opacity:1}
@@ -68,7 +69,15 @@ export class Hud {
       <div class="vig"></div>
       <div class="prog"><span data-k="prog"></span><div class="track"><i data-k="progdot" style="left:0%"></i></div></div>
       <div class="wind"><div class="dial"><div class="arrow" data-k="wind"></div></div><small data-k="windlabel"></small></div>
-      <div class="cross" data-k="cross"></div>
+      <svg class="cross" data-k="cross" viewBox="-50 -50 100 100" width="100" height="100">
+        <circle r="40" fill="none" stroke="rgba(0,0,0,.45)" stroke-width="4" data-k="ringbg"></circle>
+        <circle r="40" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.5" stroke-dasharray="0 251" transform="rotate(-90)" data-k="ring"></circle>
+        <circle r="2.2" fill="#fff" stroke="rgba(0,0,0,.6)" stroke-width="1"></circle>
+        <g stroke="rgba(255,255,255,.85)" stroke-width="2.5" data-k="ticks">
+          <line x1="0" y1="-48" x2="0" y2="-34"></line><line x1="0" y1="48" x2="0" y2="34"></line>
+          <line x1="-48" y1="0" x2="-34" y2="0"></line><line x1="48" y1="0" x2="34" y2="0"></line>
+        </g>
+      </svg>
       <div class="toast" data-k="toast"></div>
       <div class="hint" data-k="hint"></div>
       <div class="bars">
@@ -117,7 +126,14 @@ export class Hud {
     this.q.hint.style.display = s.hint ? 'block' : 'none';
     if (s.hint) this.q.hint.textContent = s.hint;
     this.hitTimer = Math.max(0, this.hitTimer - dt);
-    this.q.cross.className = `cross${s.aiming ? ' aim' : ''}${this.hitTimer > 0 ? ' hit' : ''}`;
+    this.q.cross.setAttribute('class', `cross${this.hitTimer > 0 ? ' hit' : ''}`);
+    const size = s.crossSize;
+    this.q.cross.setAttribute('width', String(size));
+    this.q.cross.setAttribute('height', String(size));
+    const full = 2 * Math.PI * 40;
+    this.q.ring.setAttribute('stroke-dasharray', `${(full * s.drawP).toFixed(1)} ${full.toFixed(1)}`);
+    this.q.ring.setAttribute('stroke', s.drawP >= 1 ? '#ffd45a' : 'rgba(255,255,255,.9)');
+    this.q.ticks.style.opacity = s.aiming ? '1' : '0.7';
     const vig = this.root.querySelector<HTMLElement>('.vig')!;
     const low = s.hp / s.maxHp < 0.3 ? 0.25 + 0.15 * Math.sin(performance.now() / 180) : 0;
     vig.style.opacity = String(Math.min(1, s.hurt * 1.6 + low));

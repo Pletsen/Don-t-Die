@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../game/rng';
 import type { LevelDef } from '../data/levels';
 import { lightingAt, type Lighting } from '../data/lighting';
 import { Sky } from './Sky';
+import { buildVegetation, type WindUniforms } from './Vegetation';
+import { groundTexture } from './textures';
 
 interface Collider {
   x: number;
@@ -25,13 +26,14 @@ export class World {
   private fill: THREE.DirectionalLight;
   readonly caveEntrance = new THREE.Vector3();
   readonly spawn = new THREE.Vector3();
+  readonly windUniforms: WindUniforms = { uTime: { value: 0 }, uWind: { value: new THREE.Vector3() } };
   private colliders: Collider[] = [];
   private grid = new Map<number, Collider[]>();
   private fire!: THREE.PointLight;
   private sunDir: THREE.Vector3;
   private disposables: { dispose(): void }[] = [];
 
-  constructor(scene: THREE.Scene, readonly level: LevelDef) {
+  constructor(scene: THREE.Scene, readonly level: LevelDef, renderer?: THREE.WebGLRenderer) {
     this.scene = scene;
     this.light = lightingAt(level.tod);
     this.night = Math.max(0, (level.tod - 0.45) / 0.55);
@@ -45,6 +47,17 @@ export class World {
     scene.add(hemi);
     this.sky = new Sky(this.light, this.night);
     this.sunDir = this.sky.sunDirection(this.light.sunElevation);
+    if (renderer) {
+      // image based light from the sky: gives metal, wet leaves and fur a believable ambient reflection
+      const envScene = new THREE.Scene();
+      envScene.add(new Sky(this.light, this.night).group);
+      const pm = new THREE.PMREMGenerator(renderer);
+      const rt = pm.fromScene(envScene, 0.04);
+      scene.environment = rt.texture;
+      scene.environmentIntensity = 0.35 + 0.25 * (1 - this.night);
+      pm.dispose();
+      this.disposables.push(rt);
+    }
     this.sun = new THREE.DirectionalLight(this.light.sunColor, this.light.sunIntensity);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
@@ -64,8 +77,21 @@ export class World {
     scene.add(this.torch);
 
     this.spawn.set(this.trailX(0), 0, 0);
+    buildVegetation({
+      scene,
+      level,
+      rng,
+      night: this.night,
+      height: (x, z) => this.height(x, z),
+      trailX: (z) => this.trailX(z),
+      isFree: (x, z, r) => this.isFree(x, z, r),
+      addCollider: (x, z, r, h) => this.addCollider(x, z, r, h),
+      spawn: this.spawn,
+      cave: new THREE.Vector3(this.trailX(-level.length), 0, -level.length),
+      uniforms: this.windUniforms,
+      disposables: this.disposables,
+    });
     this.buildTerrain(rng);
-    this.buildForest(rng);
     this.buildCave();
     this.spawn.y = this.height(this.spawn.x, this.spawn.z);
   }
@@ -91,7 +117,7 @@ export class World {
     const L = this.level.length;
     const W = this.level.width + 80;
     const D = L + 120;
-    const seg = 2.5;
+    const seg = 1.8;
     const nx = Math.round(W / seg);
     const nz = Math.round(D / seg);
     const geo = new THREE.PlaneGeometry(W, D, nx, nz);
@@ -100,155 +126,46 @@ export class World {
     const p = geo.attributes.position;
     const colors = new Float32Array(p.count * 3);
     const c = new THREE.Color();
+    const dirt = new THREE.Color(0.36, 0.28, 0.19);
+    const moss = new THREE.Color(0.16, 0.3, 0.1);
+    const leaf = new THREE.Color(0.42, 0.24, 0.1);
     const night = this.night;
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i);
       const z = p.getZ(i);
       p.setY(i, this.height(x, z));
       const patch = 0.5 + 0.5 * Math.sin(x * 0.21 + Math.sin(z * 0.17) * 2) * Math.cos(z * 0.13 + x * 0.05);
-      const trail = Math.exp(-Math.pow((x - this.trailX(z)) / 2.4, 2));
-      c.setRGB(0.2 + patch * 0.1, 0.3 + patch * 0.12, 0.13 + patch * 0.05);
-      c.lerp(new THREE.Color(0.36, 0.29, 0.2), trail * 0.75);
-      c.multiplyScalar(1 - night * 0.2);
-      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+      const litter = Math.max(0, Math.sin(x * 0.09 + 2) * Math.sin(z * 0.11 + 1) + 0.15);
+      const trail = Math.exp(-Math.pow((x - this.trailX(z)) / 2.1, 2));
+      c.setRGB(0.19 + patch * 0.1, 0.32 + patch * 0.13, 0.12 + patch * 0.05);
+      c.lerp(moss, Math.max(0, Math.sin(x * 0.31 + z * 0.23)) * 0.25);
+      c.lerp(leaf, litter * 0.45);
+      c.lerp(dirt, trail * 0.8);
+      // soft shadow blobs under trees and rocks
+      let ao = 1;
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dz = -1; dz <= 1; dz++) {
+          const cell = this.grid.get((Math.floor(x / CELL) + dx) * 100003 + Math.floor(z / CELL) + dz);
+          if (!cell) continue;
+          for (const col of cell) {
+            const d = Math.hypot(x - col.x, z - col.z);
+            const reach = col.r + (col.h > 3 ? 1.8 : 0.9);
+            if (d < reach) ao = Math.min(ao, 0.5 + 0.5 * (d / reach));
+          }
+        }
+      c.multiplyScalar(ao * (1 - night * 0.2));
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();
-
-    // noisy texture gives the ground some grain up close
-    const cv = document.createElement('canvas');
-    cv.width = cv.height = 128;
-    const g = cv.getContext('2d')!;
-    g.fillStyle = '#999';
-    g.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 2600; i++) {
-      const v = Math.floor(rng.range(110, 200));
-      g.fillStyle = `rgb(${v},${v},${v})`;
-      g.fillRect(rng.range(0, 128), rng.range(0, 128), rng.range(1, 3), rng.range(1, 3));
-    }
-    const tex = new THREE.CanvasTexture(cv);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(W / 5, D / 5);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 1, metalness: 0 });
+    const tex = groundTexture(rng.int(1, 99999), W / 6, D / 6);
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, bumpMap: tex, bumpScale: 3, roughness: 1, metalness: 0 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
     this.disposables.push(geo, mat, tex);
-  }
-
-  private buildForest(rng: Rng) {
-    const { length: L, width: W, treeDensity } = this.level;
-    const half = W / 2;
-    const area = (W + 30) * (L + 40);
-    const count = Math.round(area * treeDensity);
-
-    // shared geometry
-    const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 6, 7);
-    trunkGeo.translate(0, 3, 0);
-    const pineParts = [
-      new THREE.ConeGeometry(2.3, 3.4, 8).translate(0, 3.6, 0),
-      new THREE.ConeGeometry(1.8, 3.0, 8).translate(0, 5.4, 0),
-      new THREE.ConeGeometry(1.2, 2.6, 8).translate(0, 7.2, 0),
-    ];
-    const pineGeo = mergeGeometries(pineParts)!;
-    const leafParts = [
-      new THREE.IcosahedronGeometry(2.6, 1).scale(1, 0.85, 1).translate(0, 6.2, 0),
-      new THREE.IcosahedronGeometry(1.8, 1).translate(1.3, 5.2, 0.6),
-    ];
-    const leafGeo = mergeGeometries(leafParts)!;
-    const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-    const bushGeo = new THREE.IcosahedronGeometry(0.8, 1);
-
-    const trees: { x: number; z: number; s: number; pine: boolean; ry: number }[] = [];
-    const rocks: { x: number; z: number; s: number; ry: number }[] = [];
-    const bushes: { x: number; z: number; s: number }[] = [];
-
-    const nearStart = (x: number, z: number) => Math.hypot(x - this.spawn.x, z - 0) < 7;
-    const nearCave = (x: number, z: number) => Math.hypot(x - this.trailX(-L), z + L) < 16;
-
-    let guard = 0;
-    while (trees.length < count && guard++ < count * 6) {
-      // extra dense band outside the playable width acts as the forest wall
-      const outer = rng.next() < 0.22;
-      const x = outer ? (rng.next() < 0.5 ? -1 : 1) * rng.range(half - 2, half + 12) : rng.range(-half, half);
-      const z = rng.range(-L - 14, 14);
-      if (!outer && Math.abs(x - this.trailX(z)) < 3.2) continue;
-      if (nearStart(x, z) || nearCave(x, z)) continue;
-      const s = rng.range(0.75, 1.5);
-      trees.push({ x, z, s, pine: rng.next() < 0.62, ry: rng.range(0, 6.28) });
-      this.addCollider(x, z, 0.42 * s, 6 * s);
-    }
-    for (let i = 0; i < count * 0.07; i++) {
-      const x = rng.range(-half - 4, half + 4);
-      const z = rng.range(-L - 8, 10);
-      if (nearStart(x, z) || nearCave(x, z) || Math.abs(x - this.trailX(z)) < 2) continue;
-      const s = rng.range(0.6, 1.8);
-      rocks.push({ x, z, s, ry: rng.range(0, 6.28) });
-      this.addCollider(x, z, 0.85 * s, 0.9 * s);
-    }
-    for (let i = 0; i < count * 0.5; i++) {
-      const x = rng.range(-half - 6, half + 6);
-      const z = rng.range(-L - 10, 12);
-      if (nearStart(x, z)) continue;
-      bushes.push({ x, z, s: rng.range(0.7, 1.7) });
-    }
-
-    const night = this.night;
-    const dim = 1 - night * 0.25;
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 });
-    const pineMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x6d6f6c, roughness: 0.95, flatShading: true });
-    const bushMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 });
-    this.disposables.push(trunkGeo, pineGeo, leafGeo, rockGeo, bushGeo, trunkMat, pineMat, leafMat, rockMat, bushMat);
-
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    const col = new THREE.Color();
-    const place = (inst: THREE.InstancedMesh, i: number, x: number, z: number, sx: number, sy: number, ry: number, y = this.height(x, z)) => {
-      e.set(0, ry, 0);
-      q.setFromEuler(e);
-      m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sx, sy, sx));
-      inst.setMatrixAt(i, m);
-    };
-    const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, n: number, shadow = true) => {
-      const inst = new THREE.InstancedMesh(geo, mat, Math.max(1, n));
-      inst.castShadow = shadow;
-      inst.receiveShadow = true;
-      inst.count = n;
-      this.scene.add(inst);
-      return inst;
-    };
-
-    const trunks = mk(trunkGeo, trunkMat, trees.length);
-    const pines = trees.filter((t) => t.pine);
-    const leafy = trees.filter((t) => !t.pine);
-    const pineInst = mk(pineGeo, pineMat, pines.length);
-    const leafInst = mk(leafGeo, leafMat, leafy.length);
-    trees.forEach((t, i) => place(trunks, i, t.x, t.z, t.s, t.s, t.ry));
-    pines.forEach((t, i) => {
-      place(pineInst, i, t.x, t.z, t.s, t.s * rng.range(0.9, 1.15), t.ry);
-      col.setRGB(0.08 + rng.range(0, 0.05), 0.2 + rng.range(0, 0.1), 0.1 + rng.range(0, 0.05)).multiplyScalar(dim);
-      pineInst.setColorAt(i, col);
-    });
-    leafy.forEach((t, i) => {
-      place(leafInst, i, t.x, t.z, t.s, t.s, t.ry);
-      // autumn tints early on, darker later
-      const warm = rng.next() < 0.35 ? 1 : 0;
-      col.setRGB(0.18 + warm * 0.28 + rng.range(0, 0.06), 0.3 - warm * 0.07 + rng.range(0, 0.08), 0.1 + rng.range(0, 0.04)).multiplyScalar(dim);
-      leafInst.setColorAt(i, col);
-    });
-    const rockInst = mk(rockGeo, rockMat, rocks.length);
-    rocks.forEach((r, i) => place(rockInst, i, r.x, r.z, r.s, r.s * 0.7, r.ry, this.height(r.x, r.z) + r.s * 0.25));
-    const bushInst = mk(bushGeo, bushMat, bushes.length, false);
-    bushes.forEach((b, i) => {
-      place(bushInst, i, b.x, b.z, b.s, b.s * 0.75, 0, this.height(b.x, b.z) + 0.2);
-      col.setRGB(0.1 + rng.range(0, 0.08), 0.22 + rng.range(0, 0.1), 0.08).multiplyScalar(dim);
-      bushInst.setColorAt(i, col);
-    });
-    for (const inst of [pineInst, leafInst, bushInst]) if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
   }
 
   private buildCave() {
@@ -315,7 +232,7 @@ export class World {
   }
   private fireMesh!: THREE.Mesh;
 
-  private addCollider(x: number, z: number, r: number, h: number) {
+  addCollider(x: number, z: number, r: number, h: number) {
     const c = { x, z, r, h };
     this.colliders.push(c);
     const x0 = Math.floor((x - r) / CELL), x1 = Math.floor((x + r) / CELL);
@@ -334,7 +251,7 @@ export class World {
   }
 
   /** Pushes a circle out of trees and rocks. Mutates and returns pos. */
-  collide(pos: THREE.Vector3, radius: number): THREE.Vector3 {
+  collide(pos: THREE.Vector3, radius: number, clearance = 0): THREE.Vector3 {
     const L = this.level.length;
     const half = this.level.width / 2 + 4;
     pos.x = Math.min(half, Math.max(-half, pos.x));
@@ -345,6 +262,7 @@ export class World {
           const cell = this.grid.get((Math.floor(pos.x / CELL) + dx) * 100003 + Math.floor(pos.z / CELL) + dz);
           if (!cell) continue;
           for (const c of cell) {
+            if (c.h < clearance) continue; // low things (rocks, logs) can be jumped
             const ox = pos.x - c.x;
             const oz = pos.z - c.z;
             const d = Math.hypot(ox, oz);
@@ -392,7 +310,14 @@ export class World {
     return true;
   }
 
+  /** Direction (x, z) and strength of the wind, for swaying grass and trees. */
+  setWind(dx: number, dz: number, strength: number) {
+    this.windUniforms.uWind.value.set(dx * strength, 0, dz * strength);
+  }
+
   update(dt: number, focus: THREE.Vector3, camera: THREE.Camera, time: number) {
+    this.windUniforms.uTime.value = time;
+    this.sky.update(time);
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 90);
     this.sun.target.position.copy(focus);
     this.sky.follow(camera.position);

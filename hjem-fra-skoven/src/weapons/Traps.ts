@@ -100,9 +100,10 @@ export class Traps {
     const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.55, 6).rotateZ(Math.PI / 2), boneMat);
     bone.position.y = 0.14;
     mesh.add(m, bone);
-    const light = new THREE.PointLight(s.poison ? 0x7aff4a : 0xff6a4a, 1.2, 4, 2);
-    light.position.y = 0.5;
-    mesh.add(light);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: s.poison ? 0x7aff4a : 0xff6a4a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.35 }));
+    glow.scale.setScalar(1.4);
+    glow.position.y = 0.3;
+    mesh.add(glow);
     mesh.position.set(at.x, this.world.height(at.x, at.z), at.z);
     this.scene.add(mesh);
     this.baits.push({ weaponId: s.weaponId, pos: mesh.position.clone(), mesh, life: s.life, lure: s.lure, poison: s.poison });

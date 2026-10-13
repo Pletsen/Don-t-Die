@@ -91,12 +91,13 @@ export class Screens {
       <div class="keys">
         <b>WASD</b><span>gå</span>
         <b>Mus</b><span>drej figur og kamera</span>
-        <b>Venstre museknap</b><span>brug våbnet (skyd, kast, stik eller læg fælde ud)</span>
+        <b>Venstre museknap</b><span>hold nede for at spænde buen / tage tilløb til kast, slip for at skyde. Et hurtigt klik giver et svagt, løst skud. Nærkampsvåben slår ved klik</span>
         <b>1 2 3 4</b><span>våbenfamilie – tryk igen for næste våben i familien</span>
         <b>Musehjul</b><span>skift mellem alle dine våben</span>
-        <b>Højre museknap</b><span>sigt (langsommere, men præcist)</span>
+        <b>Højre museknap</b><span>sigt (zoom, mere præcist)</span>
         <b>Shift</b><span>sprint (koster udholdenhed, og støjer)</span>
-        <b>Mellemrum</b><span>undvigerulle (du er uskadt et øjeblik)</span>
+        <b>Mellemrum</b><span>hop (over sten og træstammer)</span>
+        <b>Ctrl</b><span>undvigerulle (du er uskadt et øjeblik). C virker også</span>
         <b>E</b><span>saml kød, skærv og pile op – eller spis kød for at hele</span>
       </div>
       <div class="tip"><b>Vinden afgør alt.</b> Kompasset oppe til højre viser, hvor vinden blæser hen. Blæser den fra dig mod et dyr, lugter det dig langt væk. Gå på tværs af vinden eller ind imod den, og snig dig. Sprint og skud kan høres langt væk.</div>
@@ -209,7 +210,8 @@ function statLine(w: WeaponDef, e: Effective): string {
   else p.push(`Skade ${f(e.damage)}`);
   if (w.kind === 'melee') p.push(`rækkevidde ${f(e.reach, 1)} m`);
   if (w.kind === 'trap') p.push(`holder fast ${f(e.root, 1)} s`);
-  p.push(`${w.kind === 'proj' ? 'ladetid' : w.kind === 'melee' ? 'slagtid' : 'udlægning'} ${f(e.cooldown, 2)} s`);
+  if (w.kind === 'proj') p.push(`fuld kraft efter ${f(e.draw, 2)} s`, `genladning ${f(e.cooldown, 2)} s`);
+  else p.push(`${w.kind === 'melee' ? 'slagtid' : 'udlægning'} ${f(e.cooldown, 2)} s`);
   if (w.ammo > 0) p.push(`${f(e.ammo)} stk.`);
   if (e.poisonDps > 0) p.push(`gift ${f(e.poisonDps * e.poisonTime)} skade over ${f(e.poisonTime)} s`);
   p.push(`støj ${f(e.noise)} m`);

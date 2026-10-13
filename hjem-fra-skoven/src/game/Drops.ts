@@ -24,6 +24,25 @@ const mats = {
   trophy: new THREE.MeshStandardMaterial({ color: 0xf0c240, roughness: 0.3, metalness: 0.7, emissive: 0xc08a10, emissiveIntensity: 0.9 }),
 };
 
+const glowTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)');
+  gr.addColorStop(0.35, 'rgba(255,255,255,0.25)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+/** Soft additive glow instead of a real light: adding lights at run time makes every material recompile (a visible stutter). */
+const glowMats = {
+  meat: new THREE.SpriteMaterial({ map: glowTex, color: 0xff5a4a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 }),
+  shards: new THREE.SpriteMaterial({ map: glowTex, color: 0x5affd0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 }),
+  trophies: new THREE.SpriteMaterial({ map: glowTex, color: 0xffd060, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }),
+};
+
 export const DROP_LABEL: Record<DropKind, string> = { meat: 'kød', shards: 'skærv', trophies: 'trofæ' };
 
 /** Loot lying on the ground. Picked up with E. */
@@ -52,9 +71,9 @@ export class Drops {
     const z = at.z + Math.cos(a) * r;
     g.position.set(x, this.world.height(x, z) + 0.35, z);
     g.traverse((o) => (o.castShadow = true));
-    const light = new THREE.PointLight(kind === 'meat' ? 0xff5a4a : kind === 'shards' ? 0x5affd0 : 0xffd060, 1.4, 4, 2);
-    light.position.y = 0.2;
-    g.add(light);
+    const glow = new THREE.Sprite(glowMats[kind]);
+    glow.scale.setScalar(1.6);
+    g.add(glow);
     this.scene.add(g);
     this.list.push({ kind, amount, mesh: g, pos: g.position.clone(), phase: Math.random() * 6 });
   }

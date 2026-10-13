@@ -10,6 +10,10 @@ export const PLAYER = {
   staminaRegenDelay: 0.9, // seconds after sprinting/rolling
   exhaustedUntil: 22, // after hitting 0 you cannot sprint until stamina is back above this
   rollCost: 24,
+  jumpSpeed: 6.4,
+  gravity: 19,
+  jumpCost: 6,
+  drawSpeed: 3.0, // walking speed while drawing a bow or winding up a throw
   rollTime: 0.52,
   rollSpeed: 10,
   rollInvulnerable: 0.38,

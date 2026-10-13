@@ -75,6 +75,9 @@ export class Sound {
   }
 
   shoot() { this.tone(180, 0.18, 'triangle', 0.35, 70); this.noise(0.12, 2500, 0.2); }
+  drawStart() { this.noise(0.18, 600, 0.08); this.tone(140, 0.2, 'triangle', 0.06, 200); }
+  jump() { this.noise(0.08, 900, 0.1); }
+  land() { this.noise(0.12, 300, 0.2); }
   throwSound() { this.noise(0.16, 1800, 0.18); this.tone(260, 0.12, 'triangle', 0.15, 120); }
   swing() { this.noise(0.14, 2200, 0.22); }
   hit() { this.noise(0.14, 700, 0.5); this.tone(110, 0.12, 'sine', 0.4, 60); }
