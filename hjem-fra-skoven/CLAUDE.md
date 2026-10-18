@@ -1,4 +1,4 @@
-# Hjem fra skoven (arbejdstitel)
+# Færten (tidligere arbejdstitel: Hjem fra skoven)
 
 Third person-overlevelsesspil til PC i browseren. Du er en jæger på vej hjem til din hule gennem 30 skovstrækninger. Dyrene får færten af dig og angriber, og de bliver vildere for hver bane. Ejer og spildesigner: Søren. Han skriver på dansk, så kommuniker på dansk. Kode, filnavne og kommentarer skrives på engelsk.
 
@@ -16,13 +16,16 @@ Third person-overlevelsesspil til PC i browseren. Du er en jæger på vej hjem t
 - Specialmål: hvid hjort (sjælden, flygter, giver trofæ) og jagtmærker (spor der viser, hvor et særligt dyr er).
 - Dyr: bytte (rådyr, hare, fasan), forsvarere (vildsvin, elg, kronhjort), rovdyr (ræv, ulv, bjørn). Vind og lugt styrer, hvornår et dyr får færten.
 
-## Åbne spørgsmål (spørg Søren, før du bygger på dem)
+## Besluttet af Søren (oktober 2026)
 
-- Bossdyr (fx kæmpebjørn i level 30)?
-- Håndlavede eller tilfældigt genererede baner?
-- Hvad er skærv i spillets verden?
-- Blodniveau og dødseffekter.
-- Spillets navn.
+- Navn: **Færten**.
+- Bossdyr hver 10. bane: alfaulv (bane 10), kæmpe-elg (bane 20), kæmpebjørn ved hulen (bane 30).
+- Blod: realistisk. Tydelige blodstænk, blodspor fra sårede dyr, blodpøl ved døde dyr, pile der sidder fast i dyret.
+- Musik: stille stemning, når alt er roligt, og et spændingslag, når et rovdyr har fået færten af dig.
+- Skærv er flint og knogle fra dyrene. Jægeren laver pilespidser, økser og fælder af dem.
+- Sværhedsgrad: let, normal og svær. Kan skiftes i indstillinger.
+- Banekort i hulen: alle klarede baner kan spilles igen.
+- Banerne er faste (genereret ud fra et frø) og ens hver gang.
 
 ## Arbejdsform
 
