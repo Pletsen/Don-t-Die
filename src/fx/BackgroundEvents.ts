@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { shared } from '../game/shared';
-import { mixColor, hueColor } from '../game/palette';
 import { display } from '../game/display';
 import { fonts } from '../game/palette';
 import { TEX, DUCK_RES } from './textures';
 import { sfx } from '../audio/Sfx';
+import { mix, u2Color } from './worldPalette';
+import { WTEX, createWorldTextures } from './worldTextures';
 
 /**
  * Little things happening far away behind the track: shooting stars, a
@@ -30,6 +31,8 @@ interface Visitor {
 
 const rand = Phaser.Math.FloatBetween;
 const DEPTH = -50;
+/** Far-away things are tinted toward this deep space blue, not toward white. */
+const SPACE = 0x2a3a52;
 
 export class BackgroundEvents {
   private visitors: Visitor[] = [];
@@ -41,7 +44,9 @@ export class BackgroundEvents {
   private vh = 800;
   private party = false;
 
-  constructor(private scene: Phaser.Scene) {}
+  constructor(private scene: Phaser.Scene) {
+    createWorldTextures(scene);
+  }
 
   /**
    * Bonus universe on/off. On: a disco ball appears and silly things show up
@@ -103,11 +108,14 @@ export class BackgroundEvents {
       v.tick?.(v, dt, t);
       this.place(v);
     }
-    this.visitors = this.visitors.filter((v) => {
-      if (v.age < v.life) return true;
-      v.obj.destroy();
-      return false;
-    });
+    // Drop the ones whose time is up, in place (no new array every frame).
+    let keep = 0;
+    for (let i = 0; i < this.visitors.length; i++) {
+      const v = this.visitors[i];
+      if (v.age < v.life) this.visitors[keep++] = v;
+      else v.obj.destroy();
+    }
+    this.visitors.length = keep;
   }
 
   private spawnSomething() {
@@ -152,8 +160,11 @@ export class BackgroundEvents {
 
   private planet(startInView: boolean) {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const img = this.scene.add.image(0, 0, TEX.planet).setAlpha(0.62);
-    const obj = this.scene.add.container(0, 0, [img]).setScale(rand(0.7, 1.15));
+    // Kept small and dim, and tinted toward deep space, so it reads as far
+    // away and never competes with the track.
+    const img = this.scene.add.image(0, 0, TEX.planet).setAlpha(0.3);
+    const obj = this.scene.add.container(0, 0, [img]).setScale(rand(0.45, 0.7));
+    let tinted = -1;
     const speed = rand(10, 16);
     const edge = this.vw / 2 + 240;
     this.add({
@@ -165,7 +176,11 @@ export class BackgroundEvents {
       vx: dir * speed,
       vy: 0,
       life: (edge * 2) / speed,
-      tick: () => img.setTint(mixColor(shared.accent, 0xffffff, 0.45)),
+      tick: () => {
+        if (shared.accent === tinted) return;
+        tinted = shared.accent;
+        img.setTint(mix(shared.accent, SPACE, 0.45));
+      },
     });
   }
 
@@ -231,7 +246,7 @@ export class BackgroundEvents {
         fontStyle: '700',
         fontSize: '11px',
         color: '#eaf6ff',
-        resolution: display.dpr * 2,
+        resolution: display.dpr,
       })
       .setAlpha(0);
     const obj = this.scene.add.container(0, 0, [suit, hi]);
@@ -257,7 +272,7 @@ export class BackgroundEvents {
 
   private whale() {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const art = this.scene.add.image(0, 0, TEX.whale).setAlpha(0.5).setFlipX(dir < 0);
+    const art = this.scene.add.image(0, 0, TEX.whale).setAlpha(0.38).setFlipX(dir < 0);
     const obj = this.scene.add.container(0, 0, [art]).setScale(rand(0.9, 1.25));
     const speed = rand(26, 36);
     const edge = this.vw / 2 + 220;
@@ -274,7 +289,7 @@ export class BackgroundEvents {
       life: (edge * 2) / speed,
       tick: (v, _dt, t) => {
         art.setY(Math.sin(t * 0.8) * 8).setRotation(Math.sin(t * 0.8 + 1) * 0.04);
-        art.setTint(mixColor(shared.accent, 0xffffff, 0.35));
+        art.setTint(mix(shared.accent, SPACE, 0.3));
         if (!sang && v.age > v.life * 0.4) {
           sang = true;
           sfx.whaleSong();
@@ -302,8 +317,10 @@ export class BackgroundEvents {
   /** Giant rubber duck bobbing past in the background. */
   private floatingDuck() {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const img = this.scene.add.image(0, 0, TEX.duck).setScale(1 / DUCK_RES).setFlipX(dir < 0).setAlpha(0.85);
-    const obj = this.scene.add.container(0, 0, [img]).setScale(rand(0.5, 1.1));
+    // Big, dim and tinted: clearly scenery, never mistaken for a duck to bonk.
+    const img = this.scene.add.image(0, 0, TEX.duck).setScale(1 / DUCK_RES).setFlipX(dir < 0).setAlpha(0.5);
+    img.setTint(mix(0xffffff, u2Color(this.clock), 0.35));
+    const obj = this.scene.add.container(0, 0, [img]).setScale(rand(0.7, 1.2));
     const speed = rand(60, 110);
     const edge = this.vw / 2 + 80;
     this.add({
@@ -322,10 +339,18 @@ export class BackgroundEvents {
   /** A pizza slice in sunglasses, flying past on a rainbow. */
   private pizza() {
     const dir = Math.random() < 0.5 ? -1 : 1;
-    const trail = this.scene.add.graphics();
-    const colors = [0xff2f9e, 0xff9a2e, 0xffd21f, 0x7cff6b, 0x2be8ff, 0xb36bff];
+    // Rainbow trail: 14 pre-painted stripe blocks that only bob up and down.
+    const trail: Phaser.GameObjects.Image[] = [];
+    for (let seg = 0; seg < 14; seg++) {
+      trail.push(
+        this.scene.add
+          .image(-dir * (26 + seg * 16), 0, WTEX.rainbow)
+          .setDisplaySize(17, 30)
+          .setAlpha(0.85 * (1 - seg / 14)),
+      );
+    }
     const img = this.scene.add.image(0, 0, TEX.pizza).setScale(0.6).setFlipX(dir < 0);
-    const obj = this.scene.add.container(0, 0, [trail, img]);
+    const obj = this.scene.add.container(0, 0, [...trail, img]);
     const speed = rand(220, 300);
     const edge = this.vw / 2 + 120;
     this.add({
@@ -339,12 +364,7 @@ export class BackgroundEvents {
       life: (edge * 2 + 400) / speed,
       tick: (_v, _dt, t) => {
         // Wavy rainbow stripes streaming out behind.
-        trail.clear();
-        for (let seg = 0; seg < 14; seg++) {
-          const x = -dir * (26 + seg * 16);
-          const wave = Math.sin(t * 10 - seg * 0.9) * 4;
-          colors.forEach((c, i) => trail.fillStyle(c, 0.85 * (1 - seg / 14)).fillRect(x - 8, -15 + i * 5 + wave, 17, 5));
-        }
+        for (let seg = 0; seg < trail.length; seg++) trail[seg].setY(Math.sin(t * 10 - seg * 0.9) * 4);
         img.setRotation(Math.sin(t * 6) * 0.2);
       },
     });
@@ -352,9 +372,13 @@ export class BackgroundEvents {
 
   /** Disco ball hanging over everything, throwing light beams. */
   private disco() {
-    const beams = this.scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    // Eight light beams: stretched quads that only turn and change colour.
+    const beams: Phaser.GameObjects.Image[] = [];
+    for (let i = 0; i < 8; i++) {
+      beams.push(this.scene.add.image(0, 0, WTEX.px).setOrigin(0, 0.5).setAlpha(0.1).setBlendMode(Phaser.BlendModes.ADD));
+    }
     const ball = this.scene.add.image(0, 0, TEX.disco).setScale(0.55);
-    const obj = this.scene.add.container(0, 0, [beams, ball]).setScale(0);
+    const obj = this.scene.add.container(0, 0, [...beams, ball]).setScale(0);
     this.scene.tweens.add({ targets: obj, scale: 1, duration: 900, ease: 'Back.easeOut' });
     this.add({
       kind: 'disco',
@@ -368,11 +392,14 @@ export class BackgroundEvents {
       tick: (v, _dt, t) => {
         // Glued to the top of the screen.
         v.ly = -this.vh * 0.36;
-        beams.clear();
         for (let i = 0; i < 8; i++) {
           const a = t * 0.8 + (i * Math.PI * 2) / 8;
-          beams.lineStyle(10, hueColor(i * 45 + t * 60), 0.1);
-          beams.lineBetween(0, 0, Math.cos(a) * 900, Math.abs(Math.sin(a)) * 900 + 100);
+          const ex = Math.cos(a) * 900;
+          const ey = Math.abs(Math.sin(a)) * 900 + 100;
+          beams[i]
+            .setRotation(Math.atan2(ey, ex))
+            .setDisplaySize(Math.hypot(ex, ey), 10)
+            .setTint(u2Color(t * 0.85, i * 45));
         }
         ball.setRotation(Math.sin(t) * 0.1);
       },
@@ -399,7 +426,7 @@ export class BackgroundEvents {
         fontStyle: '700',
         fontSize: '30px',
         color: '#ffffff',
-        resolution: display.dpr * 1.5,
+        resolution: display.dpr,
       })
       .setOrigin(0.5)
       .setAlpha(0);
@@ -415,7 +442,9 @@ export class BackgroundEvents {
       life: 3.2,
       tick: (v, _dt, t) => {
         text.setAlpha(0.55 * Math.sin((Math.PI * v.age) / v.life));
-        text.setColor(hexOf(hueColor(t * 120)));
+        // A tint, not setColor: changing the colour would re-render and
+        // re-upload the text texture every frame.
+        text.setTint(mix(u2Color(t * 1.7), 0xffffff, 0.35));
         obj.setScale(1 + Math.sin(t * 5) * 0.04);
       },
     });
@@ -444,5 +473,3 @@ export class BackgroundEvents {
     this.visitors = [];
   }
 }
-
-const hexOf = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
