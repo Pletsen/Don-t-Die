@@ -12,7 +12,7 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 /** Survival (and the Daily Run) get their first hazards here, in metres. */
 export const HAZARDS_FROM_M = 80;
 /** Early hazard chance: at HAZARDS_FROM_M, and at 400 m. */
-const EARLY_CHANCE: [number, number] = [0.16, 0.3];
+const EARLY_CHANCE: [number, number] = [0.4, 0.42];
 
 /**
  * How fast Survival gets harder. Every difficulty curve below uses the
@@ -57,7 +57,9 @@ export const tuning = {
    * Chance that a new segment gets a hazard. The first HAZARDS_FROM_M metres
    * are clean; then a light early floor (EARLY_CHANCE, rising a little to
    * 400 m) so there is something to dodge right away, until the long ramp
-   * (which reaches 0.62 around 1.2 km) takes over at ~650 m.
+   * (which reaches 0.62 around 1.2 km) takes over at ~870 m. There are only
+   * ~6 straights between 80 and 250 m and some are too short to hold a
+   * hazard, so 0.4 means about 2-3 easy, mostly static side hazards there.
    */
   hazardChanceAt(distPx: number) {
     const real = distPx * METERS_PER_PX;
@@ -187,7 +189,7 @@ export function zoneBlend(distPx: number, z: ZoneInfo): number {
 export function zoneHazards(id: ZoneId, chance: number, distPx: number): HazardRules | null {
   const m = distPx * METERS_PER_PX;
   const deep = m >= 600;
-  const busy = clamp(chance * 1.6 + 0.22, 0.3, 0.82);
+  const busy = clamp(chance * 1.3 + 0.15, 0.3, 0.82);
   switch (id) {
     case 'sawAlley':
       return { chance: busy, kinds: ['saw'], placement: 'any', moving: deep ? 0.55 : 0.3, perSegment: deep ? 2 : 1 };
