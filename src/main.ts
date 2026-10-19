@@ -60,11 +60,18 @@ async function start() {
   // Handy for debugging in the browser console and for automated tests.
   Object.assign(window, { game, glowFx });
 
+  // Resizes come in bursts (rotation, keyboard, browser bars): apply the last
+  // one on the next frame instead of rebuilding the canvas for each.
+  let pending = 0;
   window.addEventListener('resize', () => {
-    // Read the ratio each time: the game may have lowered it for speed.
-    const { w, h } = viewportSize();
-    game.scale.resize(Math.round(w * display.dpr), Math.round(h * display.dpr));
-    game.scale.setZoom(1 / display.dpr);
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      display.remeasure();
+      // Read the ratio each time: the quality ladder may have changed it.
+      const { w, h } = viewportSize();
+      game.scale.resize(Math.round(w * display.dpr), Math.round(h * display.dpr));
+      game.scale.setZoom(1 / display.dpr);
+    });
   });
 }
 

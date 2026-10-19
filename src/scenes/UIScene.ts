@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { EV, shared, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, palette, hueColor } from '../game/palette';
+import { css, palette } from '../game/palette';
 import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
@@ -26,6 +26,9 @@ type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
  * The camera is zoomed by the device pixel ratio with its origin at the
  * top-left, so every position here is in plain CSS pixels.
  */
+/** Bright party colours that all read well on black (no deep blue). */
+const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
+
 function setIfChanged(t: Phaser.GameObjects.Text, s: string) {
   if (t.text !== s) t.setText(s);
 }
@@ -95,6 +98,8 @@ export class UIScene extends Phaser.Scene {
   create() {
     const cam = this.cameras.main;
     cam.setOrigin(0, 0).setZoom(display.dpr);
+    // Snap the UI to whole pixels: centred text never lands on half pixels and smears.
+    cam.roundPixels = true;
 
     // Creation order is drawing order: vignette, HUD, scrim, then the screens.
     // The vignette darkens the screen edges so the eye goes to the middle.
@@ -186,7 +191,7 @@ export class UIScene extends Phaser.Scene {
 
   private toast(msg: string, hold = 1600) {
     const { w, h } = display.size(this);
-    this.toastText.setText(msg).setPosition(w / 2, h - 100 - display.safeTop());
+    this.toastText.setText(msg).setPosition(w / 2, h - 100 - display.safeBottom());
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(1).setScale(1.4);
     this.tweens.add({ targets: this.toastText, scale: 1, duration: 250, ease: 'Back.easeOut' });
@@ -356,7 +361,7 @@ export class UIScene extends Phaser.Scene {
     if (f.phase === 'end') {
       this.frenzyActive = false;
       this.frenzySub.setScale(1).setText(f.count >= f.max ? 'MAXED OUT!' : f.count >= 40 ? 'INSANE!' : 'NICE!');
-      this.frenzyTitle.setText(`+${f.count} DUCKS`).setColor('#ffd21f');
+      this.frenzyTitle.setText(`+${f.count} DUCKS`).setTint(0xffd21f);
       this.tweens.add({
         targets: this.frenzy,
         alpha: 0,
@@ -833,9 +838,12 @@ export class UIScene extends Phaser.Scene {
     if (this.mode === 'howto') this.howTo.update(time);
     if (this.frenzy.visible && this.frenzyActive) {
       this.frenzySub.setScale(1 + 0.08 * Math.sin(t * 20));
-      this.frenzyTitle.setColor(hexColor(hueColor(time / 4 + 40)));
+      // Tint, not setColor: recolouring text re-renders and re-uploads it every frame.
+      this.frenzyTitle.setTint(PARTY_COLORS[Math.floor(time / 120) % PARTY_COLORS.length]);
     }
-    if (this.toastText.alpha > 0 && (save.rainbow || this.mode === 'play')) this.toastText.setColor(hexColor(hueColor(time / 3)));
+    if (this.toastText.alpha > 0 && (save.rainbow || this.mode === 'play')) {
+      this.toastText.setTint(PARTY_COLORS[Math.floor(time / 150) % PARTY_COLORS.length]);
+    }
     this.clearScreen.update(time);
 
     if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {

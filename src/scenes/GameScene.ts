@@ -40,6 +40,8 @@ const FRENZY_COOLDOWN = 1.4;
 /** What a red duck is worth. */
 const RED_DUCK_VALUE = 5;
 
+const NO_HAZARDS: Hazard[] = [];
+
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
 /** Frame-rate independent smoothing: `rate` is how much is left after 1 s. */
@@ -82,6 +84,9 @@ export class GameScene extends Phaser.Scene {
   private ambient!: Ambient;
   private milestonesHit = new Set<number>();
   private hazardViews = new Map<Hazard, HazardView>();
+  private frameNo = 0;
+  private visScratch: Segment[] = [];
+  private nearLists: Hazard[][] = [NO_HAZARDS, NO_HAZARDS];
   private starView: WarpStarView | null = null;
   private starSparkled = false;
   private ducks = 0;
@@ -149,8 +154,8 @@ export class GameScene extends Phaser.Scene {
     // what turns flat coloured lines into glowing neon.
     this.bloom = Phaser.Actions.AddEffectBloom(cam, {
       threshold: 0.56,
-      blurRadius: 1.8,
-      blurSteps: 3,
+      blurRadius: 2.2,
+      blurSteps: 2,
       blurQuality: 0,
       blendAmount: 1.1,
     })[0];
@@ -160,14 +165,23 @@ export class GameScene extends Phaser.Scene {
     this.grade.active = false;
 
     this.applyFxSetting();
+    display.onQuality(() => this.applyFxSetting());
 
     this.scale.on('resize', (size: Phaser.Structs.Size) => cam.setSize(size.width, size.height));
   }
 
+  /** Switch effects on/off for the reduced-FX setting and the quality step. */
   private applyFxSetting() {
-    if (this.bloom) this.bloom.parallelFilters.active = !save.fxReduced;
-    glowFx.setEnabled(!save.fxReduced);
-    this.ambient?.setEnabled(!save.fxReduced);
+    const q = display.quality;
+    if (this.bloom) {
+      this.bloom.parallelFilters.active = !save.fxReduced;
+      // Quality step 1+: one blur pass instead of two (a little wider to match).
+      this.bloom.blur.steps = q >= 1 ? 1 : 2;
+      this.bloom.blur.x = this.bloom.blur.y = q >= 1 ? 2.8 : 2.2;
+    }
+    glowFx.setEnabled(!save.fxReduced && q < 2);
+    this.ambient?.setEnabled(!save.fxReduced && q < 2);
+    display.applyFxReduced(save.fxReduced);
   }
 
   /** Base zoom so the track looks similar on a phone and a big monitor. */
@@ -223,6 +237,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPlay(req: PlayRequest) {
+    this.maybeRaiseQuality();
+    this.resetPerfWindow();
     const level = req.level === null ? undefined : levelById(req.level);
     this.resetRun(level ? levelCourse(level) : endlessCourse());
     sfx.unlock();
@@ -447,21 +463,22 @@ export class GameScene extends Phaser.Scene {
 
     // Hazards animate even while the menu is up. Only those on visible
     // segments are shown; ones on track already passed are hidden.
-    const shown = new Set<Hazard>();
+    // (A frame stamp instead of a Set: no garbage every frame.)
+    const frame = ++this.frameNo;
     for (const seg of this.visibleSegments()) {
       for (const hz of seg.hazards) {
         if (!hz.alive) continue;
-        shown.add(hz);
         let view = this.hazardViews.get(hz);
         if (!view) {
           view = new HazardView(this, hz);
           this.hazardViews.set(hz, view);
         }
+        view.shownAt = frame;
         view.setFrozen(!!this.ability?.def.freeze);
         view.update(t, dt);
       }
     }
-    this.hazardViews.forEach((view, hz) => view.setVisible(shown.has(hz)));
+    this.hazardViews.forEach((view) => view.setVisible(view.shownAt === frame));
 
     this.corridor.draw(this.track.segments, this.current, this.player, accent, t, save.fxReduced);
     this.playerView.setPosition(this.player.x, this.player.y);
@@ -559,7 +576,7 @@ export class GameScene extends Phaser.Scene {
     if (edge < 10 && !this.nearWallFlags.has(cur.id)) {
       this.nearWallFlags.add(cur.id);
       const extreme = edge < 3;
-      this.effects.floater(this.player.x, this.player.y - 20, extreme ? '1PX' : 'CLOSE', css.cyan, extreme ? 16 : 12);
+      this.effects.floater(this.player.x, this.player.y - 20, extreme ? '1PX' : 'CLOSE', css.cyan, extreme ? 16 : 12, 0);
       this.slowMo = Math.max(this.slowMo, 0.1);
       // Zoom punch: the camera jolts in, like a flinch. Harder for 1 px.
       this.cam.punch = Math.max(this.cam.punch, extreme ? 0.09 : 0.05);
@@ -582,8 +599,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     const radius = this.playerRadius();
-    const nearby = [...cur.hazards, ...(next?.hazards ?? [])];
-    for (const hz of nearby) {
+    this.nearLists[0] = cur.hazards;
+    this.nearLists[1] = next?.hazards ?? NO_HAZARDS;
+    for (const list of this.nearLists) for (const hz of list) {
       if (!hz.alive) continue;
       const dist = Math.hypot(this.player.x - hz.x, this.player.y - hz.y);
       if (hz.kind === 'duck') {
@@ -612,7 +630,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (dist < hz.radius + radius + 16 && !this.nearHazardFlags.has(hz)) {
         this.nearHazardFlags.add(hz);
-        this.effects.floater(this.player.x, this.player.y - 20, 'CLOSE', css.magenta, 12);
+        this.effects.floater(this.player.x, this.player.y - 20, 'CLOSE', css.magenta, 12, 0);
         this.slowMo = Math.max(this.slowMo, 0.09);
         this.cam.punch = Math.max(this.cam.punch, 0.07);
         sfx.near();
@@ -665,7 +683,7 @@ export class GameScene extends Phaser.Scene {
     const rainbow = [0xff2f9e, 0xffd21f, 0x2be8ff, 0x7cff6b, 0xff9a2e, 0xb36bff];
     rainbow.forEach((c, i) => this.time.delayedCall(i * 70, () => this.effects.shockwave(x, y, c, 120 + i * 60, 700)));
     this.effects.burst(x, y, rainbow, save.fxReduced ? 20 : 70);
-    this.effects.floater(x, y - 34, 'WARP!', '#ffffff', 26);
+    this.effects.floater(x, y - 34, 'WARP!', '#ffffff', 26, 3);
     this.flash(0xffffff, 400, 0.8);
     this.cam.punch = 0.25;
     this.slowMo = 0.5;
@@ -702,7 +720,7 @@ export class GameScene extends Phaser.Scene {
       this.ducks += value;
       sfx.redDuck();
       haptic([15, 20, 30]);
-      this.effects.floater(hz.x, hz.y - 24, `GOTCHA! +${value}`, '#ff6a55', 18);
+      this.effects.floater(hz.x, hz.y - 24, `GOTCHA! +${value}`, '#ff6a55', 18, 2);
       this.effects.shockwave(hz.x, hz.y, 0xff5a4a, 110, 450);
       this.effects.burst(hz.x, hz.y, [0xff5a4a, 0xffd21f, 0xffffff], save.fxReduced ? 10 : 28);
       this.cam.punch = 0.08;
@@ -785,7 +803,7 @@ export class GameScene extends Phaser.Scene {
     if (!save.fxReduced) this.effects.burst(x + Math.cos(a) * 30, y + Math.sin(a) * 30, [0xffd21f, 0xffffff], 4);
     if (f.count % 10 === 0) {
       this.effects.shockwave(this.player.x, this.player.y, 0xffd21f, 120 + f.count, 400);
-      this.effects.floater(this.player.x, this.player.y - 40, `${f.count}!`, '#ffe680', 22);
+      this.effects.floater(this.player.x, this.player.y - 40, `${f.count}!`, '#ffe680', 22, 2);
     }
     if (f.count >= FRENZY_MAX) this.endFrenzy();
     else this.emitFrenzy('tick');
@@ -871,7 +889,7 @@ export class GameScene extends Phaser.Scene {
     this.effects.shockwave(x, y, skin.glow, 200, 600);
     this.effects.shockwave(x, y, 0xffffff, 110, 400);
     this.effects.burst(x, y, [skin.glow, 0xffffff], save.fxReduced ? 12 : 36);
-    this.effects.floater(x, y - 36, def.name, '#ffffff', 20);
+    this.effects.floater(x, y - 36, def.name, '#ffffff', 20, 3);
     this.cam.punch = 0.15;
     shared.pulse = 1;
     sfx.ability(skin.rarity);
@@ -1043,7 +1061,7 @@ export class GameScene extends Phaser.Scene {
     const kitty = save.skin === 'kitty';
     this.effects.flare(x, y, 0xffffff, 150);
     this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
-    this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18);
+    this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18, 3);
     this.hitStop(40);
     this.cameras.main.shake(200, 0.006);
     this.flash(0xffffff, 200, 0.45);
@@ -1084,20 +1102,34 @@ export class GameScene extends Phaser.Scene {
 
   // --- Automatic quality ---------------------------------------------------
 
-  private perf = { start: 0, frames: 0, warmupUntil: 0 };
+  private perf = { start: 0, last: 0, frames: 0, bad: 0, runFrames: 0, runMs: 0, raiseCooldown: 0 };
+
+  /** Forget the current measuring window (new run, after a pause). */
+  private resetPerfWindow() {
+    this.perf.start = 0;
+    this.perf.last = 0;
+    this.perf.bad = 0;
+  }
 
   /**
-   * Watches the frame rate while playing. If the device can't keep up
-   * (under ~48 fps for two seconds), lower the rendering resolution one step:
-   * 3x -> 2x -> 1.5x. Most of the GPU cost scales with the pixel count.
+   * Watches the frame rate while playing. Two bad 2-second windows in a row
+   * (under 50 fps) step down the quality ladder (see display.ts). Gaps (a
+   * hitch, the app in the background) restart the window instead of counting,
+   * and a steady ~30 fps is the phone's Low Power Mode cap, which lowering
+   * quality can't fix, so it's ignored.
    */
   private watchPerformance() {
     // Real wall-clock time: Phaser smooths its own frame delta, which would
     // hide exactly the stutter we're looking for.
     const now = performance.now();
     const p = this.perf;
-    if (p.warmupUntil === 0) p.warmupUntil = now + 3000;
-    if (now < p.warmupUntil) {
+    if (p.last && now - p.last > 120) p.start = 0;
+    if (p.last && now - p.last <= 120) {
+      p.runFrames++;
+      p.runMs += now - p.last;
+    }
+    p.last = now;
+    if (!p.start) {
       p.start = now;
       p.frames = 0;
       return;
@@ -1108,17 +1140,40 @@ export class GameScene extends Phaser.Scene {
     const fps = (p.frames * 1000) / elapsed;
     p.start = now;
     p.frames = 0;
-    if (fps >= 48) return;
-    const next = display.dpr > 2 ? 2 : display.dpr > 1.5 ? 1.5 : null;
-    if (next && display.lowerDpr(next)) p.warmupUntil = now + 2000;
-    // Out of resolution to give up: drop the per-object glows next.
-    else if (!next && glowFx.enabled && fps < 40) glowFx.setEnabled(false);
+    if (fps >= 50 || (fps > 27 && fps < 33)) {
+      p.bad = 0;
+      return;
+    }
+    if (++p.bad < 2) return;
+    p.bad = 0;
+    if (display.setQuality(display.quality + 1, save.fxReduced)) p.raiseCooldown = 3;
+  }
+
+  /**
+   * Between runs: if the last run was smooth all the way, try one step back
+   * up the quality ladder (at most every few runs, so a slow phone doesn't
+   * bounce up and down).
+   */
+  private maybeRaiseQuality() {
+    const p = this.perf;
+    const avg = p.runMs > 0 ? (p.runFrames * 1000) / p.runMs : 0;
+    const longEnough = p.runMs > 10000;
+    p.runFrames = 0;
+    p.runMs = 0;
+    if (p.raiseCooldown > 0) {
+      p.raiseCooldown--;
+      return;
+    }
+    if (longEnough && avg >= 57 && display.quality > 0) {
+      display.setQuality(display.quality - 1, save.fxReduced);
+      p.raiseCooldown = 2;
+    }
   }
 
   /** Bombs tick when you get close, faster the closer you are. */
   private tickNearbyBombs(cur: Segment, next: Segment | undefined) {
     let closest = Infinity;
-    for (const hz of [...cur.hazards, ...(next?.hazards ?? [])]) {
+    for (const list of [cur.hazards, next?.hazards ?? NO_HAZARDS]) for (const hz of list) {
       if (hz.kind === 'bomb') closest = Math.min(closest, Math.hypot(this.player.x - hz.x, this.player.y - hz.y));
     }
     if (closest > 170 || this.elapsed < this.nextTickAt) return;
@@ -1164,9 +1219,14 @@ export class GameScene extends Phaser.Scene {
     this.current -= keepFrom;
   }
 
+  /** The segments on screen. Returns a shared scratch array (no garbage); don't keep it. */
   private visibleSegments(): Segment[] {
     const s = this.track.segments;
-    return s.slice(Math.max(0, this.current - 1), Math.min(s.length, this.current + LOOKAHEAD + 1));
+    const out = this.visScratch;
+    out.length = 0;
+    const end = Math.min(s.length, this.current + LOOKAHEAD + 1);
+    for (let i = Math.max(0, this.current - 1); i < end; i++) out.push(s[i]);
+    return out;
   }
 
   private updateCamera(dt: number, speedNorm: number, t: number) {

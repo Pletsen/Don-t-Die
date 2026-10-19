@@ -25,6 +25,9 @@ export class Effects {
   private drift: Phaser.GameObjects.Particles.ParticleEmitter;
   private embers: Phaser.GameObjects.Particles.ParticleEmitter;
   private floaters: Phaser.GameObjects.Text[] = [];
+  /** Re-used one-shot images (rings, flares, ghosts, streaks): no new objects per tap. */
+  private pool: Phaser.GameObjects.Image[] = [];
+  private lastFloater: { t: Phaser.GameObjects.Text; at: number; x: number; y: number; priority: number } | null = null;
 
   constructor(private scene: Phaser.Scene) {
     this.sparks = scene.add
@@ -88,13 +91,10 @@ export class Effects {
     for (let i = 0; i < streaks; i++) {
       const a = (i / streaks) * Math.PI * 2 + Math.random() * 0.3;
       const len = 90 + Math.random() * 150;
-      const s = this.scene.add
-        .image(x, y, TEX.streak)
+      const s = this.take(TEX.streak, x, y, 7)
         .setTint(i % 3 === 0 ? 0xffffff : i % 2 ? color : own)
-        .setBlendMode(Phaser.BlendModes.ADD)
         .setRotation(a)
-        .setScale(0.8 + Math.random() * 0.5, 0.6)
-        .setDepth(7);
+        .setScale(0.8 + Math.random() * 0.5, 0.6);
       const duration = 380 + Math.random() * 260;
       // Shoot out fast and slow down; fade late, so they stay bright in flight.
       this.scene.tweens.add({
@@ -104,7 +104,7 @@ export class Effects {
         scaleX: 0.15,
         duration,
         ease: 'Cubic.easeOut',
-        onComplete: () => s.destroy(),
+        onComplete: () => this.release(s),
       });
       this.scene.tweens.add({ targets: s, alpha: 0, duration, ease: 'Quad.easeIn' });
     }
@@ -127,20 +127,14 @@ export class Effects {
     this.drift.setParticleTint([color, 0xffffff]);
     this.drift.explode(fxReduced ? 5 : 14, x, y);
 
-    const ghost = this.scene.add
-      .image(x, y, TEX.orb)
-      .setScale(0.26)
-      .setAlpha(0.55)
-      .setTint(color)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(5);
+    const ghost = this.take(TEX.orb, x, y, 5).setScale(0.26).setAlpha(0.55).setTint(color);
     this.scene.tweens.add({
       targets: ghost,
       scale: 0.6,
       alpha: 0,
       duration: 380,
       ease: 'Quad.easeOut',
-      onComplete: () => ghost.destroy(),
+      onComplete: () => this.release(ghost),
     });
     this.shockwave(x, y, color, 46, 280);
   }
@@ -184,36 +178,26 @@ export class Effects {
   }
 
   shockwave(x: number, y: number, color: number, size = 120, duration = 450) {
-    const ring = this.scene.add
-      .image(x, y, TEX.ring)
-      .setTint(color)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setScale(0.05)
-      .setDepth(7);
+    const ring = this.take(TEX.ring, x, y, 7).setTint(color).setScale(0.05);
     this.scene.tweens.add({
       targets: ring,
       scale: size / 116,
       alpha: 0,
       duration,
       ease: 'Cubic.easeOut',
-      onComplete: () => ring.destroy(),
+      onComplete: () => this.release(ring),
     });
   }
 
   flare(x: number, y: number, color: number, size = 90) {
-    const glow = this.scene.add
-      .image(x, y, TEX.glow)
-      .setTint(color)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setScale(size / 128)
-      .setDepth(7);
+    const glow = this.take(TEX.glow, x, y, 7).setTint(color).setScale(size / 128);
     this.scene.tweens.add({
       targets: glow,
       scale: (size * 2.2) / 128,
       alpha: 0,
       duration: 380,
       ease: 'Quad.easeOut',
-      onComplete: () => glow.destroy(),
+      onComplete: () => this.release(glow),
     });
   }
 
@@ -222,7 +206,18 @@ export class Effects {
    * objects are pooled and re-used; one that already shows the same words
    * doesn't need to be re-rendered at all.
    */
-  floater(x: number, y: number, text: string, color: string = css.cyan, size = 14) {
+  floater(x: number, y: number, text: string, color: string = css.cyan, size = 14, priority = 1) {
+    // Only one word at a time near the same spot: a newer, more important word
+    // replaces the old one; a less important one is skipped. Stops "PERFECT x9",
+    // "CLOSE" and an ability name from piling up on top of each other.
+    const now = this.scene.time.now;
+    const last = this.lastFloater;
+    if (last && last.t.active && now - last.at < 250 && Math.abs(last.x - x) < 90 && Math.abs(last.y - y) < 90) {
+      if (priority < last.priority) return;
+      this.scene.tweens.killTweensOf(last.t);
+      last.t.setActive(false).setVisible(false);
+    }
+
     const key = `${text}|${color}|${size}`;
     let t = this.floaters.find((f) => !f.active && f.getData('key') === key);
     if (!t) t = this.floaters.find((f) => !f.active);
@@ -231,7 +226,8 @@ export class Effects {
         .text(0, 0, '', {
           fontFamily: fonts.display,
           fontStyle: '700',
-          resolution: display.dpr * 1.25,
+          // Exactly the screen's pixel density: sharp without wasting memory.
+          resolution: display.dpr,
           padding: { x: 16, y: 16 },
         })
         .setOrigin(0.5)
@@ -239,9 +235,23 @@ export class Effects {
       this.floaters.push(t);
     }
     if (t.getData('key') !== key) {
-      t.setText(text).setFontSize(size).setColor(color).setShadow(0, 0, color, 12, false, true);
+      // Change the whole style without redrawing, then draw once with the text.
+      // (Each setFontSize / setColor / setShadow call would re-render the text
+      // and upload it to the GPU again.)
+      t.style.setStyle(
+        {
+          fontFamily: fonts.display,
+          fontStyle: '700',
+          fontSize: `${size}px`,
+          color,
+          shadow: { offsetX: 0, offsetY: 0, color, blur: 12, stroke: false, fill: true },
+        },
+        false,
+      );
+      t.setText(text);
       t.setData('key', key);
     }
+    this.lastFloater = { t, at: now, x, y, priority };
     t.setActive(true).setVisible(true).setPosition(x, y).setAlpha(1).setScale(0.4);
     this.scene.tweens.add({ targets: t, scale: 1, duration: 220, ease: 'Back.easeOut' });
     this.scene.tweens.add({
@@ -253,6 +263,19 @@ export class Effects {
       ease: 'Quad.easeIn',
       onComplete: () => t.setActive(false).setVisible(false),
     });
+  }
+
+  /** A pooled image, reset and ready to animate. Call `release` when done. */
+  private take(key: string, x: number, y: number, depth: number): Phaser.GameObjects.Image {
+    let img = this.pool.pop();
+    if (img) img.setTexture(key).setPosition(x, y).setActive(true).setVisible(true);
+    else img = this.scene.add.image(x, y, key);
+    return img.setAlpha(1).setRotation(0).setScale(1).setDepth(depth).setBlendMode(Phaser.BlendModes.ADD);
+  }
+
+  private release(img: Phaser.GameObjects.Image) {
+    img.setActive(false).setVisible(false);
+    this.pool.push(img);
   }
 
   clear() {

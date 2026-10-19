@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Hazard } from '../game/Track';
 import { palette } from '../game/palette';
 import { TEX, DUCK_RES } from './textures';
-import { glowFx } from './glow';
+import { glowFx, type GlowHandle } from './glow';
 
 /** Visuals for one saw blade, bomb or rubber duck. Follows its `Hazard` data every frame. */
 export class HazardView {
@@ -13,6 +13,9 @@ export class HazardView {
   private fuse?: Phaser.GameObjects.Image;
   private color: number;
   private frozen = false;
+  /** Frame number when the game last saw this hazard on screen. */
+  shownAt = 0;
+  private glow: GlowHandle | null = null;
 
   constructor(
     private scene: Phaser.Scene,
@@ -54,15 +57,6 @@ export class HazardView {
       }
     }
 
-    // A milder engine glow on the things that matter: saws, bombs and the
-    // special ducks. Plain ducks are harmless and stay plain.
-    if (!isDuck || variant !== 'normal') {
-      // Saws a little softer, so their teeth stay sharp.
-      // Ducks get a thin rim, so the detail inside stays visible.
-      const strength = isDuck ? (variant === 'golden' ? 2 : 1.4) : isSaw ? 2 : 2.5;
-      glowFx.add(this.body, this.color, strength, 12);
-    }
-
     const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
     if (hazard.kind === 'bomb') {
       this.fuse = scene.add
@@ -74,6 +68,15 @@ export class HazardView {
     }
 
     this.root = scene.add.container(hazard.x, hazard.y, parts).setDepth(4);
+
+    // An outline glow on the things that matter: saws, bombs and the special
+    // ducks. Plain ducks are harmless and stay plain.
+    if (!isDuck || variant !== 'normal') {
+      // Saws a little softer, so their teeth stay sharp; ducks get a thin rim,
+      // so the detail inside stays visible.
+      const strength = isDuck ? (variant === 'golden' ? 2.4 : 1.6) : isSaw ? 2.4 : 2.8;
+      this.glow = glowFx.add(this.body, this.color, strength);
+    }
 
     // Pop in instead of appearing out of nowhere.
     this.root.setScale(0);
@@ -118,6 +121,7 @@ export class HazardView {
           .setAlpha(0.7 + 0.3 * Math.random());
       }
     }
+    this.glow?.sync();
   }
 
   setFrozen(on: boolean) {
