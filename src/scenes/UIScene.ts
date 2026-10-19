@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { EV, shared, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
+import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css } from '../game/palette';
@@ -12,10 +12,14 @@ import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 import { HowToPlay } from '../ui/HowToPlay';
+import { progress } from '../game/progress';
+import { DailyScreen } from '../ui/DailyScreen';
+import { RecordsScreen } from '../ui/RecordsScreen';
+import { NotifyBanner } from '../ui/NotifyBanner';
 import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 
-type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
+type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
 /**
  * Top layer: HUD, title, level map, game-over and level-clear screens.
@@ -92,6 +96,12 @@ export class UIScene extends Phaser.Scene {
   private select!: LevelSelect;
   private clearScreen!: ClearScreen;
   private shop!: SkinShop;
+  private daily!: DailyScreen;
+  private records!: RecordsScreen;
+  private banner!: NotifyBanner;
+  /** What RETRY replays. */
+  private runMode: RunMode = 'level';
+  private dailyDot!: Phaser.GameObjects.Graphics;
 
   private over!: Phaser.GameObjects.Container;
   private causeText!: Phaser.GameObjects.Text;
@@ -120,6 +130,12 @@ export class UIScene extends Phaser.Scene {
   create() {
     const cam = this.cameras.main;
     cam.setOrigin(0, 0).setZoom(display.dpr);
+    // Progress tracking (missions, records, achievements, daily) listens to the game.
+    progress.attach(this.game);
+    this.levelBest = (id: number) => {
+      const b = progress.levelBest(id).best;
+      return b > 0 ? b : null;
+    };
     // Snap the UI to whole pixels: centred text never lands on half pixels and smears.
     cam.roundPixels = true;
 
@@ -137,6 +153,8 @@ export class UIScene extends Phaser.Scene {
       () => this.toggleRainbow(),
       () => this.showMenu(),
     );
+    this.daily = new DailyScreen(this, { play: () => this.playDaily(), back: () => this.showMenu() });
+    this.records = new RecordsScreen(this, { back: () => this.showMenu() });
     this.shop = new SkinShop(
       this,
       () => this.showMenu(),
@@ -155,6 +173,8 @@ export class UIScene extends Phaser.Scene {
     this.buildFrenzy();
     this.buildPause();
     this.buildCutIn();
+    // Banners (missions, achievements, records) draw above everything.
+    this.banner = new NotifyBanner(this);
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
@@ -249,7 +269,7 @@ export class UIScene extends Phaser.Scene {
         this.game.events.emit(EV.tap);
         break;
       case 'dead':
-        this.play(this.level);
+        this.retry();
         break;
       case 'clear':
         this.nextLevel();
@@ -435,7 +455,7 @@ export class UIScene extends Phaser.Scene {
     const title = this.text(0, -96, 'PAUSED', { size: 34, glow: true, spacing: 3 }).setOrigin(0.5);
     const resume = makeButton(this, { label: 'RESUME', icon: 'play', width: 240, height: 56, onPress: () => this.resume() });
     resume.setY(-12);
-    const retry = makeButton(this, { label: 'RETRY', icon: 'retry', width: 114, style: 'ghost', onPress: () => this.play(this.level) });
+    const retry = makeButton(this, { label: 'RETRY', icon: 'retry', width: 114, style: 'ghost', onPress: () => this.retry() });
     retry.setPosition(-63, 60);
     const menu = makeButton(this, { label: 'MENU', icon: 'home', width: 114, style: 'ghost', onPress: () => this.showMenu() });
     menu.setPosition(63, 60);
@@ -533,6 +553,9 @@ export class UIScene extends Phaser.Scene {
       color: 0xff5cb8,
       onPress: () => this.showDaily(),
     });
+    // A gold dot on DAILY when there's something to collect today.
+    this.dailyDot = this.add.graphics();
+    this.dailyDot.fillStyle(0xffd21f, 1).fillCircle(0, 0, 5).lineStyle(2, 0x070b12, 1).strokeCircle(0, 0, 5);
     this.helpBtn = makeIconButton(this, 'help', () => this.showHowTo(), 0x8fa3b5);
     this.recordsBtn = makeIconButton(this, 'trophy', () => this.showRecords(), 0xffd21f);
 
@@ -546,6 +569,7 @@ export class UIScene extends Phaser.Scene {
       this.survivalBtn,
       this.skinsBtn,
       this.dailyBtn,
+      this.dailyDot,
       this.helpBtn,
       this.recordsBtn,
       this.statsLine,
@@ -584,13 +608,57 @@ export class UIScene extends Phaser.Scene {
     this.play(nextLevelToPlay());
   }
 
-  /** Daily challenges (filled in by the progression screens). */
-  private showDaily() {
-    this.toast('DAILY CHALLENGES: SOON', 1200);
+  /** Fade out every screen (before showing another one). */
+  private hideScreens() {
+    this.hideSpinBanner();
+    for (const c of [this.title, this.select.root, this.shop.root, this.howTo.root, this.daily.root, this.records.root, this.over, this.hud]) {
+      this.fadeOut(c);
+    }
+    if (this.clearScreen.root.visible) this.clearScreen.hide();
   }
 
+  /** DAILY: today's run, the streak and the three missions. */
+  private showDaily() {
+    const fromRun = this.inRun();
+    this.hideScreens();
+    this.mode = 'daily';
+    sfx.swoosh();
+    if (fromRun) this.game.events.emit(EV.menu);
+    this.fadeIn(this.scrim, 0.85);
+    this.daily.refresh();
+    this.daily.root.setVisible(true).setAlpha(0);
+    this.fadeIn(this.daily.root);
+  }
+
+  /** RECORDS: lifetime stats and achievements. */
   private showRecords() {
-    this.toast('RECORDS: SOON', 1200);
+    const fromRun = this.inRun();
+    this.hideScreens();
+    this.mode = 'records';
+    sfx.swoosh();
+    if (fromRun) this.game.events.emit(EV.menu);
+    this.fadeIn(this.scrim, 0.85);
+    this.records.refresh();
+    this.records.root.setVisible(true).setAlpha(0);
+    this.fadeIn(this.records.root);
+  }
+
+  /** Today's Daily Run (same track for everyone today). */
+  private playDaily() {
+    this.level = null;
+    this.runMode = 'daily';
+    this.hideScreens();
+    this.pauseSheet.setVisible(false);
+    this.countdown.setVisible(false);
+    this.frenzy.setVisible(false);
+    this.tweens.add({ targets: this.scrim, alpha: 0, duration: 180 });
+    this.game.events.emit(EV.play, { level: null, daily: true });
+  }
+
+  /** RETRY replays whatever was played last. */
+  private retry() {
+    if (this.runMode === 'daily') this.playDaily();
+    else this.play(this.level);
   }
 
   private buildGameOver() {
@@ -604,7 +672,7 @@ export class UIScene extends Phaser.Scene {
     this.tipText = this.text(0, 0, '', { size: 13, color: '#8fa3b5', spacing: 0.5 }).setOrigin(0.5).setAlign('center');
     this.tipText.setWordWrapWidth(270);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
-    this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 280, height: 56, onPress: () => this.play(this.level) });
+    this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 280, height: 56, onPress: () => this.retry() });
     this.overLevels = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 134, style: 'ghost', onPress: () => this.showSelect() });
     this.overMenu = makeButton(this, { label: 'MENU', icon: 'home', width: 134, style: 'ghost', onPress: () => this.showMenu() });
     this.confetti = this.add
@@ -680,6 +748,7 @@ export class UIScene extends Phaser.Scene {
     this.survivalBtn.setPosition(w / 2 + 78, dockTop + 132);
     this.skinsBtn.setPosition(w / 2 - 78, dockTop + 190);
     this.dailyBtn.setPosition(w / 2 + 78, dockTop + 190);
+    this.dailyDot.setPosition(w / 2 + 78 + 66, dockTop + 190 - 18);
     this.statsLine.setPosition(w / 2, dockTop + 244);
     this.scrim.setSize(w, h);
     this.vignette.setDisplaySize(w, h);
@@ -688,6 +757,9 @@ export class UIScene extends Phaser.Scene {
 
     this.select.layout(w, h, top + 52);
     this.shop.layout(w, h, top + 48);
+    this.daily.layout(w, h, top + 4);
+    this.records.layout(w, h, top + 4);
+    this.banner?.layout(w, h, 8 + display.safeTop());
     this.howTo.layout(w, h, top + 40);
     this.frenzy.setPosition(w / 2, h * 0.3);
     this.clearScreen.layout(w, h);
@@ -704,6 +776,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private fadeIn(target: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle, alpha = 1) {
+    this.tweens.killTweensOf(target);
     if ('setVisible' in target) target.setVisible(true);
     target.setData('inactive', false);
     this.tweens.add({ targets: target, alpha, duration: 220 });
@@ -719,7 +792,8 @@ export class UIScene extends Phaser.Scene {
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
     this.mode = 'menu';
-    this.hideSpinBanner();
+    this.banner.setInRun(false);
+    this.hideScreens();
     this.fadeOut(this.select.root);
     this.fadeOut(this.shop.root);
     this.fadeOut(this.howTo.root);
@@ -730,6 +804,9 @@ export class UIScene extends Phaser.Scene {
     // Light scrim: the demo run should glow through above the dock.
     this.tweens.add({ targets: this.scrim, alpha: 0.18, duration: 220 });
 
+    const badge = progress.dailyBadge();
+    this.dailyDot.setVisible(badge.claim || badge.missionsLeft > 0);
+    this.dailyBtn.setLabel(badge.streak > 1 ? `DAILY · ${badge.streak}` : 'DAILY');
     const next = nextLevelToPlay();
     this.playBtn.setLabel(save.totalStars() > 0 || next > 1 ? `PLAY  ·  LEVEL ${next}` : 'PLAY');
 
@@ -744,6 +821,7 @@ export class UIScene extends Phaser.Scene {
 
   /** HOW TO PLAY: animated cards explaining the game. */
   private showHowTo() {
+    this.hideScreens();
     this.mode = 'howto';
     sfx.swoosh();
     this.tweens.killTweensOf([this.title, this.scrim]);
@@ -757,9 +835,9 @@ export class UIScene extends Phaser.Scene {
 
   private showSkins() {
     const fromRun = this.inRun();
+    this.hideScreens();
     this.mode = 'skins';
     sfx.swoosh();
-    this.hideSpinBanner();
     this.fadeOut(this.title);
     this.fadeOut(this.select.root);
     this.fadeOut(this.over);
@@ -774,7 +852,7 @@ export class UIScene extends Phaser.Scene {
 
   private showSelect() {
     const fromRun = this.inRun();
-    this.hideSpinBanner();
+    this.hideScreens();
     this.fadeOut(this.shop.root);
     this.mode = 'select';
     this.fadeOut(this.title);
@@ -814,7 +892,10 @@ export class UIScene extends Phaser.Scene {
       return;
     }
     this.level = level;
+    this.runMode = level === null ? 'survival' : 'level';
     this.fadeOut(this.howTo.root);
+    this.fadeOut(this.daily.root);
+    this.fadeOut(this.records.root);
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
     this.frenzy.setVisible(false);
@@ -834,6 +915,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onStarted(d: HudData) {
+    this.banner.setInRun(true);
     this.abilityState = { state: 'ready', frac: 0 };
     this.drawAbilityPill();
     this.mode = 'play';
@@ -844,6 +926,11 @@ export class UIScene extends Phaser.Scene {
     if (level) {
       this.rightLabel.setText('LEVEL');
       this.rightValue.setText(String(level.id)).setTint(WORLDS[level.world].color);
+    } else if (this.runMode === 'daily') {
+      // The Daily Run has its own best: today's.
+      const run = progress.daily.run();
+      this.rightLabel.setText(run.modifier.name);
+      this.rightValue.setText(`${run.best.toFixed(0)} M`).setTint(run.modifier.color);
     } else {
       this.rightLabel.setText('BEST');
       this.rightValue.setText(`${save.best.toFixed(1)} M`).clearTint();
@@ -962,6 +1049,7 @@ export class UIScene extends Phaser.Scene {
 
   private onDied(d: DeathData) {
     this.mode = 'dead';
+    this.banner.setInRun(false);
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 300;
@@ -1002,8 +1090,9 @@ export class UIScene extends Phaser.Scene {
       unit = '%';
       this.scoreText.setTint(color);
       this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M   ·   LEVEL ${d.level} ${WORLDS[level.world].name}`);
-      const best = this.levelBest(d.level);
-      if (best !== null && frac > best - 0.001 && frac > 0.02) {
+      const run = progress.lastRun;
+      const best = run && run.level === d.level ? run.bestBefore || null : this.levelBest(d.level);
+      if (run && run.level === d.level && run.newBest && frac > 0.02) {
         this.bestText.setText('NEW BEST').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 12, false, true);
       } else this.bestText.setText(best !== null ? `BEST ${Math.floor(best * 100)}%` : '');
       this.drawOverBar(frac, best, color);
@@ -1016,14 +1105,19 @@ export class UIScene extends Phaser.Scene {
       );
     } else {
       this.scoreText.clearTint();
-      this.timeText.setText(`${d.seconds.toFixed(1)} SEC   ·   BEST ${d.best.toFixed(0)} M`);
-      if (d.isNewBest) {
-        this.bestText.setText('NEW RECORD').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 14, false, true);
+      const run = progress.lastRun;
+      const daily = this.runMode === 'daily';
+      const bestM = daily && run ? run.best : d.best;
+      this.timeText.setText(`${d.seconds.toFixed(1)} SEC   ·   ${daily ? 'TODAY\'S BEST' : 'BEST'} ${bestM.toFixed(0)} M`);
+      if (d.isNewBest || (daily && run?.newBest)) {
+        this.bestText.setText(daily ? 'NEW DAILY BEST' : 'NEW RECORD').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 14, false, true);
         const { w, h } = display.size(this);
         this.time.delayedCall(450, () => this.confetti.explode(70, w / 2, h * 0.3));
       } else this.bestText.setText(this.flavorLine(d));
-      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
-      if (d.ducks > 0) this.maybeShowSpinBanner();
+      // Bonked ducks plus what progress paid for the run (distance, milestones).
+      const earned = d.ducks + (run?.ducks ?? 0);
+      this.flavorText.setText(earned > 0 ? `+${earned} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
+      if (earned > 0) this.maybeShowSpinBanner();
     }
     this.layoutOver();
 
@@ -1101,13 +1195,17 @@ export class UIScene extends Phaser.Scene {
 
   private onCleared(d: ClearData) {
     this.mode = 'clear';
+    this.banner.setInRun(false);
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 1200;
     this.onHud(d, true);
     this.fadeOut(this.hud);
     this.fadeIn(this.scrim);
-    this.clearScreen.show(d);
+    // Rewards progress paid for this clear (first clear, new stars ...).
+    const run = progress.lastRun;
+    const rewards = run && run.cleared ? run.rewards.filter((r) => r.ducks > 0) : [];
+    this.clearScreen.show(d, rewards.map((r) => `${r.label} +${r.ducks}`).join('   ·   '));
     if (d.ducks > 0) this.maybeShowSpinBanner(1600);
   }
 
@@ -1202,6 +1300,8 @@ export class UIScene extends Phaser.Scene {
 
     if (this.mode === 'select') this.select.update(time);
     if (this.mode === 'skins') this.shop.update(time);
+    if (this.mode === 'daily') this.daily.update(time);
+    if (this.mode === 'records') this.records.update(time);
     if (this.mode === 'howto') this.howTo.update(time);
     if (this.frenzy.visible && this.frenzyActive) {
       this.frenzySub.setScale(1 + 0.08 * Math.sin(t * 20));

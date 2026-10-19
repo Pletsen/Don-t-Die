@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment, type WarpStar } from '../game/Track';
 import { tuning, METERS_PER_PX, SECTOR_METERS } from '../game/tuning';
 import { shared, EV, type DeathData, type ClearData, type PlayRequest, type FrenzyData, type StatEvent, type RunMode } from '../game/shared';
-import { endlessCourse, levelCourse, type Course } from '../game/course';
+import { dailyCourse, endlessCourse, levelCourse, type Course } from '../game/course';
 import { levelById } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
@@ -122,6 +122,7 @@ export class GameScene extends Phaser.Scene {
   private guidedGates = 0;
   private nextGuideAt = 0;
   private recordShown = false;
+  private zoneIndex = -1;
   private deathFade = 0;
   /** When the crash happened (ms), so the colour drains only after the blast. */
   private diedAt = 0;
@@ -274,6 +275,7 @@ export class GameScene extends Phaser.Scene {
     this.lastWildTurn = null;
     this.guidedGates = 0;
     this.recordShown = false;
+    this.zoneIndex = -1;
     this.course = course;
     this.track = new Track(course);
     this.current = 0;
@@ -303,9 +305,12 @@ export class GameScene extends Phaser.Scene {
     this.wake();
     this.maybeRaiseQuality();
     this.resetPerfWindow();
+    this.quitRun();
     const level = req.level === null ? undefined : levelById(req.level);
-    this.resetRun(level ? levelCourse(level) : endlessCourse());
-    this.mode = level ? 'level' : req.daily ? 'daily' : 'survival';
+    this.resetRun(req.daily ? dailyCourse() : level ? levelCourse(level) : endlessCourse());
+    this.mode = this.course.mode;
+    // The UNIVERSE 2 daily starts in the bonus universe.
+    if (this.course.warped) this.setUniverse(true);
     // Level 1, never cleared: guide the first corners.
     this.guidedGates = level && level.id === 1 && save.starsFor(1) === 0 ? 3 : 0;
     sfx.unlock();
@@ -320,6 +325,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onMenu() {
+    this.quitRun();
     this.wake();
     music.setEnergy(0);
     this.startDemo();
@@ -375,6 +381,50 @@ export class GameScene extends Phaser.Scene {
       this.effects.shockwave(cx, cy, 0xffffff, 70, 420);
       if (dist > 60) this.effects.floater(cx, cy - 46, 'TAP!', '#ffffff', 20, 3);
     }
+  }
+
+  /** How far along the level's original goal you are, 0..1 (0 outside levels). */
+  private levelProgress() {
+    const level = this.course.level;
+    return level ? Math.min(1, (this.distance * METERS_PER_PX) / level.goal) : 0;
+  }
+
+  /**
+   * Leaving a run half-way (pause -> menu or retry) still counts as a run
+   * for stats and missions.
+   */
+  private quitRun() {
+    if (this.state !== 'play' || this.demo) return;
+    this.state = 'ready';
+    this.stat({
+      type: 'runEnd',
+      mode: this.mode,
+      level: this.course.level?.id ?? null,
+      cleared: false,
+      meters: this.distance * METERS_PER_PX,
+      seconds: this.elapsed,
+      progress: this.levelProgress(),
+      stars: 0,
+      perfects: this.perfects,
+      gateTurns: this.gateTurns,
+      bestCombo: this.bestCombo,
+      ducks: this.ducks,
+      warped: this.course.warped,
+      cause: null,
+      abilityUsed: this.abilityUsed,
+    });
+  }
+
+  /** Survival zones: announce each one as you enter it. */
+  private checkZone() {
+    const z = this.course.zoneAt(this.distance);
+    if (!z || z.index === this.zoneIndex) return;
+    this.zoneIndex = z.index;
+    const { x, y } = this.player;
+    this.effects.floater(x, y - 44, z.def.name, `#${z.def.color.toString(16).padStart(6, '0')}`, 20, 3);
+    this.effects.shockwave(x, y, z.def.color, 180, 650);
+    sfx.sweep();
+    this.game.events.emit(EV.notify, { title: `ZONE: ${z.def.name}`, subtitle: z.def.hint, color: z.def.color });
   }
 
   /** Tell progress tracking (missions, achievements, records) what happened. */
@@ -506,8 +556,9 @@ export class GameScene extends Phaser.Scene {
 
     // The best-distance record belongs to survival mode only.
     const meters = this.distance * METERS_PER_PX;
-    const endless = this.course.level === null;
-    const isNewBest = endless && meters > save.best;
+    const endless = this.mode !== 'level';
+    // The best-distance record belongs to Survival; the Daily Run has its own.
+    const isNewBest = this.mode === 'survival' && meters > save.best;
     if (isNewBest) save.setBest(meters);
     save.addDeath();
     // Survival never finishes, so its ducks are kept when the run ends. In a
@@ -532,7 +583,8 @@ export class GameScene extends Phaser.Scene {
       cleared: false,
       meters,
       seconds: this.elapsed,
-      progress: this.course.goalPx ? Math.min(1, this.distance / this.course.goalPx) : 0,
+      // Against the level's real goal (the warp doubles course.goalPx).
+      progress: this.levelProgress(),
       stars: 0,
       perfects: this.perfects,
       gateTurns: this.gateTurns,
@@ -756,6 +808,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!this.course.level) this.checkMilestones();
+    if (!this.demo) this.checkZone();
     this.tickNearbyBombs(cur, next);
     for (const seg of [cur, next]) {
       if (seg?.warpStar && !seg.warpStar.taken) this.checkWarpStar(seg.warpStar);

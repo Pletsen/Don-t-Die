@@ -6,7 +6,7 @@ import { TEX, DUCK_RES } from '../fx/textures';
 import { progress } from '../game/progress';
 import { formatCountdown, prettyDate } from '../game/daily';
 import { TIER_COLOR, ALL_DONE_BONUS } from '../game/missions';
-import { drawStar, hexColor, makeButton, makeText, type Button } from './widgets';
+import { drawStar, hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton } from './widgets';
 
 // --- Shared look for the progression screens (Daily, Records, banners) ------
 
@@ -149,14 +149,15 @@ export function drawGlyph(g: Phaser.GameObjects.Graphics, kind: GlyphKind, x: nu
 /** BACK on the left, the title in the middle, the duck wallet on the right. */
 export class TopBar {
   readonly root: Phaser.GameObjects.Container;
-  private back: Button;
+  private back: IconButton;
   private title: Phaser.GameObjects.Text;
   private icon: Phaser.GameObjects.Image;
   private count: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, title: string, onBack: () => void) {
-    this.back = makeButton(scene, { label: 'BACK', width: 84, height: 34, style: 'ghost', onPress: onBack });
-    this.title = makeText(scene, 0, 0, title, { size: 22, spacing: 1.5 }).setOrigin(0.5);
+    // Same top bar as the level map: round back button, centred title.
+    this.back = makeIconButton(scene, 'back', onBack);
+    this.title = makeText(scene, 0, 0, title, { size: 24, spacing: 3 }).setOrigin(0.5);
     this.icon = scene.add.image(0, 0, TEX.duck).setScale(0.28 / DUCK_RES);
     this.count = makeText(scene, 0, 0, '0', { font: 'mono', size: 15, weight: '700', color: GOLD_CSS }).setOrigin(1, 0.5);
     this.root = scene.add.container(0, 0, [this.back, this.title, this.icon, this.count]);
@@ -166,15 +167,15 @@ export class TopBar {
   /** `width` is the content width; the bar is centred on x = 0. */
   layout(width: number) {
     const left = -width / 2;
-    this.back.setPosition(left + 42, 17);
-    this.title.setPosition(0, 17);
-    this.count.setPosition(-left, 17);
+    this.back.setPosition(left + 20, 22);
+    this.title.setPosition(0, 22);
+    this.count.setPosition(-left, 22);
     this.refresh();
   }
 
   refresh() {
     setIfChanged(this.count, String(save.ducks));
-    this.icon.setPosition(this.count.x - this.count.width - 16, 17);
+    this.icon.setPosition(this.count.x - this.count.width - 16, 22);
   }
 }
 

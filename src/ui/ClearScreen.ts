@@ -20,6 +20,7 @@ export class ClearScreen {
   private stats: Phaser.GameObjects.Text;
   private hint: Phaser.GameObjects.Text;
   private ducksLine: Phaser.GameObjects.Text;
+  private rewards: Phaser.GameObjects.Text;
   private next: Button;
   private retry: Button;
   private levels: Button;
@@ -60,6 +61,7 @@ export class ClearScreen {
       .setDepth(60);
     this.stats = makeText(scene, 0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
     this.hint = makeText(scene, 0, 0, '', { size: 13, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
+    this.rewards = makeText(scene, 0, 0, '', { font: 'mono', size: 11, weight: '700', color: '#ffd21f', spacing: 1 }).setOrigin(0.5);
     this.ducksLine = makeText(scene, 0, 0, '', { font: 'mono', size: 13, weight: '700', color: '#ffd21f', spacing: 1.2 }).setOrigin(0.5);
     this.next = makeButton(scene, { label: 'NEXT LEVEL', icon: 'play', width: 280, height: 56, onPress: handlers.next });
     this.retry = makeButton(scene, { label: 'RETRY', icon: 'retry', width: 92, style: 'ghost', onPress: handlers.retry });
@@ -75,6 +77,7 @@ export class ClearScreen {
       this.stats,
       this.hint,
       this.ducksLine,
+      this.rewards,
       this.next,
       this.retry,
       this.levels,
@@ -96,6 +99,7 @@ export class ClearScreen {
     this.stats.setPosition(cx, oy + 124);
     this.hint.setPosition(cx, oy + 148);
     this.ducksLine.setPosition(cx, oy + 172);
+    this.rewards.setPosition(cx, oy + 194);
     this.next.setPosition(cx, oy + 228);
     this.retry.setPosition(cx - 98, oy + 290);
     this.levels.setPosition(cx, oy + 290);
@@ -173,7 +177,9 @@ export class ClearScreen {
     }
   }
 
-  show(d: ClearData) {
+  show(d: ClearData, rewards = '') {
+    this.rewards.setText(rewards).setAlpha(0);
+    if (rewards) this.scene.tweens.add({ targets: this.rewards, alpha: 1, delay: 700 + d.stars * 300, duration: 300 });
     const level = levelById(d.level)!;
     const color = WORLDS[level.world].color;
     const last = d.level === LEVELS[LEVELS.length - 1].id;
