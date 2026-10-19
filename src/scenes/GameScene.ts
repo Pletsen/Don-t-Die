@@ -474,6 +474,10 @@ export class GameScene extends Phaser.Scene {
     this.updateGrade(dt);
 
     shared.accent = accent;
+    const m = this.distance * METERS_PER_PX;
+    shared.world = this.course.level
+      ? this.course.level.world
+      : SECTOR_METERS.filter((at) => m >= at).length;
     shared.intensity = lerp(shared.intensity, this.state === 'play' ? speedNorm : 0.15, damp(0.2, dt));
     shared.pulse = Math.max(0, shared.pulse - dt * 2.5);
 

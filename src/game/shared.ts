@@ -15,6 +15,12 @@ export const shared = {
   warp: 0,
   /** 0 normal, 1 dead: the vignette closes in. */
   gloom: 0,
+  /**
+   * Which world's look to use: 0 BASICS, 1 SAWS, 2 BOMBS, 3 CHAOS (levels use
+   * their world; survival and daily runs follow the sector). The background
+   * reads it to pick its sky.
+   */
+  world: 0,
 };
 
 /** Event names sent over `game.events` between scenes. */
@@ -40,11 +46,64 @@ export const EV = {
   /** UI -> Game: a different skin was equipped. */
   skin: 'dd-skin',
   fxChanged: 'dd-fx-changed',
+  /**
+   * Game -> anyone: something happened that progress tracking cares about
+   * (runs, perfects, ducks, abilities ...). Payload: StatEvent.
+   */
+  stat: 'dd-stat',
+  /** Progress -> UI: show a banner (mission done, achievement, reward). Payload: NotifyData. */
+  notify: 'dd-notify',
+  /** UI/platform -> Game: pause or resume the run (app backgrounded, pause button). */
+  pause: 'dd-pause',
+  resume: 'dd-resume',
 } as const;
 
-/** `level: null` means survival mode. */
+/** Which kind of run is being played. */
+export type RunMode = 'level' | 'survival' | 'daily';
+
+/** Everything progress tracking (missions, achievements, records) listens to. */
+export type StatEvent =
+  | { type: 'runStart'; mode: RunMode; level: number | null }
+  | {
+      type: 'runEnd';
+      mode: RunMode;
+      level: number | null;
+      /** True if a level was cleared (survival/daily runs always end in a crash). */
+      cleared: boolean;
+      meters: number;
+      seconds: number;
+      /** Fraction of the level's goal reached, 0..1 (1 for a clear; survival: 0). */
+      progress: number;
+      stars: number;
+      perfects: number;
+      gateTurns: number;
+      bestCombo: number;
+      ducks: number;
+      warped: boolean;
+      cause: 'wall' | 'saw' | 'bomb' | null;
+      abilityUsed: boolean;
+    }
+  | { type: 'perfect'; combo: number }
+  | { type: 'nearMiss'; kind: 'wall' | 'hazard' }
+  | { type: 'duck'; variant: 'normal' | 'red' | 'golden'; value: number }
+  | { type: 'ability'; skin: string }
+  | { type: 'warp'; level: number | null }
+  | { type: 'frenzy'; count: number }
+  | { type: 'spin'; skin: string; rarity: string; isNew: boolean };
+
+export interface NotifyData {
+  title: string;
+  subtitle?: string;
+  /** Accent colour (0xRRGGBB). */
+  color?: number;
+  /** Ducks awarded with it, shown as "+N". */
+  ducks?: number;
+}
+
+/** `level: null` means survival mode; `daily: true` plays today's Daily Run. */
 export interface PlayRequest {
   level: number | null;
+  daily?: boolean;
 }
 
 export interface HudData {

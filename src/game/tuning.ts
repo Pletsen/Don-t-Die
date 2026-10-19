@@ -67,8 +67,8 @@ export const SECTOR_METERS = [250 * RAMP, 550 * RAMP, 950 * RAMP];
 const sectors = [
   { m: 0, c: palette.cyan },
   { m: SECTOR_METERS[0], c: palette.orange },
-  { m: SECTOR_METERS[1], c: palette.magenta },
-  { m: SECTOR_METERS[2], c: palette.red },
+  { m: SECTOR_METERS[1], c: palette.violet },
+  { m: SECTOR_METERS[2], c: palette.crimson },
 ];
 const BLEND_M = 40;
 

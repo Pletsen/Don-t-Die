@@ -1,5 +1,5 @@
-// Saved in the browser (localStorage). Wrapped in try/catch because private
-// browsing and some embedded views block storage entirely.
+// Saved in the browser (localStorage), through the helpers in persist.ts.
+import { read, write } from './persist';
 
 const KEYS = {
   best: 'dontdie_best_m',
@@ -12,24 +12,9 @@ const KEYS = {
   ducks: 'dontdie_ducks',
   skins: 'dontdie_skins',
   skin: 'dontdie_skin',
+  freeSpins: 'dontdie_free_spins',
   intro: 'dontdie_intro_seen',
 };
-
-function read(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function write(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Ignore: the game still works, it just forgets.
-  }
-}
 
 function readStars(): Record<number, number> {
   try {
@@ -43,6 +28,8 @@ function readStars(): Record<number, number> {
 const prefersReducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+const duckListeners: ((n: number, source: string) => void)[] = [];
+
 export const save = {
   best: parseFloat(read(KEYS.best) ?? '0') || 0,
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
@@ -50,9 +37,25 @@ export const save = {
   rainbow: read(KEYS.rainbow) === '1',
   /** Rubber ducks banked from cleared bonus universes: the skin currency. */
   ducks: parseInt(read(KEYS.ducks) ?? '0', 10) || 0,
-  addDucks(n: number) {
+  /**
+   * Add (or with a negative n, spend) ducks. `source` says where they came
+   * from ('level', 'survival', 'daily', 'mission', 'streak', 'refund', 'spin',
+   * later 'ad' or 'iap'), so rewards can be tracked and tuned.
+   */
+  addDucks(n: number, source = 'other') {
     this.ducks = Math.max(0, this.ducks + n);
     write(KEYS.ducks, String(this.ducks));
+    duckListeners.forEach((fn) => fn(n, source));
+  },
+  /** Free spins on the DUCK-O-MATIC (rewards from streaks, stars, missions). */
+  freeSpins: parseInt(read(KEYS.freeSpins) ?? '0', 10) || 0,
+  addFreeSpins(n: number) {
+    this.freeSpins = Math.max(0, this.freeSpins + n);
+    write(KEYS.freeSpins, String(this.freeSpins));
+  },
+  /** Listen to every duck change: (amount, source). */
+  onDucks(fn: (n: number, source: string) => void) {
+    duckListeners.push(fn);
   },
   /** Skins owned (ids). 'classic' is always owned. */
   skins: new Set<string>(['classic', ...(read(KEYS.skins) ?? '').split(',').filter(Boolean)]),

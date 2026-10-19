@@ -14,8 +14,8 @@ export interface World {
 export const WORLDS: World[] = [
   { name: 'BASICS', color: palette.cyan },
   { name: 'SAWS', color: palette.orange },
-  { name: 'BOMBS', color: palette.magenta },
-  { name: 'CHAOS', color: palette.red },
+  { name: 'BOMBS', color: palette.violet },
+  { name: 'CHAOS', color: palette.crimson },
 ];
 
 export type Placement = 'side' | 'center' | 'any';
