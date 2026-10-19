@@ -34,7 +34,7 @@ Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "g
 - En bevægelig forhindring får aldrig en makker på samme stræk, så banen aldrig lukker helt.
 - Saws og bomber rammer lidt inden for deres tegnede kant.
 
-**Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.
+**Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til næsten den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.
 
 Dør du, fortæller resultatkortet hvor langt du nåede (i procent), om du drejede **for tidligt** eller **for sent**, og hvad din bedste tur på levelet var. De første dødsfald har et lille tip.
 

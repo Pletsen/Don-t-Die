@@ -236,7 +236,7 @@ export class HowToPlay {
         title: 'DON’T TOUCH',
         color: palette.magenta,
         body: 'Walls, saws and bombs = game over.\nSome of them move. Steer around!',
-        note: 'CLOSE CALLS SLOW TIME FOR A MOMENT.',
+        note: 'BOMBS BLOW UP EVERY FEW SECONDS:\nWATCH THEM SWELL, THEN TIME YOUR TURN.',
         images: [saw, bomb, ball],
         words: labels,
         draw: (g, t) => {

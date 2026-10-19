@@ -64,9 +64,9 @@ const NO_HAZARDS: Hazard[] = [];
 /** Saws and bombs collide at this fraction of their drawn radius. */
 const HAZARD_HITBOX = 0.82;
 /** Bombs pulse: they charge up, then blast out to this many times their radius. */
-const BOMB_BLAST = 2;
+const BOMB_BLAST = 1.85;
 const BOMB_PERIOD = 2.6;
-const BOMB_BLAST_TIME = 0.24;
+const BOMB_BLAST_TIME = 0.22;
 /** A bomb's charge at this point of the hazard clock (see Hazard.charge). */
 function bombCharge(clock: number, phase: number): number {
   const t = (clock + (phase / (Math.PI * 2)) * BOMB_PERIOD) % BOMB_PERIOD;
