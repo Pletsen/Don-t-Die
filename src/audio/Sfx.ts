@@ -428,6 +428,11 @@ class SfxEngine {
     this.denied();
   }
 
+  /** A duck lands in the counter: a bright little blip that climbs. */
+  coin(i: number) {
+    this.tone({ freq: 1046 * Math.pow(2, Math.min(i, 12) / 24), duration: 0.07, type: 'triangle', gain: 0.05 });
+  }
+
   /** A gentle sparkle when the warp star is close. */
   starNear() {
     this.tone({ freq: 2093, duration: 0.2, type: 'sine', gain: 0.03 });

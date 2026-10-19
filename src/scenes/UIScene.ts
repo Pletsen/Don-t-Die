@@ -49,6 +49,7 @@ export class UIScene extends Phaser.Scene {
   private rightValue!: Phaser.GameObjects.BitmapText;
   private progress!: Phaser.GameObjects.Graphics;
   private comboText!: Phaser.GameObjects.Text;
+  private comboBadge!: Phaser.GameObjects.Graphics;
   private soundBtn!: IconButton;
   private fxBtn!: IconButton;
   private pauseBtn!: IconButton;
@@ -71,7 +72,7 @@ export class UIScene extends Phaser.Scene {
   private frenzy!: Phaser.GameObjects.Container;
   private frenzyTitle!: Phaser.GameObjects.Text;
   private frenzySub!: Phaser.GameObjects.Text;
-  private frenzyCount!: Phaser.GameObjects.Text;
+  private frenzyCount!: Phaser.GameObjects.BitmapText;
   private frenzyMax!: Phaser.GameObjects.Text;
   private frenzyBar!: Phaser.GameObjects.Graphics;
 
@@ -83,11 +84,17 @@ export class UIScene extends Phaser.Scene {
 
   private over!: Phaser.GameObjects.Container;
   private causeText!: Phaser.GameObjects.Text;
-  private scoreText!: Phaser.GameObjects.Text;
+  private scoreText!: Phaser.GameObjects.BitmapText;
+  private overPlate!: Phaser.GameObjects.Graphics;
+  private overBar!: Phaser.GameObjects.Graphics;
+  private tipText!: Phaser.GameObjects.Text;
+  private confetti!: Phaser.GameObjects.Particles.ParticleEmitter;
+  /** Best progress (0..1) on a level, for the tick on the death card. Set by progress tracking. */
+  levelBest: (id: number) => number | null = () => null;
   private timeText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private flavorText!: Phaser.GameObjects.Text;
-  private retryPill!: Phaser.GameObjects.Container;
+  private retryPill!: Button;
   private overLevels!: Button;
   private overMenu!: Button;
 
@@ -136,6 +143,7 @@ export class UIScene extends Phaser.Scene {
     this.buildAbilityPill();
     this.buildFrenzy();
     this.buildPause();
+    this.buildCutIn();
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
@@ -259,7 +267,8 @@ export class UIScene extends Phaser.Scene {
     this.subValue = this.add.bitmapText(0, 0, 'hudSmall', '', 11).setLetterSpacing(0.5);
     this.rightLabel = this.text(0, 0, 'BEST', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 }).setOrigin(1, 0);
     this.rightValue = this.add.bitmapText(0, 0, 'hud', '', 28).setOrigin(1, 0);
-    this.comboText = this.text(0, 0, '', { size: 16, color: css.orange, glow: true, spacing: 1.2 })
+    this.comboBadge = this.add.graphics().setAlpha(0);
+    this.comboText = this.text(0, 0, '', { size: 18, color: css.orange, glow: true, spacing: 1.5 })
       .setOrigin(0.5)
       .setAlpha(0);
 
@@ -270,6 +279,7 @@ export class UIScene extends Phaser.Scene {
       this.subValue,
       this.rightLabel,
       this.rightValue,
+      this.comboBadge,
       this.comboText,
     ]);
     this.hud.setVisible(false);
@@ -296,6 +306,7 @@ export class UIScene extends Phaser.Scene {
 
   private onAbility(a: { state: string; frac: number }) {
     const changed = a.state !== this.abilityState.state;
+    if (changed && a.state === 'active') this.cutIn();
     this.abilityState = a;
     if (!changed && this.time.now - this.lastAbilityDraw < 80) return;
     this.lastAbilityDraw = this.time.now;
@@ -332,10 +343,14 @@ export class UIScene extends Phaser.Scene {
   private buildFrenzy() {
     this.frenzyTitle = this.text(0, -70, 'DUCK FRENZY!', { size: 38, glow: '#ffd21f', spacing: 2 }).setOrigin(0.5);
     this.frenzySub = this.text(0, -26, 'TAP TAP TAP!', { size: 18, color: '#ffe680', spacing: 3 }).setOrigin(0.5);
-    this.frenzyCount = this.text(0, 40, '0', { size: 84, color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
+    // The counter changes on every tap: a bitmap font, so that's free.
+    this.frenzyCount = this.add.bitmapText(0, 40, 'big', '0', 84).setOrigin(0.5).setTint(0xffd21f);
+    const plate = this.add.graphics();
+    plate.fillStyle(0x0a0f18, 0.82).fillRoundedRect(-150, -112, 300, 256, 26);
+    plate.lineStyle(1.5, 0xffd21f, 0.6).strokeRoundedRect(-150, -112, 300, 256, 26);
     this.frenzyMax = this.text(0, 96, '', { font: 'mono', size: 12, color: css.inkDim, spacing: 2 }).setOrigin(0.5);
     this.frenzyBar = this.add.graphics();
-    this.frenzy = this.add.container(0, 0, [this.frenzyTitle, this.frenzySub, this.frenzyCount, this.frenzyMax, this.frenzyBar]);
+    this.frenzy = this.add.container(0, 0, [plate, this.frenzyTitle, this.frenzySub, this.frenzyCount, this.frenzyMax, this.frenzyBar]);
     this.frenzy.setVisible(false);
   }
 
@@ -541,21 +556,41 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildGameOver() {
-    this.causeText = this.text(0, 0, '', { size: 13, color: css.magenta, spacing: 3 }).setOrigin(0.5);
-    this.scoreText = this.text(0, 0, '0.0 M', { size: 76, glow: true }).setOrigin(0.5);
-    this.timeText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
-    this.bestText = this.text(0, 0, '', { font: 'mono', size: 13, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
+    // The result card: a dark plate in the middle of the screen.
+    this.overPlate = this.add.graphics();
+    this.overBar = this.add.graphics();
+    this.causeText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 3 }).setOrigin(0.5);
+    this.scoreText = this.add.bitmapText(0, 0, 'big', '0', 80).setOrigin(0.5);
+    this.timeText = this.text(0, 0, '', { font: 'mono', size: 12, color: '#8fa3b5', spacing: 1.2 }).setOrigin(0.5);
+    this.bestText = this.text(0, 0, '', { size: 15, color: css.inkDim, spacing: 2 }).setOrigin(0.5);
+    this.tipText = this.text(0, 0, '', { size: 13, color: '#8fa3b5', spacing: 0.5 }).setOrigin(0.5).setAlign('center');
+    this.tipText.setWordWrapWidth(270);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
-    this.retryPill = makeButton(this, { label: 'TAP TO RETRY', width: 184, onPress: () => this.play(this.level) });
-    this.overLevels = makeButton(this, { label: 'LEVELS', width: 110, style: 'ghost', onPress: () => this.showSelect() });
-    this.overMenu = makeButton(this, { label: 'MENU', width: 110, style: 'ghost', onPress: () => this.showMenu() });
+    this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 280, height: 56, onPress: () => this.play(this.level) });
+    this.overLevels = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 134, style: 'ghost', onPress: () => this.showSelect() });
+    this.overMenu = makeButton(this, { label: 'MENU', icon: 'home', width: 134, style: 'ghost', onPress: () => this.showMenu() });
+    this.confetti = this.add
+      .particles(0, 0, TEX.shard, {
+        emitting: false,
+        speed: { min: 180, max: 460 },
+        angle: { min: 205, max: 335 },
+        gravityY: 700,
+        lifespan: { min: 1200, max: 1900 },
+        rotate: { min: 0, max: 360 },
+        scale: { min: 0.25, max: 0.55 },
+        tint: [0xffd21f, 0x2be8ff, 0xff5cb8, 0x7cff6b, 0xffffff],
+      })
+      .setDepth(50);
     this.buildSpinBanner();
 
     this.over = this.add.container(0, 0, [
+      this.overPlate,
+      this.overBar,
       this.causeText,
       this.scoreText,
       this.timeText,
       this.bestText,
+      this.tipText,
       this.flavorText,
       this.retryPill,
       this.overLevels,
@@ -582,7 +617,8 @@ export class UIScene extends Phaser.Scene {
     this.pauseSheet.setPosition(w / 2, h * 0.45);
     this.pausePlate.clear().fillStyle(0x0a0f18, 0.92).fillRoundedRect(-160, -150, 320, 310, 24);
     this.pausePlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(-160, -150, 320, 310, 24);
-    this.comboText.setPosition(w / 2, top + 72);
+    this.comboText.setPosition(w / 2, top + 76);
+    this.comboBadge.setPosition(w / 2, top + 76);
     this.abilityPill?.setPosition(w / 2, h - 40);
 
     const titleSize = Phaser.Math.Clamp(w * 0.17, 48, 100);
@@ -609,15 +645,7 @@ export class UIScene extends Phaser.Scene {
     this.statsLine.setPosition(w / 2, dockTop + 244);
     this.scrim.setSize(w, h);
     this.vignette.setDisplaySize(w, h);
-    const oy = h * 0.4;
-    this.causeText.setPosition(w / 2, oy - 76);
-    this.scoreText.setPosition(w / 2, oy - 18).setFontSize(Phaser.Math.Clamp(w * 0.17, 52, 104));
-    this.timeText.setPosition(w / 2, oy + 38);
-    this.bestText.setPosition(w / 2, oy + 60);
-    this.flavorText.setPosition(w / 2, oy + 92);
-    this.retryPill.setPosition(w / 2, oy + 150);
-    this.overLevels.setPosition(w / 2 - 62, oy + 212);
-    this.overMenu.setPosition(w / 2 + 62, oy + 212);
+    this.layoutOver();
     this.spinBanner?.setPosition(w / 2, top + 88);
 
     this.select.layout(w, h, top + 52);
@@ -795,66 +823,218 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onCombo(n: number) {
-    const labels: Record<number, string> = { 2: 'x2', 3: 'x3', 4: 'x4', 5: 'x5 INSANE', 6: 'x6 UNBELIEVABLE' };
-    this.comboText.setText(n >= 7 ? `x${n} HOW?` : (labels[n] ?? 'PERFECT'));
-    this.tweens.killTweensOf(this.comboText);
-    this.comboText.setAlpha(1).setScale(1.5);
-    this.tweens.add({ targets: this.comboText, scale: 1, duration: 200, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: this.comboText, alpha: 0, delay: 650, duration: 250 });
+    if (n < 2) return;
+    const labels: Record<number, string> = { 5: 'x5  INSANE', 6: 'x6  UNREAL' };
+    this.comboText.setText(n >= 7 ? `x${n}  HOW?` : (labels[n] ?? `x${n}  COMBO`));
+    // A badge behind the words: orange pill, wider for longer labels.
+    const bw = this.comboText.width - 24 + 30;
+    this.comboBadge.clear();
+    this.comboBadge.fillStyle(0x140a04, 0.85).fillRoundedRect(-bw / 2, -17, bw, 34, 17);
+    this.comboBadge.lineStyle(1.5, 0xff9a2e, 0.9).strokeRoundedRect(-bw / 2, -17, bw, 34, 17);
+    const parts = [this.comboText, this.comboBadge];
+    this.tweens.killTweensOf(parts);
+    for (const p of parts) p.setAlpha(1).setScale(1.4);
+    this.tweens.add({ targets: parts, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: parts, alpha: 0, delay: 700, duration: 250 });
     if (n >= 5) this.glitchUntil = this.time.now + 180;
   }
+
+  // --- Super move cut-in -----------------------------------------------------
+
+  private cutInRoot!: Phaser.GameObjects.Container;
+  private cutInBand!: Phaser.GameObjects.Graphics;
+  private cutInFace!: Phaser.GameObjects.Image;
+  private cutInName!: Phaser.GameObjects.Text;
+
+  private buildCutIn() {
+    this.cutInBand = this.add.graphics();
+    this.cutInFace = this.add.image(-110, 0, skinTexture('classic')).setScale(0.9);
+    this.cutInName = this.text(-50, 0, '', { size: 30, glow: '#000000', spacing: 2 }).setOrigin(0, 0.5);
+    this.cutInRoot = this.add.container(0, 0, [this.cutInBand, this.cutInFace, this.cutInName]).setVisible(false);
+  }
+
+  /**
+   * The ability fires: a slanted band in the skin's colour sweeps across with
+   * the skin's face and the move's name, like a fighting-game super.
+   */
+  private cutIn() {
+    const skin = skinById(save.skin);
+    const def = abilityFor(skin.id);
+    const { w, h } = display.size(this);
+    const g = this.cutInBand.clear();
+    const bh = 92;
+    g.fillStyle(skin.glow, 0.9);
+    g.beginPath();
+    g.moveTo(-w, -bh / 2 - 14);
+    g.lineTo(w, -bh / 2 + 14);
+    g.lineTo(w, bh / 2 + 14);
+    g.lineTo(-w, bh / 2 - 14);
+    g.closePath();
+    g.fillPath();
+    // Speed lines across the band.
+    g.lineStyle(2, 0xffffff, 0.45);
+    for (let i = 0; i < 9; i++) {
+      const y = -bh / 2 + 8 + i * 9;
+      const x = -w + ((i * 137) % w) * 2;
+      g.lineBetween(x, y, x + 80 + (i % 3) * 40, y + 1);
+    }
+    g.fillStyle(0x05070a, 0.35).fillRect(-w, bh / 2 - 6, w * 2, 3);
+    this.cutInFace.setTexture(skinTexture(skin.id));
+    if (this.cutInName.text !== def.name) this.cutInName.setText(def.name);
+    this.cutInRoot.setPosition(w / 2, h * 0.38).setRotation(-0.06).setVisible(true).setAlpha(1);
+    this.cutInRoot.setX(-w);
+    this.tweens.killTweensOf(this.cutInRoot);
+    this.tweens.add({ targets: this.cutInRoot, x: w / 2, duration: 170, ease: 'Cubic.easeOut' });
+    this.tweens.add({
+      targets: this.cutInRoot,
+      x: w * 1.6,
+      alpha: 0,
+      delay: 620,
+      duration: 220,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.cutInRoot.setVisible(false),
+    });
+  }
+
+  private lastDeath: DeathData | null = null;
 
   private onDied(d: DeathData) {
     this.mode = 'dead';
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
-    this.tapsFrom = this.time.now + 450;
+    this.tapsFrom = this.time.now + 300;
+    this.lastDeath = d;
     this.onHud(d, true);
+    this.fadeOut(this.hud);
 
     const causes = { wall: 'HIT THE WALL', saw: 'SLICED', bomb: 'BLOWN UP' };
-    this.causeText.setText(d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]);
-    this.bestText.setShadow(0, 0, 'transparent', 0);
+    const timing = d.hint === 'early' ? '  ·  TOO EARLY' : d.hint === 'late' ? '  ·  TOO LATE' : '';
+    this.causeText.setText((d.warped ? `${causes[d.cause]} IN UNIVERSE 2` : causes[d.cause]) + timing);
+    this.bestText.setShadow(0, 0, 'transparent', 0).setColor(css.inkDim);
 
     // Survival has no level map to go back to, so only MENU.
     this.overLevels.setVisible(d.level !== null);
-    this.overMenu.setX(d.level === null ? display.size(this).w / 2 : display.size(this).w / 2 + 62);
+
+    // Tips for the first deaths, so a crash always teaches something.
+    const tips = {
+      early: 'TOO EARLY. WAIT UNTIL THE BALL IS INSIDE THE CORNER SQUARE, THEN TAP.',
+      late: 'TOO LATE. TAP AS SOON AS THE BALL ENTERS THE CORNER SQUARE.',
+      hazard: 'TURN SO YOUR LINE MISSES WHAT IS AHEAD. EARLY TURNS GO LEFT, LATE TURNS RIGHT.',
+      power: 'TIP: TAP 4 TIMES FAST FOR YOUR SKIN\'S SUPER POWER.',
+    };
+    let tip = '';
+    if (d.deaths <= 25) {
+      if (d.hint) tip = tips[d.hint];
+      else if (d.cause !== 'wall') tip = d.deaths % 3 === 0 ? tips.power : tips.hazard;
+    }
+    this.tipText.setText(tip);
+
+    let target = d.meters;
+    let unit = ' M';
+    this.overBar.clear();
     if (d.goal !== null && d.level !== null) {
       const level = levelById(d.level)!;
-      const pct = Math.floor((d.meters / d.goal) * 100);
-      this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M  ·  ${pct}%`);
-      this.bestText.setText(`LEVEL ${d.level} · ${WORLDS[level.world].name}`).setColor(hexColor(WORLDS[level.world].color));
+      const color = WORLDS[level.world].color;
+      const frac = Math.min(1, d.meters / d.goal);
+      target = Math.floor(frac * 100);
+      unit = '%';
+      this.scoreText.setTint(color);
+      this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M   ·   LEVEL ${d.level} ${WORLDS[level.world].name}`);
+      const best = this.levelBest(d.level);
+      if (best !== null && frac > best - 0.001 && frac > 0.02) {
+        this.bestText.setText('NEW BEST').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 12, false, true);
+      } else this.bestText.setText(best !== null ? `BEST ${Math.floor(best * 100)}%` : '');
+      this.drawOverBar(frac, best, color);
       this.flavorText.setText(
-        d.ducks > 0 ? `${d.ducks} DUCKS LOST. FINISH TO KEEP THEM.` : d.goal - d.meters < 30 ? 'SO CLOSE.' : '',
+        d.keptDucks > 0
+          ? `KEPT ${d.keptDucks} OF ${d.ducks} DUCKS`
+          : d.goal - d.meters < 30
+            ? 'SO CLOSE.'
+            : '',
       );
     } else {
-      this.rightValue.setText(`${d.best.toFixed(1)} M`);
-      this.timeText.setText(`${d.seconds.toFixed(2)} SEC`);
-      this.bestText.setText(d.isNewBest ? 'NEW BEST' : `BEST ${d.best.toFixed(1)} M`);
-      this.bestText.setColor(d.isNewBest ? css.orange : css.inkDim);
-      if (d.isNewBest) this.bestText.setShadow(0, 0, css.orange, 14, false, true);
-      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : this.flavorLine(d));
+      this.scoreText.clearTint();
+      this.timeText.setText(`${d.seconds.toFixed(1)} SEC   ·   BEST ${d.best.toFixed(0)} M`);
+      if (d.isNewBest) {
+        this.bestText.setText('NEW RECORD').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 14, false, true);
+        const { w, h } = display.size(this);
+        this.time.delayedCall(450, () => this.confetti.explode(70, w / 2, h * 0.3));
+      } else this.bestText.setText(this.flavorLine(d));
+      this.flavorText.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
       if (d.ducks > 0) this.maybeShowSpinBanner();
     }
+    this.layoutOver();
 
-    this.over.setVisible(true).setAlpha(0);
-    this.fadeIn(this.scrim);
-    this.fadeIn(this.over);
+    this.over.setVisible(true).setAlpha(0).setY(32);
+    this.tweens.add({ targets: this.scrim, alpha: 0.78, duration: 220 });
+    this.over.setData('inactive', false);
+    this.tweens.add({ targets: this.over, alpha: 1, y: 0, duration: 280, ease: 'Cubic.easeOut' });
 
-    // Count the score up for a bit of drama.
+    // Count the score up for a bit of drama (a bitmap font: free to update).
     const counter = { v: 0 };
     this.scoreText.setScale(0.7);
     this.tweens.add({ targets: this.scoreText, scale: 1, duration: 420, ease: 'Back.easeOut' });
     this.tweens.add({
       targets: counter,
-      v: d.meters,
-      duration: Math.min(900, 300 + d.meters * 2),
+      v: target,
+      duration: Math.min(900, 300 + target * 4),
       ease: 'Cubic.easeOut',
-      onUpdate: () => this.scoreText.setText(`${counter.v.toFixed(1)} M`),
+      onUpdate: () => this.scoreText.setText(unit === '%' ? `${Math.round(counter.v)}%` : `${counter.v.toFixed(0)} M`),
     });
     [this.retryPill, this.overLevels, this.overMenu].forEach((b, i) => {
-      b.setScale(0.9).setAlpha(0);
-      this.tweens.add({ targets: b, alpha: 1, scale: 1, delay: 350 + i * 80, duration: 300, ease: 'Back.easeOut' });
+      b.setAlpha(0);
+      this.tweens.add({ targets: b, alpha: 1, delay: 220 + i * 60, duration: 240 });
     });
+  }
+
+  /** Progress bar on the death card, with a tick at your best attempt. */
+  private drawOverBar(frac: number, best: number | null, color: number) {
+    const g = this.overBar.clear();
+    const bw = 260;
+    const y = 0;
+    g.fillStyle(0x1a2433, 1).fillRoundedRect(-bw / 2, y, bw, 8, 4);
+    g.fillStyle(color, 1).fillRoundedRect(-bw / 2, y, Math.max(8, bw * frac), 8, 4);
+    if (best !== null && best > 0) {
+      const bx = -bw / 2 + bw * Math.min(1, best);
+      g.fillStyle(0xffd21f, 1).fillRect(bx - 1, y - 4, 2, 16);
+    }
+  }
+
+  /** Lay out the death card: everything stacked inside the plate. */
+  private layoutOver() {
+    const { w, h } = display.size(this);
+    const cx = w / 2;
+    const level = this.lastDeath?.level != null;
+    const hasTip = this.tipText.text.length > 0;
+    const hasFlavor = this.flavorText.text.length > 0;
+    const parts: [Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject, number][] = [
+      [this.causeText, 30],
+      [this.scoreText, 100],
+    ];
+    if (level) parts.push([this.overBar, 24]);
+    parts.push([this.timeText, 26], [this.bestText, 26]);
+    if (hasTip) parts.push([this.tipText, 50]);
+    if (hasFlavor) parts.push([this.flavorText, 28]);
+    parts.push([this.retryPill, 78], [this.overLevels, 56]);
+    const total = parts.reduce((a, [, hgt]) => a + hgt, 0) + 36;
+    const top = Math.max(display.safeTop() + 60, h * 0.47 - total / 2);
+    let y = top + 22;
+    for (const [obj, hgt] of parts) {
+      obj.setPosition(cx, y + hgt / 2);
+      y += hgt;
+    }
+    if (level) this.overBar.setX(cx);
+    this.tipText.setWordWrapWidth(270);
+    const btnY = this.overLevels.y;
+    if (level) {
+      this.overLevels.setPosition(cx - 72, btnY);
+      this.overMenu.setPosition(cx + 72, btnY);
+    } else this.overMenu.setPosition(cx, btnY);
+    this.overBar.setY(this.overBar.y - 4);
+    const pw = Math.min(w - 24, 340);
+    this.overPlate.clear();
+    this.overPlate.fillStyle(0x0a0f18, 0.92).fillRoundedRect(cx - pw / 2, top, pw, total, 24);
+    this.overPlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(cx - pw / 2, top, pw, total, 24);
   }
 
   private onCleared(d: ClearData) {
@@ -972,7 +1152,7 @@ export class UIScene extends Phaser.Scene {
     this.clearScreen.update(time);
 
     if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {
-      this.retryPill.setScale(1 + 0.025 * Math.sin(t * 4));
+      this.retryPill.setScale(1 + 0.02 * Math.sin(t * 4));
     }
   }
 }
