@@ -12,6 +12,7 @@ import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 import { HowToPlay } from '../ui/HowToPlay';
+import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
@@ -26,6 +27,15 @@ type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'paused' | 'countdo
  * The camera is zoomed by the device pixel ratio with its origin at the
  * top-left, so every position here is in plain CSS pixels.
  */
+/** Tip cards shown once, right before the level where they matter. */
+const LEVEL_TIPS: Record<number, number> = {
+  2: HowToPlay.CARD.perfect,
+  3: HowToPlay.CARD.power,
+  4: HowToPlay.CARD.ducks,
+  6: HowToPlay.CARD.danger,
+};
+const TIPS_KEY = 'dontdie_tips_seen';
+
 /** Bright party colours that all read well on black (no deep blue). */
 const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
 
@@ -35,6 +45,7 @@ function setIfChanged(t: { text: string; setText(s: string): unknown }, s: strin
 
 export class UIScene extends Phaser.Scene {
   private mode: Mode = 'menu';
+  private tipsSeen = new Set<number>(readJSON<number[]>(TIPS_KEY, []));
   /** The level being played, or null for survival. */
   private level: number | null = null;
   /** Ignore background taps until this time, so a panicked tap doesn't skip a screen. */
@@ -752,7 +763,30 @@ export class UIScene extends Phaser.Scene {
   }
 
   private play(level: number | null) {
+    // A one-time tip card right before a level that brings something new.
+    const tip = level !== null ? LEVEL_TIPS[level] : undefined;
+    if (tip !== undefined && !this.tipsSeen.has(level!)) {
+      this.tipsSeen.add(level!);
+      writeJSON(TIPS_KEY, [...this.tipsSeen]);
+      this.mode = 'howto';
+      this.hideSpinBanner();
+      this.fadeOut(this.title);
+      this.fadeOut(this.over);
+      this.fadeOut(this.select.root);
+      this.fadeOut(this.hud);
+      if (this.clearScreen.root.visible) this.clearScreen.hide();
+      this.fadeIn(this.scrim, 0.92);
+      this.howTo.showSingle(tip, () => {
+        this.fadeOut(this.howTo.root);
+        this.play(level);
+      });
+      this.howTo.root.setVisible(true).setAlpha(0);
+      this.fadeIn(this.howTo.root);
+      this.tapsFrom = this.time.now + 400;
+      return;
+    }
     this.level = level;
+    this.fadeOut(this.howTo.root);
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
     this.frenzy.setVisible(false);
@@ -1117,10 +1151,10 @@ export class UIScene extends Phaser.Scene {
   update(time: number) {
     const t = time / 1000;
     // Which corner buttons show depends on the screen.
-    const running = this.mode === 'play' || this.mode === 'countdown' || this.mode === 'paused';
     this.pauseBtn.setVisible(this.mode === 'play');
-    this.soundBtn.setVisible(!running);
-    this.fxBtn.setVisible(!running);
+    // Sound/effects toggles: on the main menu (and inside the pause sheet).
+    this.soundBtn.setVisible(this.mode === 'menu');
+    this.fxBtn.setVisible(this.mode === 'menu');
     // After a crash the darkness creeps in from the edges.
     this.vignette.setAlpha(0.85 + shared.gloom * 0.15);
 

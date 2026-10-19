@@ -44,6 +44,8 @@ export class HowToPlay {
   private next: Button;
   private cards: Card[] = [];
   private index = 0;
+  /** In single-card mode: what to do when the card is dismissed. */
+  private single: (() => void) | null = null;
   private openedAt = 0;
   /** Every ball image, so the equipped skin can be swapped in. */
   private balls: Phaser.GameObjects.Image[] = [];
@@ -405,11 +407,29 @@ export class HowToPlay {
 
   show() {
     for (const b of this.balls) b.setTexture(skinTexture(save.skin));
+    this.single = null;
     this.index = 0;
     this.render();
   }
 
+  /** Show one card on its own (a tip right before it matters), then call `done`. */
+  showSingle(index: number, done: () => void) {
+    for (const b of this.balls) b.setTexture(skinTexture(save.skin));
+    this.single = done;
+    this.index = Math.max(0, Math.min(this.cards.length - 1, index));
+    this.render();
+  }
+
+  /** Card numbers for showSingle. */
+  static readonly CARD = { goal: 0, tap: 1, perfect: 2, danger: 3, ducks: 4, power: 5, skins: 6 } as const;
+
   private go(delta: number) {
+    if (this.single) {
+      const done = this.single;
+      this.single = null;
+      done();
+      return;
+    }
     const to = this.index + delta;
     if (to < 0) {
       this.onDone(false);
@@ -435,7 +455,7 @@ export class HowToPlay {
   private render() {
     const card = this.cards[this.index];
     this.openedAt = this.scene.time.now;
-    this.header.setText(`HOW TO PLAY  ·  ${this.index + 1} / ${this.cards.length}`);
+    this.header.setText(this.single ? 'NEW!' : `HOW TO PLAY  ·  ${this.index + 1} / ${this.cards.length}`);
     this.title.setText(card.title).setShadow(0, 0, hexColor(card.color), 16, false, true);
     this.body.setText(card.body);
     this.note.setText(card.note);
@@ -445,7 +465,9 @@ export class HowToPlay {
       c.words.forEach((w) => w.setVisible(on));
     });
     this.back.setLabel(this.index === 0 ? 'MENU' : 'BACK');
-    this.next.setLabel(this.index === this.cards.length - 1 ? 'LET’S GO!' : 'NEXT');
+    this.next.setLabel(this.single ? 'GOT IT!' : this.index === this.cards.length - 1 ? 'LET’S GO!' : 'NEXT');
+    this.back.setVisible(!this.single);
+    this.dots.setVisible(!this.single);
     this.drawDots();
   }
 
