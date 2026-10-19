@@ -58,7 +58,9 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** Ordinary survival hazards (outside zones). */
 function survivalHazards(d: number): HazardRules | null {
   const chance = tuning.hazardChanceAt(d);
-  return chance > 0 ? { chance, kinds: ['saw', 'bomb'], placement: 'side', moving: 0.3 } : null;
+  // Early hazards stand still (mostly), so the first ones are easy to read.
+  const moving = d * METERS_PER_PX < 250 ? 0.1 : 0.3;
+  return chance > 0 ? { chance, kinds: ['saw', 'bomb'], placement: 'side', moving } : null;
 }
 
 /**

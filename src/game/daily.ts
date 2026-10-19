@@ -107,7 +107,8 @@ const base: Omit<DailyModifier, 'id' | 'name' | 'blurb' | 'color'> = {
   kinds: ['saw', 'bomb'],
   chanceMul: 1,
   chanceAdd: 0,
-  after: 110,
+  // Same as survival (tuning.HAZARDS_FROM_M): something to dodge from 80 m.
+  after: 80,
   moving: 0.3,
   placement: 'side',
   perSegment: 1,

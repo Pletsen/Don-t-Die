@@ -9,6 +9,11 @@ export const METERS_PER_PX = 1 / 9;
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
+/** Survival (and the Daily Run) get their first hazards here, in metres. */
+export const HAZARDS_FROM_M = 80;
+/** Early hazard chance: at HAZARDS_FROM_M, and at 400 m. */
+const EARLY_CHANCE: [number, number] = [0.16, 0.3];
+
 /**
  * How fast Survival gets harder. Every difficulty curve below uses the
  * distance divided by this, so 2 = everything ramps up half as fast.
@@ -48,11 +53,19 @@ export const tuning = {
     return { min, max: Math.max(max, min + 40) };
   },
 
-  /** Chance that a new segment gets a hazard. The first 110 m are clean. */
+  /**
+   * Chance that a new segment gets a hazard. The first HAZARDS_FROM_M metres
+   * are clean; then a light early floor (EARLY_CHANCE, rising a little to
+   * 400 m) so there is something to dodge right away, until the long ramp
+   * (which reaches 0.62 around 1.2 km) takes over at ~650 m.
+   */
   hazardChanceAt(distPx: number) {
-    const m = (distPx * METERS_PER_PX) / RAMP;
-    if (m < 55) return 0;
-    return clamp((m - 55) / 900, 0, 0.62);
+    const real = distPx * METERS_PER_PX;
+    if (real < HAZARDS_FROM_M) return 0;
+    const m = real / RAMP;
+    const ramp = clamp((m - 55) / 900, 0, 0.62);
+    const early = EARLY_CHANCE[0] + (EARLY_CHANCE[1] - EARLY_CHANCE[0]) * clamp((real - HAZARDS_FROM_M) / (400 - HAZARDS_FROM_M), 0, 1);
+    return Math.max(ramp, early);
   },
 };
 
