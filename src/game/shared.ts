@@ -121,6 +121,10 @@ export interface DeathData extends HudData {
   best: number;
   isNewBest: boolean;
   cause: 'wall' | 'saw' | 'bomb';
+  /** For wall crashes: was the turn too early or too late? */
+  hint: 'early' | 'late' | null;
+  /** Ducks kept anyway (all in survival, half of the Universe-2 ducks in a level). */
+  keptDucks: number;
   deaths: number;
 }
 

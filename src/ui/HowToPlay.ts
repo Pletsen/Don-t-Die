@@ -50,7 +50,7 @@ export class HowToPlay {
 
   constructor(
     private scene: Phaser.Scene,
-    private onDone: () => void,
+    private onDone: (finished: boolean) => void,
   ) {
     this.header = makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: css.inkDim, spacing: 3 }).setOrigin(0.5);
     this.title = makeText(scene, 0, 0, '', { size: 30, glow: true, spacing: 1 }).setOrigin(0.5);
@@ -412,12 +412,12 @@ export class HowToPlay {
   private go(delta: number) {
     const to = this.index + delta;
     if (to < 0) {
-      this.onDone();
+      this.onDone(false);
       return;
     }
     if (to >= this.cards.length) {
       save.setIntroSeen();
-      this.onDone();
+      this.onDone(true);
       return;
     }
     this.index = to;

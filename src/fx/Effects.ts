@@ -25,6 +25,8 @@ export class Effects {
   private drift: Phaser.GameObjects.Particles.ParticleEmitter;
   private embers: Phaser.GameObjects.Particles.ParticleEmitter;
   private floaters: Phaser.GameObjects.Text[] = [];
+  /** No floating words (the menu's demo run). */
+  quiet = false;
   /** Re-used one-shot images (rings, flares, ghosts, streaks): no new objects per tap. */
   private pool: Phaser.GameObjects.Image[] = [];
   private lastFloater: { t: Phaser.GameObjects.Text; at: number; x: number; y: number; priority: number } | null = null;
@@ -207,6 +209,7 @@ export class Effects {
    * doesn't need to be re-rendered at all.
    */
   floater(x: number, y: number, text: string, color: string = css.cyan, size = 14, priority = 1) {
+    if (this.quiet) return;
     // Only one word at a time near the same spot: a newer, more important word
     // replaces the old one; a less important one is skipped. Stops "PERFECT x9",
     // "CLOSE" and an ability name from piling up on top of each other.

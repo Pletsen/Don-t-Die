@@ -2,19 +2,19 @@ import Phaser from 'phaser';
 import { EV, shared, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, palette } from '../game/palette';
+import { css } from '../game/palette';
 import { LEVELS, WORLDS, levelById } from '../game/levels';
 import { sfx } from '../audio/Sfx';
-import { GLOW_PAD, hexColor, makeButton, makeText, type Button, type TextOpts } from '../ui/widgets';
+import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
-import { SKINS, skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
+import { skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
 import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
 import { SkinShop } from '../ui/SkinShop';
 import { HowToPlay } from '../ui/HowToPlay';
 import { TEX, DUCK_RES } from '../fx/textures';
 
-type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
+type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
 /**
  * Top layer: HUD, title, level map, game-over and level-clear screens.
@@ -29,7 +29,7 @@ type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'play' | 'dead' | 'clear';
 /** Bright party colours that all read well on black (no deep blue). */
 const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
 
-function setIfChanged(t: Phaser.GameObjects.Text, s: string) {
+function setIfChanged(t: { text: string; setText(s: string): unknown }, s: string) {
   if (t.text !== s) t.setText(s);
 }
 
@@ -42,26 +42,30 @@ export class UIScene extends Phaser.Scene {
 
   private hud!: Phaser.GameObjects.Container;
   private distLabel!: Phaser.GameObjects.Text;
-  private distValue!: Phaser.GameObjects.Text;
-  private subValue!: Phaser.GameObjects.Text;
+  // Numbers that change every frame are BitmapText (glowFont.ts): free to update.
+  private distValue!: Phaser.GameObjects.BitmapText;
+  private subValue!: Phaser.GameObjects.BitmapText;
   private rightLabel!: Phaser.GameObjects.Text;
-  private rightValue!: Phaser.GameObjects.Text;
+  private rightValue!: Phaser.GameObjects.BitmapText;
   private progress!: Phaser.GameObjects.Graphics;
   private comboText!: Phaser.GameObjects.Text;
-  private soundBtn!: Phaser.GameObjects.Container;
-  private fxBtn!: Phaser.GameObjects.Container;
+  private soundBtn!: IconButton;
+  private fxBtn!: IconButton;
+  private pauseBtn!: IconButton;
 
   private title!: Phaser.GameObjects.Container;
   private titleLayers: Phaser.GameObjects.Text[] = [];
   private subtitle!: Phaser.GameObjects.Text;
   private statsLine!: Phaser.GameObjects.Text;
   private playBtn!: Button;
+  private levelsBtn!: Button;
   private survivalBtn!: Button;
   private skinsBtn!: Button;
-  private playNote!: Phaser.GameObjects.Text;
-  private survivalNote!: Phaser.GameObjects.Text;
-  private skinsNote!: Phaser.GameObjects.Text;
-  private howBtn!: Button;
+  private dailyBtn!: Button;
+  private helpBtn!: IconButton;
+  private recordsBtn!: IconButton;
+  /** The menu's bottom panel; the demo run plays above it. */
+  private dock!: Phaser.GameObjects.Graphics;
   private howTo!: HowToPlay;
 
   private frenzy!: Phaser.GameObjects.Container;
@@ -126,16 +130,18 @@ export class UIScene extends Phaser.Scene {
       levels: () => this.showSelect(),
       menu: () => this.showMenu(),
     });
-    this.howTo = new HowToPlay(this, () => this.showMenu());
+    // Finishing HOW TO PLAY before ever clearing level 1 starts level 1.
+    this.howTo = new HowToPlay(this, (finished) => (finished && save.starsFor(1) === 0 ? this.play(1) : this.showMenu()));
     this.buildToggles();
     this.buildAbilityPill();
     this.buildFrenzy();
+    this.buildPause();
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
     this.showMenu();
-    // First launch: explain the game before anything else.
-    if (!save.introSeen && save.deaths === 0 && save.totalStars() === 0) this.showHowTo();
+    // First launch goes straight to the menu: PLAY starts level 1, which
+    // teaches itself (slow corners with TAP! hints). HOW TO PLAY is one tap away.
 
     // Several fingers can tap at once (handy in a DUCK FRENZY).
     this.input.addPointer(2);
@@ -150,7 +156,11 @@ export class UIScene extends Phaser.Scene {
         if (this.mode === 'select') this.play(nextLevelToPlay());
         else if (this.mode === 'menu') this.showSelect();
         else this.onBackgroundTap();
-      } else if (e.code === 'Escape' && this.mode !== 'play' && this.mode !== 'menu') {
+      } else if ((e.code === 'Escape' || e.code === 'KeyP') && this.mode === 'play') {
+        this.game.events.emit(EV.pause);
+      } else if (e.code === 'Escape' && this.mode === 'paused') {
+        this.resume();
+      } else if (e.code === 'Escape' && this.mode !== 'play' && this.mode !== 'menu' && this.mode !== 'countdown') {
         this.showMenu();
       }
     });
@@ -162,6 +172,13 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on(EV.combo, this.onCombo, this);
     this.game.events.on(EV.ability, this.onAbility, this);
     this.game.events.on(EV.frenzy, this.onFrenzy, this);
+    this.game.events.on(EV.pause, this.onPauseRequest, this);
+    // Leaving the app (home button, a call, the notification shade) pauses the run.
+    const onVisibility = () => {
+      if (document.hidden) this.game.events.emit(EV.pause);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onVisibility);
     this.game.events.on(EV.warp, () => {
       this.toast('WELCOME TO UNIVERSE 2', 2600);
       this.glitchUntil = this.time.now + 400;
@@ -198,9 +215,17 @@ export class UIScene extends Phaser.Scene {
     this.tweens.add({ targets: this.toastText, alpha: 0, delay: hold, duration: 400 });
   }
 
+  /** True while a run is on screen (playing, paused, or its result showing). */
+  private inRun() {
+    return this.mode === 'dead' || this.mode === 'clear' || this.mode === 'paused' || this.mode === 'countdown' || this.mode === 'play';
+  }
+
   private onBackgroundTap() {
     if (this.time.now < this.tapsFrom) return;
     switch (this.mode) {
+      case 'paused':
+        this.resume();
+        break;
       case 'play':
         this.game.events.emit(EV.tap);
         break;
@@ -222,40 +247,18 @@ export class UIScene extends Phaser.Scene {
     return makeText(this, x, y, str, o);
   }
 
-  private iconButton(label: string, onPress: () => void) {
-    const bg = this.add.graphics();
-    const txt = this.text(0, 0, label, { size: 12, font: 'mono', weight: '700', color: css.inkDim }).setOrigin(0.5);
-    const hit = this.add.zone(0, 0, 44, 44).setInteractive({ useHandCursor: true });
-    const btn = this.add.container(0, 0, [bg, txt, hit]);
-    hit.on('pointerdown', () => {
-      sfx.unlock();
-      onPress();
-    });
-    return btn;
-  }
-
-  private paintButton(btn: Phaser.GameObjects.Container, active: boolean) {
-    const bg = btn.list[0] as Phaser.GameObjects.Graphics;
-    const txt = btn.list[1] as Phaser.GameObjects.Text;
-    bg.clear();
-    bg.fillStyle(0x0a0e14, 0.6).fillCircle(0, 0, 17);
-    bg.lineStyle(1, active ? palette.cyan : 0x182432, 1).strokeCircle(0, 0, 17);
-    txt.setColor(active ? css.cyan : css.inkDim);
-  }
-
   private refreshButtons() {
-    this.paintButton(this.soundBtn, !save.muted);
-    (this.soundBtn.list[1] as Phaser.GameObjects.Text).setText(save.muted ? 'OFF' : 'SND');
-    this.paintButton(this.fxBtn, save.fxReduced);
+    for (const b of [this.soundBtn, this.pauseSound]) b?.setIcon(save.muted ? 'mute' : 'sound', !save.muted);
+    for (const b of [this.fxBtn, this.pauseFx]) b?.setIcon('sparkle', !save.fxReduced);
   }
 
   private buildHud() {
     this.progress = this.add.graphics();
     this.distLabel = this.text(0, 0, 'DISTANCE', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 });
-    this.distValue = this.text(0, 0, '0.0 M', { size: 26, weight: '600', glow: true });
-    this.subValue = this.text(0, 0, '', { font: 'mono', size: 11, color: css.inkDim });
+    this.distValue = this.add.bitmapText(0, 0, 'hud', '0.0 M', 28);
+    this.subValue = this.add.bitmapText(0, 0, 'hudSmall', '', 11).setLetterSpacing(0.5);
     this.rightLabel = this.text(0, 0, 'BEST', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.6 }).setOrigin(1, 0);
-    this.rightValue = this.text(0, 0, '', { size: 26, weight: '600', glow: true }).setOrigin(1, 0);
+    this.rightValue = this.add.bitmapText(0, 0, 'hud', '', 28).setOrigin(1, 0);
     this.comboText = this.text(0, 0, '', { size: 16, color: css.orange, glow: true, spacing: 1.2 })
       .setOrigin(0.5)
       .setAlpha(0);
@@ -373,17 +376,89 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildToggles() {
-    this.soundBtn = this.iconButton('SND', () => {
+    const toggleSound = () => {
       save.setMuted(!save.muted);
       sfx.setMuted(save.muted);
       this.refreshButtons();
-    });
-    this.fxBtn = this.iconButton('FX', () => {
+      this.toast(save.muted ? 'SOUND OFF' : 'SOUND ON', 900);
+    };
+    const toggleFx = () => {
       save.setFxReduced(!save.fxReduced);
       this.game.events.emit(EV.fxChanged);
       this.refreshButtons();
-    });
+      this.toast(save.fxReduced ? 'REDUCED EFFECTS' : 'FULL EFFECTS', 900);
+    };
+    this.soundBtn = makeIconButton(this, 'sound', toggleSound);
+    this.soundBtn.on('toggle', toggleSound);
+    this.fxBtn = makeIconButton(this, 'sparkle', toggleFx);
+    this.fxBtn.on('toggle', toggleFx);
+    this.pauseBtn = makeIconButton(this, 'pause', () => this.game.events.emit(EV.pause));
     this.refreshButtons();
+  }
+
+  // --- Pause ----------------------------------------------------------------
+
+  private pauseSheet!: Phaser.GameObjects.Container;
+  private pauseSound!: IconButton;
+  private pauseFx!: IconButton;
+  private pausePlate!: Phaser.GameObjects.Graphics;
+  private countdown!: Phaser.GameObjects.BitmapText;
+
+  private buildPause() {
+    this.pausePlate = this.add.graphics();
+    const title = this.text(0, -96, 'PAUSED', { size: 34, glow: true, spacing: 3 }).setOrigin(0.5);
+    const resume = makeButton(this, { label: 'RESUME', icon: 'play', width: 240, height: 56, onPress: () => this.resume() });
+    resume.setY(-12);
+    const retry = makeButton(this, { label: 'RETRY', icon: 'retry', width: 114, style: 'ghost', onPress: () => this.play(this.level) });
+    retry.setPosition(-63, 60);
+    const menu = makeButton(this, { label: 'MENU', icon: 'home', width: 114, style: 'ghost', onPress: () => this.showMenu() });
+    menu.setPosition(63, 60);
+    // Sound and effects toggles live inside the sheet while paused.
+    this.pauseSound = makeIconButton(this, 'sound', () => this.soundBtn.emit('toggle'));
+    this.pauseSound.setPosition(-28, 122);
+    this.pauseFx = makeIconButton(this, 'sparkle', () => this.fxBtn.emit('toggle'));
+    this.pauseFx.setPosition(28, 122);
+    this.pauseSheet = this.add
+      .container(0, 0, [this.pausePlate, title, resume, retry, menu, this.pauseSound, this.pauseFx])
+      .setVisible(false);
+    this.refreshButtons();
+    this.countdown = this.add.bitmapText(0, 0, 'big', '', 96).setOrigin(0.5).setVisible(false);
+  }
+
+  /** The run was paused (pause button, or the app went to the background). */
+  private onPauseRequest() {
+    if (this.mode !== 'play') return;
+    this.mode = 'paused';
+    this.tweens.killTweensOf(this.countdown);
+    this.countdown.setVisible(false);
+    this.pauseSheet.setVisible(true).setAlpha(0).setScale(0.96);
+    this.tweens.add({ targets: this.pauseSheet, alpha: 1, scale: 1, duration: 180, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: this.scrim, alpha: 0.7, duration: 180 });
+    this.tapsFrom = this.time.now + 250;
+  }
+
+  /** 3, 2, 1, go: time to get your thumb ready before the ball moves again. */
+  private resume() {
+    if (this.mode !== 'paused') return;
+    this.mode = 'countdown';
+    this.fadeOut(this.pauseSheet);
+    this.tweens.add({ targets: this.scrim, alpha: 0, duration: 400 });
+    const { w, h } = display.size(this);
+    this.countdown.setPosition(w / 2, h * 0.42);
+    const tick = (n: number) => {
+      if (this.mode !== 'countdown') return;
+      if (n === 0) {
+        this.countdown.setVisible(false);
+        this.mode = 'play';
+        this.game.events.emit(EV.resume);
+        return;
+      }
+      sfx.click();
+      this.countdown.setText(String(n)).setVisible(true).setAlpha(1).setScale(1.5);
+      this.tweens.add({ targets: this.countdown, scale: 1, alpha: 0.2, duration: 420, ease: 'Cubic.easeOut' });
+      this.time.delayedCall(450, () => tick(n - 1));
+    };
+    tick(3);
   }
 
   private buildTitle() {
@@ -397,45 +472,72 @@ export class UIScene extends Phaser.Scene {
     main.setShadow(0, 0, css.cyan, 24, false, true);
     this.titleLayers = [magenta, cyan, main];
 
-    this.subtitle = this.text(0, 0, 'CHAOS ARCADE', { font: 'mono', size: 12, color: css.inkDim, spacing: 5 }).setOrigin(0.5);
-    this.statsLine = this.text(0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.5 }).setOrigin(0.5);
+    this.subtitle = this.text(0, 0, 'ONE TAP. ONE RULE.', { font: 'mono', size: 12, color: '#8fa3b5', spacing: 4 }).setOrigin(0.5);
+    this.statsLine = this.text(0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1.2 }).setOrigin(0.5);
 
-    // Main menu: the game opens here.
-    const note = () => this.text(0, 0, '', { font: 'mono', size: 10, color: css.inkDim, spacing: 1.2 }).setOrigin(0.5);
-    this.playBtn = makeButton(this, { label: 'PLAY', width: 260, height: 56, onPress: () => this.showSelect() });
-    this.survivalBtn = makeButton(this, { label: 'SURVIVAL', width: 260, style: 'ghost', onPress: () => this.play(null) });
+    // Main menu: the game opens here. The demo run plays in the top half,
+    // behind the logo; the buttons sit on a dark dock in the bottom half.
+    this.dock = this.add.graphics();
+    this.playBtn = makeButton(this, { label: 'PLAY', icon: 'play', width: 300, height: 60, onPress: () => this.playNext() });
+    this.levelsBtn = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 146, height: 46, style: 'ghost', onPress: () => this.showSelect() });
+    this.survivalBtn = makeButton(this, {
+      label: 'SURVIVAL',
+      icon: 'infinity',
+      width: 146,
+      height: 46,
+      style: 'ghost',
+      color: 0xff9a2e,
+      onPress: () => this.play(null),
+    });
     this.skinsBtn = makeButton(this, {
       label: 'SKINS',
-      width: 260,
+      icon: 'sparkle',
+      width: 146,
+      height: 46,
       style: 'ghost',
       color: 0xffd21f,
       onPress: () => this.showSkins(),
     });
-    this.howBtn = makeButton(this, {
-      label: 'HOW TO PLAY',
-      width: 150,
-      height: 32,
+    this.dailyBtn = makeButton(this, {
+      label: 'DAILY',
+      icon: 'flame',
+      width: 146,
+      height: 46,
       style: 'ghost',
-      color: 0x8fa3b5,
-      onPress: () => this.showHowTo(),
+      color: 0xff5cb8,
+      onPress: () => this.showDaily(),
     });
-    this.playNote = note();
-    this.survivalNote = note();
-    this.skinsNote = note();
+    this.helpBtn = makeIconButton(this, 'help', () => this.showHowTo(), 0x8fa3b5);
+    this.recordsBtn = makeIconButton(this, 'trophy', () => this.showRecords(), 0xffd21f);
 
     // (Named `title` for history: it is the whole main menu.)
     this.title = this.add.container(0, 0, [
+      this.dock,
       ...this.titleLayers,
       this.subtitle,
       this.playBtn,
-      this.playNote,
+      this.levelsBtn,
       this.survivalBtn,
-      this.survivalNote,
       this.skinsBtn,
-      this.skinsNote,
-      this.howBtn,
+      this.dailyBtn,
+      this.helpBtn,
+      this.recordsBtn,
       this.statsLine,
     ]);
+  }
+
+  /** PLAY goes straight into the next level to beat. */
+  private playNext() {
+    this.play(nextLevelToPlay());
+  }
+
+  /** Daily challenges (filled in by the progression screens). */
+  private showDaily() {
+    this.toast('DAILY CHALLENGES: SOON', 1200);
+  }
+
+  private showRecords() {
+    this.toast('RECORDS: SOON', 1200);
   }
 
   private buildGameOver() {
@@ -468,30 +570,43 @@ export class UIScene extends Phaser.Scene {
     const side = 16;
 
     this.distLabel.setPosition(side, top);
-    this.distValue.setPosition(side - GLOW_PAD, top + 12 - GLOW_PAD);
+    this.distValue.setPosition(side, top + 12);
     this.subValue.setPosition(side, top + 44);
     this.rightLabel.setPosition(w - side, top);
-    this.rightValue.setPosition(w - side + GLOW_PAD, top + 12 - GLOW_PAD);
-    this.soundBtn.setPosition(w / 2 - 22, top + 18);
-    this.fxBtn.setPosition(w / 2 + 22, top + 18);
+    this.rightValue.setPosition(w - side, top + 12);
+    // Sound and effects sit top-right in menus; during a run only the pause
+    // button shows (no accidental mutes mid-run).
+    this.soundBtn.setPosition(w - side - 24 - 52, top + 22);
+    this.fxBtn.setPosition(w - side - 24, top + 22);
+    this.pauseBtn.setPosition(w / 2, top + 22);
+    this.pauseSheet.setPosition(w / 2, h * 0.45);
+    this.pausePlate.clear().fillStyle(0x0a0f18, 0.92).fillRoundedRect(-160, -150, 320, 310, 24);
+    this.pausePlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(-160, -150, 320, 310, 24);
     this.comboText.setPosition(w / 2, top + 72);
     this.abilityPill?.setPosition(w / 2, h - 40);
 
-    const titleSize = Phaser.Math.Clamp(w * 0.14, 44, 96);
+    const titleSize = Phaser.Math.Clamp(w * 0.17, 48, 100);
     this.titleLayers.forEach((t) => t.setFontSize(titleSize));
     const cy = this.titleY();
     this.titleLayers.forEach((t) => t.setPosition(w / 2, cy));
-    this.subtitle.setPosition(w / 2, cy + titleSize * 0.62);
-    const my = Math.min(Math.max(cy + titleSize * 0.62 + 70, h * 0.5), h - 320);
-    this.playBtn.setPosition(w / 2, my);
-    this.playNote.setPosition(w / 2, my + 42);
-    this.survivalBtn.setPosition(w / 2, my + 96);
-    this.survivalNote.setPosition(w / 2, my + 132);
-    this.skinsBtn.setPosition(w / 2, my + 186);
-    this.skinsNote.setPosition(w / 2, my + 222);
-    this.howBtn.setPosition(w / 2, my + 264);
-    this.statsLine.setPosition(w / 2, Math.max(h - 24, my + 294));
+    this.subtitle.setPosition(w / 2, cy + titleSize * 0.6);
+    this.helpBtn.setPosition(side + 24, top + 22);
+    this.recordsBtn.setPosition(side + 24 + 52, top + 22);
 
+    // The dock: a dark plate over the bottom of the screen.
+    const bottom = h - display.safeBottom();
+    const dockH = Math.min(330, Math.max(290, h * 0.4));
+    const dockTop = bottom - dockH;
+    const dw = Math.min(w - 16, 420);
+    this.dock.clear();
+    this.dock.fillStyle(0x070b12, 0.9).fillRoundedRect(w / 2 - dw / 2, dockTop, dw, dockH + 40, 28);
+    this.dock.lineStyle(1, 0x1c2a3a, 1).strokeRoundedRect(w / 2 - dw / 2, dockTop, dw, dockH + 40, 28);
+    this.playBtn.setPosition(w / 2, dockTop + 58);
+    this.levelsBtn.setPosition(w / 2 - 78, dockTop + 132);
+    this.survivalBtn.setPosition(w / 2 + 78, dockTop + 132);
+    this.skinsBtn.setPosition(w / 2 - 78, dockTop + 190);
+    this.dailyBtn.setPosition(w / 2 + 78, dockTop + 190);
+    this.statsLine.setPosition(w / 2, dockTop + 244);
     this.scrim.setSize(w, h);
     this.vignette.setDisplaySize(w, h);
     const oy = h * 0.4;
@@ -517,21 +632,26 @@ export class UIScene extends Phaser.Scene {
 
   private fadeOut(target: Phaser.GameObjects.Container) {
     if (!target.visible) return;
+    // Buttons on a screen that is fading away no longer react.
+    target.setData('inactive', true);
     this.tweens.add({ targets: target, alpha: 0, duration: 180, onComplete: () => target.setVisible(false) });
   }
 
   private fadeIn(target: Phaser.GameObjects.Container | Phaser.GameObjects.Rectangle, alpha = 1) {
     if ('setVisible' in target) target.setVisible(true);
+    target.setData('inactive', false);
     this.tweens.add({ targets: target, alpha, duration: 220 });
   }
 
   private titleY() {
-    return display.size(this).h * 0.24 + display.safeTop();
+    return display.size(this).h * 0.2 + display.safeTop();
   }
 
   /** The main menu: logo, PLAY, SURVIVAL and SKINS. */
   private showMenu() {
-    const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    const fromRun = this.inRun();
+    this.pauseSheet.setVisible(false);
+    this.countdown.setVisible(false);
     this.mode = 'menu';
     this.hideSpinBanner();
     this.fadeOut(this.select.root);
@@ -541,23 +661,18 @@ export class UIScene extends Phaser.Scene {
     this.fadeOut(this.hud);
     if (this.clearScreen.root.visible) this.clearScreen.hide();
     if (fromRun) this.game.events.emit(EV.menu);
-    this.tweens.add({ targets: this.scrim, alpha: 0.5, duration: 220 });
+    // Light scrim: the demo run should glow through above the dock.
+    this.tweens.add({ targets: this.scrim, alpha: 0.18, duration: 220 });
 
     const next = nextLevelToPlay();
-    this.playNote.setText(save.totalStars() > 0 ? `NEXT UP  ·  LEVEL ${next}` : '20 LEVELS  ·  4 WORLDS');
-    this.survivalNote.setText(save.best > 0 ? `ENDLESS  ·  BEST ${save.best.toFixed(1)} M` : 'ENDLESS  ·  HOW FAR CAN YOU GO?');
-    this.skinsNote.setText(`${save.ducks} DUCKS  ·  ${save.skins.size} / ${SKINS.length} SKINS`);
+    this.playBtn.setLabel(save.totalStars() > 0 || next > 1 ? `PLAY  ·  LEVEL ${next}` : 'PLAY');
 
     this.title.setVisible(true).setAlpha(0);
     this.fadeIn(this.title);
     const stars = save.totalStars();
-    this.statsLine.setText(
-      stars > 0
-        ? `${stars} STARS  ·  ${save.deaths} DEATHS`
-        : save.deaths > 0
-          ? `BEST ${save.best.toFixed(1)} M  ·  ${save.deaths} DEATHS`
-          : 'ONE TAP. ONE RULE.',
-    );
+    const parts = [`${stars} / ${LEVELS.length * 3} STARS`, `${save.ducks} DUCKS`];
+    if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
+    this.statsLine.setText(parts.join('   ·   '));
   }
 
   /** HOW TO PLAY: animated cards explaining the game. */
@@ -574,7 +689,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showSkins() {
-    const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    const fromRun = this.inRun();
     this.mode = 'skins';
     sfx.swoosh();
     this.hideSpinBanner();
@@ -591,7 +706,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private showSelect() {
-    const fromRun = this.mode === 'dead' || this.mode === 'clear';
+    const fromRun = this.inRun();
     this.hideSpinBanner();
     this.fadeOut(this.shop.root);
     this.mode = 'select';
@@ -610,6 +725,8 @@ export class UIScene extends Phaser.Scene {
 
   private play(level: number | null) {
     this.level = level;
+    this.pauseSheet.setVisible(false);
+    this.countdown.setVisible(false);
     this.frenzy.setVisible(false);
     this.hideSpinBanner();
     this.fadeOut(this.title);
@@ -635,12 +752,11 @@ export class UIScene extends Phaser.Scene {
 
     const level = this.level === null ? null : levelById(this.level);
     if (level) {
-      const color = hexColor(WORLDS[level.world].color);
       this.rightLabel.setText('LEVEL');
-      this.rightValue.setText(String(level.id)).setShadow(0, 0, color, 16, false, true);
+      this.rightValue.setText(String(level.id)).setTint(WORLDS[level.world].color);
     } else {
       this.rightLabel.setText('BEST');
-      this.rightValue.setText(`${save.best.toFixed(1)} M`).setShadow(0, 0, css.cyan, 16, false, true);
+      this.rightValue.setText(`${save.best.toFixed(1)} M`).clearTint();
     }
     this.onHud(d, true);
   }
@@ -657,7 +773,7 @@ export class UIScene extends Phaser.Scene {
   private onHud(d: HudData, force = false) {
     this.lastHud = d;
     const now = this.time.now;
-    if (!force && now - this.lastHudDraw < 80) return;
+    if (!force && now - this.lastHudDraw < 33) return;
     this.lastHudDraw = now;
     setIfChanged(this.distValue, `${d.meters.toFixed(1)} M`);
     setIfChanged(this.subValue, d.goal === null ? `${d.seconds.toFixed(2)} SEC` : `GOAL ${d.goal.toFixed(0)} M`);
@@ -690,6 +806,8 @@ export class UIScene extends Phaser.Scene {
 
   private onDied(d: DeathData) {
     this.mode = 'dead';
+    this.pauseSheet.setVisible(false);
+    this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 450;
     this.onHud(d, true);
 
@@ -741,6 +859,8 @@ export class UIScene extends Phaser.Scene {
 
   private onCleared(d: ClearData) {
     this.mode = 'clear';
+    this.pauseSheet.setVisible(false);
+    this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 1200;
     this.onHud(d, true);
     this.fadeOut(this.hud);
@@ -816,6 +936,11 @@ export class UIScene extends Phaser.Scene {
 
   update(time: number) {
     const t = time / 1000;
+    // Which corner buttons show depends on the screen.
+    const running = this.mode === 'play' || this.mode === 'countdown' || this.mode === 'paused';
+    this.pauseBtn.setVisible(this.mode === 'play');
+    this.soundBtn.setVisible(!running);
+    this.fxBtn.setVisible(!running);
     // After a crash the darkness creeps in from the edges.
     this.vignette.setAlpha(0.85 + shared.gloom * 0.15);
 

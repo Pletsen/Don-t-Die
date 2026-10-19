@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type Hazard, type Segment, type WarpStar } from '../game/Track';
 import { tuning, METERS_PER_PX, SECTOR_METERS } from '../game/tuning';
-import { shared, EV, type DeathData, type ClearData, type PlayRequest, type FrenzyData } from '../game/shared';
+import { shared, EV, type DeathData, type ClearData, type PlayRequest, type FrenzyData, type StatEvent, type RunMode } from '../game/shared';
 import { endlessCourse, levelCourse, type Course } from '../game/course';
 import { levelById } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette, hueColor } from '../game/palette';
-import { sfx, haptic } from '../audio/Sfx';
+import { sfx as realSfx, haptic as realHaptic } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
 import { PlayerView } from '../fx/PlayerView';
@@ -39,6 +39,26 @@ const FRENZY_MAX = 70;
 const FRENZY_COOLDOWN = 1.4;
 /** What a red duck is worth. */
 const RED_DUCK_VALUE = 5;
+
+/**
+ * In the menu's attract mode the game plays itself, silently. While `silent`
+ * is set, every sound and vibration from this scene is swallowed here.
+ */
+let silent = false;
+const NOOP = () => {};
+const sfx = new Proxy(realSfx, {
+  get(target, key, receiver) {
+    const value = Reflect.get(target, key, receiver);
+    if (typeof value !== 'function') return value;
+    return silent ? NOOP : value.bind(target);
+  },
+});
+const haptic = (pattern: number | number[]) => {
+  if (!silent) realHaptic(pattern);
+};
+
+/** The demo run behind the main menu: drives itself and can't crash. */
+const DEMO_ABILITY: AbilityDef = { name: '', desc: '', autopilot: true, ghost: true };
 
 const NO_HAZARDS: Hazard[] = [];
 /** Saws and bombs collide at this fraction of their drawn radius. */
@@ -76,6 +96,18 @@ export class GameScene extends Phaser.Scene {
   private nearHazardFlags = new WeakSet<Hazard>();
 
   private cam = { x: 0, y: 0, zoom: 1, punch: 0 };
+  /** Attract mode: the menu's self-playing demo run. */
+  private demo = false;
+  /** The player paused (button or app sent to the background). */
+  private userPaused = false;
+  private bestCombo = 0;
+  private abilityUsed = false;
+  private mode: RunMode = 'survival';
+  /** The last tap that wasn't a corner turn, to explain a wall crash (TOO EARLY / TOO LATE). */
+  private lastWildTurn: { t: number; early: boolean } | null = null;
+  /** First-ever play of level 1: the first corners slow down with a TAP! hint. */
+  private guidedGates = 0;
+  private nextGuideAt = 0;
   private deathFade = 0;
   /** When the crash happened (ms), so the colour drains only after the blast. */
   private diedAt = 0;
@@ -136,7 +168,7 @@ export class GameScene extends Phaser.Scene {
     this.effects = new Effects(this);
 
     this.setupCamera();
-    this.resetRun(endlessCourse());
+    this.startDemo();
 
     const listeners: [string, (...args: any[]) => void][] = [
       [EV.play, this.onPlay],
@@ -144,6 +176,8 @@ export class GameScene extends Phaser.Scene {
       [EV.tap, this.onTap],
       [EV.fxChanged, this.applyFxSetting],
       [EV.skin, () => this.playerView.setSkin(save.skin)],
+      [EV.pause, this.onPause],
+      [EV.resume, this.onResume],
     ];
     listeners.forEach(([ev, fn]) => this.game.events.on(ev, fn, this));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -218,6 +252,13 @@ export class GameScene extends Phaser.Scene {
     this.safeUntil = 0;
 
     this.state = 'ready';
+    this.demo = false;
+    silent = false;
+    this.effects.quiet = false;
+    this.bestCombo = 0;
+    this.abilityUsed = false;
+    this.lastWildTurn = null;
+    this.guidedGates = 0;
     this.course = course;
     this.track = new Track(course);
     this.current = 0;
@@ -244,10 +285,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   private onPlay(req: PlayRequest) {
+    this.wake();
     this.maybeRaiseQuality();
     this.resetPerfWindow();
     const level = req.level === null ? undefined : levelById(req.level);
     this.resetRun(level ? levelCourse(level) : endlessCourse());
+    this.mode = level ? 'level' : req.daily ? 'daily' : 'survival';
+    // Level 1, never cleared: guide the first corners.
+    this.guidedGates = level && level.id === 1 && save.starsFor(1) === 0 ? 3 : 0;
     sfx.unlock();
     sfx.start();
     this.state = 'play';
@@ -255,12 +300,71 @@ export class GameScene extends Phaser.Scene {
     this.playerView.setEmitting(true);
     this.effects.shockwave(0, 0, this.course.accentAt(0), 90, 500);
     this.game.events.emit(EV.started, { meters: 0, seconds: 0, goal: this.goalMeters() });
+    this.stat({ type: 'runStart', mode: this.mode, level: this.course.level?.id ?? null });
     this.emitAbility();
   }
 
   private onMenu() {
+    this.wake();
     music.setEnergy(0);
+    this.startDemo();
+  }
+
+  /** The menu's attract mode: an endless run that plays itself, silently. */
+  private startDemo() {
     this.resetRun(endlessCourse());
+    this.demo = true;
+    silent = true;
+    this.effects.quiet = true;
+    this.state = 'play';
+    this.playerView.setEmitting(true);
+    this.ability = { def: DEMO_ABILITY, until: Infinity, shield: 0, revive: 0, graceUntil: 0, nextLaser: 0, nextImplode: 0 };
+  }
+
+  /** Undo a pause or a hit-stop: the scene must be running for a new run. */
+  private wake() {
+    this.userPaused = false;
+    if (this.sys.isPaused()) this.sys.resume();
+  }
+
+  private onPause() {
+    if (this.demo || this.state !== 'play' || this.userPaused) return;
+    this.userPaused = true;
+    music.setEnergy(0);
+    if (!this.sys.isPaused()) this.sys.pause();
+  }
+
+  private onResume() {
+    if (!this.userPaused) return;
+    this.userPaused = false;
+    if (this.sys.isPaused()) this.sys.resume();
+    music.setEnergy(1);
+    this.resetPerfWindow();
+    // A moment of grace: you just came back.
+    this.spinGuardUntil = this.time.now + 300;
+  }
+
+  /**
+   * First play of level 1: time slows as you reach a corner, and a pulsing
+   * ring with "TAP!" shows where to tap. Three times, then you're on your own.
+   */
+  private guide(next: Segment) {
+    const g = next.gate!;
+    const cx = (g.x1 + g.x2) / 2;
+    const cy = (g.y1 + g.y2) / 2;
+    const dist = Math.hypot(this.player.x - cx, this.player.y - cy);
+    if (dist > 190) return;
+    this.slowMo = Math.max(this.slowMo, 0.12);
+    if (this.time.now >= this.nextGuideAt) {
+      this.nextGuideAt = this.time.now + 420;
+      this.effects.shockwave(cx, cy, 0xffffff, 70, 420);
+      if (dist > 60) this.effects.floater(cx, cy - 46, 'TAP!', '#ffffff', 20, 3);
+    }
+  }
+
+  /** Tell progress tracking (missions, achievements, records) what happened. */
+  private stat(e: StatEvent) {
+    if (!this.demo) this.game.events.emit(EV.stat, e);
   }
 
   /**
@@ -328,11 +432,22 @@ export class GameScene extends Phaser.Scene {
     sfx.turn(this.turnCount++);
     haptic(8);
 
-    if (!inGate) return;
+    if (!inGate) {
+      // A turn outside the corner: before it (too early) or after it (too late).
+      if (next?.gate) {
+        const cur = this.track.get(this.current)!;
+        const along = trackDistance(cur, this.player.x, this.player.y) - cur.travelled;
+        this.lastWildTurn = { t: this.elapsed, early: along < cur.length - cur.halfWidth * 2 };
+      }
+      return;
+    }
     this.gateTurns++;
+    if (this.guidedGates > 0) this.guidedGates--;
     if (perfect) {
       this.combo++;
       this.perfects++;
+      this.bestCombo = Math.max(this.bestCombo, this.combo);
+      this.stat({ type: 'perfect', combo: this.combo });
       const label = this.combo > 1 ? `PERFECT x${this.combo}` : 'PERFECT';
       this.effects.floater(this.player.x, this.player.y - 26, label, css.orange, this.combo > 4 ? 17 : 14);
       this.effects.shockwave(this.player.x, this.player.y, palette.orange, 70 + Math.min(this.combo, 6) * 10);
@@ -341,7 +456,7 @@ export class GameScene extends Phaser.Scene {
       shared.pulse = 1;
       sfx.perfect(this.combo);
       haptic(16);
-      this.game.events.emit(EV.combo, this.combo);
+      if (!this.demo) this.game.events.emit(EV.combo, this.combo);
     } else {
       this.combo = 0;
     }
@@ -380,8 +495,38 @@ export class GameScene extends Phaser.Scene {
     const isNewBest = endless && meters > save.best;
     if (isNewBest) save.setBest(meters);
     save.addDeath();
-    // Survival never finishes, so its ducks are kept when the run ends.
-    if (endless && this.ducks > 0) save.addDucks(this.ducks);
+    // Survival never finishes, so its ducks are kept when the run ends. In a
+    // level you keep half of what you bonked in Universe 2: something to show
+    // for a great run that ended badly.
+    let keptDucks = 0;
+    if (this.ducks > 0) {
+      keptDucks = endless ? this.ducks : Math.floor(this.ducks / 2);
+      if (keptDucks > 0) save.addDucks(keptDucks, endless ? this.mode : 'level');
+    }
+    // Why the wall? A recent turn outside the corner says early or late;
+    // no turn at all means the corner was missed: late.
+    let hint: DeathData['hint'] = null;
+    if (cause === 'wall') {
+      const w = this.lastWildTurn;
+      hint = w && this.elapsed - w.t < 1.2 ? (w.early ? 'early' : 'late') : 'late';
+    }
+    this.stat({
+      type: 'runEnd',
+      mode: this.mode,
+      level: this.course.level?.id ?? null,
+      cleared: false,
+      meters,
+      seconds: this.elapsed,
+      progress: this.course.goalPx ? Math.min(1, this.distance / this.course.goalPx) : 0,
+      stars: 0,
+      perfects: this.perfects,
+      gateTurns: this.gateTurns,
+      bestCombo: this.bestCombo,
+      ducks: this.ducks,
+      warped: this.course.warped,
+      cause,
+      abilityUsed: this.abilityUsed,
+    });
 
     const data: DeathData = {
       meters,
@@ -393,9 +538,11 @@ export class GameScene extends Phaser.Scene {
       best: save.best,
       isNewBest,
       cause,
+      hint,
+      keptDucks,
       deaths: save.deaths,
     };
-    this.time.delayedCall(520, () => {
+    this.time.delayedCall(380, () => {
       if (isNewBest && meters > 1) sfx.newBest();
       this.game.events.emit(EV.died, data);
     });
@@ -416,8 +563,25 @@ export class GameScene extends Phaser.Scene {
     save.recordStars(level.id, stars);
     if (this.course.warped) save.recordWarp(level.id);
     // Ducks only become currency when you make it to the finish.
-    if (this.ducks > 0) save.addDucks(this.ducks);
+    if (this.ducks > 0) save.addDucks(this.ducks, 'level');
     this.endAbility(true);
+    this.stat({
+      type: 'runEnd',
+      mode: this.mode,
+      level: level.id,
+      cleared: true,
+      meters: this.distance * METERS_PER_PX,
+      seconds: this.elapsed,
+      progress: 1,
+      stars,
+      perfects: this.perfects,
+      gateTurns: this.gateTurns,
+      bestCombo: this.bestCombo,
+      ducks: this.ducks,
+      warped: this.course.warped,
+      cause: null,
+      abilityUsed: this.abilityUsed,
+    });
 
     const { x, y } = this.player;
     const color = this.course.accentAt(this.distance);
@@ -444,7 +608,7 @@ export class GameScene extends Phaser.Scene {
       warped: this.course.warped,
       ducks: this.ducks,
     };
-    this.time.delayedCall(650, () => this.game.events.emit(EV.cleared, data));
+    this.time.delayedCall(560, () => this.game.events.emit(EV.cleared, data));
   }
 
   // --- Frame loop -----------------------------------------------------------
@@ -456,7 +620,9 @@ export class GameScene extends Phaser.Scene {
     if (this.state === 'play') {
       if (this.frenzy) this.stepFrenzy(dt);
       else this.step(dt);
-      this.watchPerformance();
+      if (!this.demo) this.watchPerformance();
+      // The demo starts over before it gets too fast to look calm.
+      else if (this.distance * METERS_PER_PX > 1800) this.startDemo();
     }
     else if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
     if (this.state === 'clear') this.coastToStop(dt);
@@ -505,8 +671,8 @@ export class GameScene extends Phaser.Scene {
     shared.intensity = lerp(shared.intensity, this.state === 'play' ? speedNorm : 0.15, damp(0.2, dt));
     shared.pulse = Math.max(0, shared.pulse - dt * 2.5);
 
-    if (this.state === 'play' && this.ability) this.emitAbility();
-    if (this.state === 'play') {
+    if (this.state === 'play' && this.ability && !this.demo) this.emitAbility();
+    if (this.state === 'play' && !this.demo) {
       this.game.events.emit(EV.hud, {
         meters: this.distance * METERS_PER_PX,
         seconds: this.elapsed,
@@ -562,6 +728,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (ab && next && this.player.dir === cur.dir) this.autoTurn(ab, cur, next);
+    if (this.guidedGates > 0 && next?.gate && this.player.dir === cur.dir) this.guide(next);
 
     const inCur = pointInRect(this.player.x, this.player.y, cur.rect);
     const inNext = !!next && pointInRect(this.player.x, this.player.y, next.rect);
@@ -587,6 +754,7 @@ export class GameScene extends Phaser.Scene {
       this.slowMo = Math.max(this.slowMo, 0.1);
       // Zoom punch: the camera jolts in, like a flinch. Harder for 1 px.
       this.cam.punch = Math.max(this.cam.punch, extreme ? 0.09 : 0.05);
+      this.stat({ type: 'nearMiss', kind: 'wall' });
       sfx.near();
       haptic(5);
     }
@@ -642,6 +810,7 @@ export class GameScene extends Phaser.Scene {
         this.effects.floater(this.player.x, this.player.y - 20, 'CLOSE', css.magenta, 12, 0);
         this.slowMo = Math.max(this.slowMo, 0.09);
         this.cam.punch = Math.max(this.cam.punch, 0.07);
+        this.stat({ type: 'nearMiss', kind: 'hazard' });
         sfx.near();
       }
     }
@@ -673,6 +842,7 @@ export class GameScene extends Phaser.Scene {
   /** You hit the star: off to the bonus universe for the rest of the run. */
   private warp(star: WarpStar) {
     star.taken = true;
+    this.stat({ type: 'warp', level: this.course.level?.id ?? null });
     this.starView?.destroy();
     this.starView = null;
     this.course.enterWarp(this.distance);
@@ -721,12 +891,14 @@ export class GameScene extends Phaser.Scene {
     const mult = this.ability?.def.duckMult ?? 1;
 
     if (hz.variant === 'golden') {
+      this.stat({ type: 'duck', variant: 'golden', value: 0 });
       this.startFrenzy(hz);
       return;
     }
     if (hz.variant === 'red') {
       const value = RED_DUCK_VALUE * mult;
       this.ducks += value;
+      this.stat({ type: 'duck', variant: 'red', value });
       sfx.redDuck();
       haptic([15, 20, 30]);
       this.effects.floater(hz.x, hz.y - 24, `GOTCHA! +${value}`, '#ff6a55', 18, 2);
@@ -737,6 +909,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.ducks += mult;
+    this.stat({ type: 'duck', variant: 'normal', value: mult });
     sfx.quack();
     const lines = ['QUACK', 'BONK', 'SORRY DUCK', 'QUACK QUACK', 'DUCK OFF', 'WHEEE'];
     this.effects.floater(hz.x, hz.y - 20, lines[this.ducks % lines.length], '#ffd21f', 14);
@@ -851,6 +1024,7 @@ export class GameScene extends Phaser.Scene {
     this.effects.burst(x, y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 16 : 50);
     this.cam.punch = 0.2;
     sfx.frenzyEnd(f.count);
+    this.stat({ type: 'frenzy', count: f.count });
     haptic([30, 40, 80]);
     this.emitFrenzy('end');
   }
@@ -902,6 +1076,10 @@ export class GameScene extends Phaser.Scene {
     const skin = skinById(save.skin);
     const def = abilityFor(skin.id);
     this.abilityCharges--;
+    this.abilityUsed = true;
+    this.stat({ type: 'ability', skin: skin.id });
+    // A beat of freeze: the super move lands (the UI shows its cut-in).
+    this.hitStop(90);
     // Survival recharge starts counting when the ability ENDS (see endAbility),
     // otherwise at top speed it would be ready again the moment it ran out.
     this.rechargeAtM = Infinity;
@@ -1122,7 +1300,7 @@ export class GameScene extends Phaser.Scene {
     if (this.sys.isPaused()) return;
     this.sys.pause();
     window.setTimeout(() => {
-      if (this.sys.isPaused()) this.sys.resume();
+      if (this.sys.isPaused() && !this.userPaused) this.sys.resume();
     }, ms);
   }
 
@@ -1270,22 +1448,32 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const d = DIRS[this.player.dir];
 
-    // Look ahead in the direction of travel, further at higher speed.
-    const look = this.state === 'ready' ? 0 : this.state === 'clear' ? 20 : 70 + speedNorm * 50;
+    // Look ahead in the direction of travel, further at higher speed. On a
+    // tall phone screen the sideways legs have less room, so look further
+    // ahead on those.
+    const { w, h } = display.size(this);
+    const sideways = d.x !== 0 && h > w;
+    const look = this.state === 'ready' ? 0 : this.state === 'clear' ? 20 : (70 + speedNorm * 60) * (sideways ? 1.3 : 1);
     let tx = this.player.x + d.x * look;
     let ty = this.player.y + d.y * look;
-    if (this.state === 'ready') {
-      // Title screen: idle drift, with the track sitting below the logo.
-      const { h } = display.size(this);
+    if (this.demo) {
+      // Menu: the demo run plays in the upper part of the screen, behind the
+      // logo, above the menu dock.
+      tx = this.player.x + d.x * 40;
+      ty = this.player.y + d.y * 40 + (h * 0.2) / this.baseZoom();
+    } else if (this.state === 'ready') {
       tx += Math.sin(t * 0.4) * 20 + 60;
-      ty += Math.cos(t * 0.33) * 14 - (h * 0.17) / this.baseZoom();
+      ty += Math.cos(t * 0.33) * 14 + (h * 0.2) / this.baseZoom();
     }
     this.cam.x = lerp(this.cam.x, tx, damp(0.002, dt));
     this.cam.y = lerp(this.cam.y, ty, damp(0.002, dt));
 
     this.cam.punch = lerp(this.cam.punch, 0, damp(0.004, dt));
 
-    const targetZoom = 1 - speedNorm * 0.1 + (this.state === 'ready' ? 0.08 : this.state === 'clear' ? 0.15 : 0);
+    // Zoom out with speed, so there's more to see when it matters most.
+    const targetZoom = this.demo
+      ? 0.92
+      : 1 - speedNorm * 0.18 + (this.state === 'ready' ? 0.08 : this.state === 'clear' ? 0.15 : 0);
     this.cam.zoom = lerp(this.cam.zoom, targetZoom, damp(0.05, dt));
     const zoom = this.baseZoom() * (this.cam.zoom + this.cam.punch);
 
