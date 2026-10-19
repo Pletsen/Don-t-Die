@@ -2,78 +2,118 @@
 
 Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, som drejer i en spiral. Hvert tryk drejer dig 90° med uret. Rammer du væggen, en savklinge eller en bombe, er det slut.
 
-Spillet åbner i en hovedmenu med **PLAY** (level-kortet), **SURVIVAL**, **SKINS** og en lille **HOW TO PLAY**-knap. HOW TO PLAY er 7 kort med små animationer (mål, sving, PERFECT, farer, ænder, super power og skins). Første gang man åbner spillet, vises den af sig selv (`src/ui/HowToPlay.ts`). Der er **20 levels i 4 verdener**. Hver verden introducerer én ny ting:
+## Sådan er spillet bygget op
+
+**Hovedmenuen** viser en demo: spillet spiller sig selv bag logoet, mens knapperne sidder på en mørk "dock" nederst:
+
+- **PLAY · LEVEL n** starter direkte det næste level, du ikke har klaret.
+- **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **SKINS** er spillemaskinen DUCK-O-MATIC, og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
+- Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS), lyd og effekter.
+
+Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
+
+Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
+
+### Levels
+
+Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
 
 | Verden | Farve | Nyt |
 |---|---|---|
 | 1 · Basics | Cyan | Kun sving |
 | 2 · Saws | Orange | Savklinger |
-| 3 · Bombs | Magenta | Bomber og smallere korridor |
-| 4 · Chaos | Rød | Alt, hurtigt og i bevægelse |
+| 3 · Bombs | Violet | Bomber, der lader op og eksploderer, og en smallere korridor |
+| 4 · Chaos | Karmin | Alt, hurtigt og i bevægelse |
 
-Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
+Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
 
-Vil man hellere bare køre, er **SURVIVAL** altid åben: en uendelig bane, der bliver hurtigere og hurtigere, med rekord for længste distance.
+Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil spillede over 1.700 ture):
 
-### Warp-stjernen
+- Forhindringer kommer først efter 60 m i et level og bliver gradvist tættere.
+- Afstanden fra et sving til første forhindring vokser med farten, så der altid er tid til at reagere.
+- En bevægelig forhindring får aldrig en makker på samme stræk, så banen aldrig lukker helt.
+- Saws og bomber rammer lidt inden for deres tegnede kant.
 
-I hvert level er der gemt en lillebitte, regnbuefarvet stjerne et stykke inde på banen. Den står ude ved den ene væg, så man skal dreje tidligt eller sent med vilje for at ramme den. Rammer du den, bliver du sendt til **Universe 2** resten af turen:
+**Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.
 
-- banen bliver dobbelt så lang
-- baggrunden bliver en psykedelisk regnbue-spiral, og en discokugle hænger på himlen
-- kuglen får googly eyes og festhat
-- saw blades og bomber bliver skiftet ud med gummiænder, som du kan vælte (QUACK)
-- en pizza med solbriller flyver forbi på en regnbue, og der dukker skøre beskeder op
-- musikken skifter toneart og tempo
+Dør du, fortæller resultatkortet hvor langt du nåede (i procent), om du drejede **for tidligt** eller **for sent**, og hvad din bedste tur på levelet var. De første dødsfald har et lille tip.
 
-### Tre slags ænder
+### Survival
+
+En uendelig bane, der bliver hurtigere og hurtigere. Forhindringerne starter ved 80 m. Fra 200 m og derefter hver 400 m kommer en **zone** på 200 m i tilfældig rækkefølge:
+
+| Zone | Hvad sker der |
+|---|---|
+| SAW ALLEY | savklinger, savklinger, savklinger |
+| BOMB FIELD | bomber overalt |
+| NARROWS | væggene kommer tættere på |
+| SPEEDWAY | lange stræk, fuld fart |
+| DUCK POND | ænder i Survival: dem beholder du |
+| CALM | et pusterum |
+
+Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD!**). Survival giver også 1 and pr. 100 m.
+
+### Dagligt: DAILY
+
+- **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +10/+15/+25 ænder, én gang om dagen.
+- **3 daglige missioner** (let/medium/svær, +10/+15/+25, +20 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
+- **Streak:** kom igen hver dag for 10, 15, 20, 25, 30, 40 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
+
+Det hele ligger i `src/game/progress.ts`, `missions.ts`, `daily.ts` og `achievements.ts` og gemmes i ét versioneret save (`dontdie_progress_v1`).
+
+### Rekorder og achievements: RECORDS
+
+Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** med ænder som belønning. Bannere glider ned fra toppen, når du klarer en mission, låser en achievement op eller slår en rekord. Under en tur er de små og kan ikke trykkes på, så et tryk stadig drejer kuglen.
+
+### Warp-stjernen og Universe 2
+
+Fra level 3 er der gemt en lillebitte regnbuestjerne et stykke inde på banen, ude ved den ene væg. Rammer du den, bliver du sendt til **Universe 2** resten af turen: banen bliver dobbelt så lang, baggrunden en psykedelisk regnbue-spiral med discokugle, kuglen får googly eyes og festhat, forhindringerne bliver til gummiænder, og musikken skifter toneart. I verden 3 og 4 er der dog stadig en enkelt sav hist og her.
+
+### Tre slags ænder (med rigtige "rap"-lyde)
 
 | And | Chance | Værdi | Hvad sker der |
 |---|---|---|---|
-| Gul | resten | 1 | Står og vipper på vandet |
-| Rød | 10 % | 5 | Løber frem og tilbage på tværs af banen. Misser du den, stikker den af (TOO SLOW!) og venter på dig et par stræk længere fremme, så du får en ny chance |
-| Gylden, kæmpestor | 0,5 % | op til 70 | Starter **DUCK FRENZY**: verden fryser, og hvert tryk i 8 sekunder er én and (flere fingre tæller også). Bagefter er der en kort pause, så de sidste panik-tryk ikke styrer dig ind i en væg |
+| Gul | resten | 1 | Vipper på vandet |
+| Rød (med svedbånd) | 10 % | 5 | Løber frem og tilbage. Misser du den, stikker den af (TOO SLOW!) og venter længere fremme |
+| Gylden med krone | 0,5 %, højst én pr. tur | op til 70 | **DUCK FRENZY**: verden fryser, og hvert tryk i 8 sekunder er én and |
 
-Chancerne står i `DUCK_CHANCE` i `Track.ts`. Frenzy-tallene (`FRENZY_SECONDS`, `FRENZY_MAX`) og den røde ands værdi står øverst i `GameScene.ts`.
-
-Levels, hvor du har fundet stjernen, får en lille guldstjerne i hjørnet på level-kortet. Logikken ligger i `Track.placeWarpStar`, `course.enterWarp` og `GameScene.warp`.
+Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`). Dør du i Universe 2 i et level, beholder du halvdelen af ænderne.
 
 ### Skins og DUCK-O-MATIC
 
-Ænderne, du vælter i Universe 2, bliver til valuta, når du **gennemfører** banen. Dør du, er de tabt. Under **SKINS** i hovedmenuen står spillemaskinen DUCK-O-MATIC: ét træk koster 50 ænder (cirka to warp-baner), og hjulene lander på et tilfældigt skin. Får du et, du allerede har, får du 5 ænder tilbage.
+Ænder er valuta. Ét træk i DUCK-O-MATIC koster 50 ænder (eller et gratis spin fra streaks og "Star Road": 15/30/45/60 stjerner). Spillemaskinen er fair:
+
+- Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 10/20/40/80 ænder tilbage.
+- Pity: mindst epic inden for 15 spin, legendary inden for 60. Tælleren står på maskinen.
 
 | Sjældenhed | Chance | Skins |
 |---|---|---|
-| Common | 65 % | Classic, Mint, Bubblegum, Lemon, Grape, Tangerine, Frosty, Blush, Moon, Potato |
-| Rare | 25 % | Kitty, Froggy, Panda, Beach Ball, Donut, Soccer, Eyeball |
-| Epic | 8 % | Lava, Galaxy, Cyber Eye, Pizza Pal |
-| Legendary | 2 % | Golden Crown, Black Hole, Duck King |
+| Common | 65 % | Classic, Mint Chip, Bubblegum, Lemon, Grape, Tangerine, Frosty, Blush, Moon, Potato, Watermelon, Cookie |
+| Rare | 25 % | Kitty, Froggy, Panda, Beach Ball, Donut, Soccer, Eyeball, Busy Bee, Disco Ball, Boo |
+| Epic | 8 % | Lava, Galaxy, Cyber Eye, Pizza Pal, Plasma, Fishbowl |
+| Legendary | 2 % | Golden Crown, Black Hole, Duck King, Phoenix |
 
-Skins er data i `src/game/skins.ts` (navn, sjældenhed, glød og spor), og hvert skin tegnes i `src/fx/skinTextures.ts`. Et nyt skin kræver én linje i listen og én tegnefunktion.
+Skins er data i `src/game/skins.ts`, og hvert skin tegnes i `src/fx/skinTextures.ts`. Spillemaskinen ligger i `src/ui/SkinShop.ts` og reglerne i `src/game/gacha.ts`.
 
-### Skin-evner
+### Super power (skin-evner)
 
-Hvert skin har en særlig evne. **Tryk 4 gange hurtigt**: hvert tryk drejer kuglen 90° med det samme, så fire hurtige tryk vender den hele vejen rundt og tilbage i samme retning. Så aktiveres evnen, og den kører i 10 sekunder. Under de hurtige sving må kuglen godt stikke et øjeblik uden for banen. Den kan bruges én gang pr. level (i SURVIVAL lades den op igen hver 500 m). Pillen nederst på skærmen viser, om evnen er klar.
+**Tryk 4 gange hurtigt.** Hvert tryk drejer 90°, så du laver et lille loop, og så tænder skinnets evne i 10 sekunder: et skråt bånd med skinnets ansigt og evnens navn fejer over skærmen. Du kommer altid ud af loopet med retning langs banen, også hvis det startede i et sving. Den kan bruges én gang pr. level. I Survival lades den op 500 m og 30 sekunder efter, at den sluttede.
 
-Jo sjældnere skin, jo stærkere evne:
+- **Common:** FOCUS, COOL HEAD, BUBBLE, SQUEEZE, GRAPEVINE, ZEST RUSH, DEEP FREEZE, SO SHY, ORBIT, COUCH POTATO, THICK RIND, CRUMBS
+- **Rare:** NINE LIVES, TONGUE, BAMBOO BITE, BOUNCY, SUGAR RUSH, KICKOFF, THIRD EYE, HONEY RUSH, DANCE FLOOR, SPOOKY
+- **Epic:** MELTDOWN, HYPERDRIVE, TARGET LOCK, PIZZA PARTY, TESLA STORM, TIDAL WAVE
+- **Legendary:** ROYAL DECREE, EVENT HORIZON, QUACK ARMY, REBIRTH
 
-- **Common:** FOCUS (slowmotion), COOL HEAD (alle sving PERFECT), BUBBLE (boble tager ét slag), SQUEEZE (halv størrelse), GRAPEVINE (magnet til ænder og warp-stjernen), ZEST RUSH (fart), DEEP FREEZE (forhindringer fryser), SO SHY (forhindringer glider væk), ORBIT (automatiske sving ved væggen), COUCH POTATO (spillet spiller sig selv, langsomt)
-- **Rare:** NINE LIVES (overlev ét styrt), TONGUE (stor magnet og hop over forhindringer), BAMBOO BITE (æd forhindringer), BOUNCY (hop af væggene), SUGAR RUSH (fart og alt PERFECT), KICKOFF (sparket af sted, væggene er bander), THIRD EYE (slowmotion og alt PERFECT)
-- **Epic:** MELTDOWN, HYPERDRIVE (autopilot med dobbelt fart og dobbelte ænder), TARGET LOCK (lasere), PIZZA PARTY (forhindringer bliver til ænder)
-- **Legendary:** ROYAL DECREE, EVENT HORIZON (et sort hul, der sluger alt), QUACK ARMY
-
-Evnerne er opskrifter af små byggeklodser (fart, slowmotion, magnet, skjold, autopilot …) i `src/game/abilities.ts`. En ny evne er en ny opskrift; selve klodserne ligger i `GameScene.runAbility`.
-
-Ænder, du samler med evnerne, tæller også uden for Universe 2.
-
-### I baggrunden
-
-Langt ude i rummet sker der ting: stjerneskud (en sjælden gang en hel regn af dem), en planet med ringe, en UFO der stopper op og lyser med sin traktorstråle, en astronaut der tumler forbi og siger hej, og en sjælden gang en neon-hval. Alt det styres af `src/fx/BackgroundEvents.ts`.
+Evnerne er opskrifter af små byggeklodser i `src/game/abilities.ts`.
 
 ### Hemmeligheder (spoiler)
 
-- Konami-koden på tastaturet (↑ ↑ ↓ ↓ ← → ← → B A) giver et regnbue-spor. På mobilen: tryk 10 gange hurtigt på "SELECT LEVEL".
+- Konami-koden på tastaturet (↑ ↑ ↓ ↓ ← → ← → B A) giver et regnbue-spor. På mobilen: tryk 10 gange hurtigt på "LEVELS"-overskriften.
 - SURVIVAL har et par beskeder gemt ved særlige distancer.
+
+### Ydelse og skarphed
+
+Spillet tegner i skærmens fulde pixeltæthed (op til 3x). Kan en telefon ikke følge med, går den ned ad en "kvalitetsstige": først lettere bloom, så ingen glød og baggrundsprikker, og først til sidst lavere opløsning (aldrig under 2x). Efter en glat tur prøver den et trin op igen (`src/game/display.ts`). Glød er "bagt" ind i billeder én gang ved opstart i stedet for at køre som dyre GPU-filtre (`src/fx/glow.ts`), og tal, der ændrer sig hele tiden (HUD, frenzy, score), bruger en glødende bitmap-font, så de er gratis at opdatere (`src/ui/glowFont.ts`).
 
 Spillet er bygget med spil-enginen **[Phaser 4](https://phaser.io)**, skrevet i **TypeScript** og samlet med **Vite**.
 
@@ -114,40 +154,54 @@ Phaser er valgt, fordi det er den mest udbredte 2D-engine til browserspil. Det e
 src/
 ├── main.ts               Starter Phaser og gør grafikken skarp på retina/mobil
 ├── scenes/
-│   ├── BootScene.ts      Laver teksturerne og starter de andre scener
-│   ├── GameScene.ts      Verdenen: regler, bevægelse, kollisioner og kamera
-│   └── UIScene.ts        Skifter mellem skærmene og styrer tryk
+│   ├── BootScene.ts      Laver teksturer og glødende bitmap-fonte og starter de andre scener
+│   ├── GameScene.ts      Verdenen: regler, bevægelse, kollisioner, kamera, demo, pause
+│   └── UIScene.ts        Menuen, HUD, pause, resultatkort og skift mellem skærmene
 ├── ui/
-│   ├── LevelSelect.ts    Level-kortet (hovedmenuen ligger i UIScene)
-│   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen
-│   ├── ClearScreen.ts    "LEVEL CLEAR" med stjerner
-│   ├── HowToPlay.ts      HOW TO PLAY: kort med små animationer
+│   ├── LevelSelect.ts    Level-kortet
+│   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen (+ shopTextures, shopSfx)
+│   ├── ClearScreen.ts    "LEVEL CLEAR" med guldstjerner og ænder der flyver ind
+│   ├── DailyScreen.ts    DAILY: dagens tur, streak og missioner
+│   ├── RecordsScreen.ts  RECORDS: statistik og achievements
+│   ├── NotifyBanner.ts   Bannere, der glider ned fra toppen
+│   ├── HowToPlay.ts      HOW TO PLAY: kort med små animationer (også som enkelte tip-kort)
+│   ├── icons.ts          Linje-ikoner tegnet i kode (pause, retry, hjem, lås …)
+│   ├── glowFont.ts       Glødende bitmap-fonte til tal, der ændrer sig hele tiden
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
 │   ├── levels.ts         ⭐ Alle 20 levels som data: mål, fart, bredde, forhindringer
-│   ├── course.ts         Reglerne for én runde (et level eller SURVIVAL)
+│   ├── course.ts         Reglerne for én runde (level, SURVIVAL med zoner, Daily Run)
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
-│   ├── skins.ts          ⭐ Alle 24 skins og chancerne for hver sjældenhed
+│   ├── skins.ts          ⭐ Alle 32 skins og chancerne for hver sjældenhed
+│   ├── gacha.ts          Fair spillemaskine: ingen dubletter for tidligt, pity
 │   ├── abilities.ts      ⭐ Hvert skins særlige evne
-│   ├── tuning.ts         ⭐ Tallene for SURVIVAL
+│   ├── progress.ts       Statistik, rekorder, belønninger og bannere
+│   ├── missions.ts       ⭐ De daglige missioner
+│   ├── achievements.ts   ⭐ De 33 achievements
+│   ├── daily.ts          ⭐ Daily Run (ugedags-twists) og streak
+│   ├── tuning.ts         ⭐ Tallene for SURVIVAL og zonerne
 │   ├── palette.ts        ⭐ Farver og skrifttyper
-│   ├── storage.ts        Rekord og indstillinger (gemmes i browseren)
+│   ├── storage.ts        Rekord, ænder og indstillinger (gemmes i browseren)
+│   ├── persist.ts        Små hjælpere til at gemme i browseren
 │   ├── shared.ts         Beskeder og data, der sendes mellem scenerne
-│   └── display.ts        Skærmstørrelse og pixeltæthed
+│   └── display.ts        Skærmstørrelse, pixeltæthed og kvalitetsstigen
 ├── fx/                   Alt det visuelle
 │   ├── textures.ts       Tegner alle billeder i kode ved opstart (ingen billedfiler)
-│   ├── backgroundShader.ts  GLSL-shaderen til baggrunden
+│   ├── glow.ts           "Bagt" glød rundt om figurer (billig i stedet for GPU-filtre)
+│   ├── backgroundShader.ts  GLSL-shaderen til baggrunden (en himmel pr. verden)
 │   ├── Backdrop.ts       Lægger shaderen bag verdenen
 │   ├── CorridorView.ts   Tegner korridoren med neon-kanter
 │   ├── PlayerView.ts     Kuglen: glød, ring og partikel-spor
 │   ├── HazardView.ts     Savklinger, bomber og ænder (gule, røde og gyldne)
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
+│   ├── Ambient.ts        Svage lysprikker, der driver i baggrunden
 │   ├── WarpStarView.ts   Den gemte warp-stjerne
-│   ├── skinTextures.ts   Tegner alle 24 skins
+│   ├── skinTextures.ts   Tegner alle 32 skins
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
-    ├── Sfx.ts            Lydeffekter, der syntetiseres live (ingen lydfiler)
+    ├── Sfx.ts            Lydeffekter, syntetiseret live + rigtige andelyde
+    ├── samples.ts        Indlæser og afspiller lydfilerne i public/sfx
     └── Music.ts          Baggrundsmusik i A-mol, genereret live (rolig i menuer, med trommer når man spiller)
 ```
 
@@ -185,9 +239,10 @@ game.scene.getScene('Game').debugState()   // spillerens position, meter, combo 
 
 ## Idéer til næste skridt
 
-- **Musik:** et synthwave-loop, der bygger op med farten
-- **Installérbar app (PWA):** så spillet kan lægges på telefonens hjemmeskærm og virke offline
-- **Online-leaderboard**
-- **Flere forhindrings-typer**, fx laserbarrierer der tænder og slukker
-- **Håndlavede baner** til udvalgte levels i stedet for genererede
-- **Udgivelse via GitHub Pages**, så spillet har en fast adresse
+- **iPhone-app:** Capacitor-projektet og en cloud-build (uden Mac) er forberedt på en sidebranch, men venter, til spillet er helt færdigt.
+- **Game Center:** leaderboards (også for Daily Run) og achievements.
+- **"Din linje":** når turen slutter, zoomer kameraet ud og viser hele turen som en neon-spiral, som man kan dele.
+- **Level-kortet som en spiral**, hvor kuglen kører hen til det næste level.
+- **Et spøgelse af din bedste tur** i levels og Daily Run.
+- **Flere forhindrings-typer**, fx laserbarrierer der tænder og slukker, og en verden 5 (spejlvendt).
+- **Indtjening senere:** valgfrie reklamer ("se en reklame for dobbelt ænder") eller et "Supporter"-køb. Krogene findes allerede i `progress.ts`.
