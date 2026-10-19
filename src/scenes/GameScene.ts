@@ -19,7 +19,7 @@ import { WarpStarView } from '../fx/WarpStarView';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { glowFx } from '../fx/glow';
 import { Ambient } from '../fx/Ambient';
-import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, type AbilityDef } from '../game/abilities';
+import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, SURVIVAL_RECHARGE_S, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
@@ -41,6 +41,10 @@ const FRENZY_COOLDOWN = 1.4;
 const RED_DUCK_VALUE = 5;
 
 const NO_HAZARDS: Hazard[] = [];
+/** Saws and bombs collide at this fraction of their drawn radius. */
+const HAZARD_HITBOX = 0.82;
+/** Share of PERFECT turns for the 2nd and 3rd star. */
+const STAR_RATIOS = [0.6, 0.8];
 
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
@@ -103,6 +107,8 @@ export class GameScene extends Phaser.Scene {
   } | null = null;
   private abilityCharges = 1;
   private rechargeAtM = Infinity;
+  /** Survival: the ability also needs this much run time to pass (seconds). */
+  private rechargeAtT = Infinity;
   /** Recent taps: time and heading before each, to spot the 4-tap spin. */
   private recentTaps: { t: number; dirBefore: Dir }[] = [];
   /** Walls don't kill until this time: room for the quick spin's side steps. */
@@ -204,6 +210,7 @@ export class GameScene extends Phaser.Scene {
     this.ability = null;
     this.abilityCharges = 1;
     this.rechargeAtM = Infinity;
+    this.rechargeAtT = Infinity;
     this.recentTaps = [];
     this.spinGuardUntil = 0;
     this.hazardClock = 0;
@@ -404,7 +411,7 @@ export class GameScene extends Phaser.Scene {
 
     // Stars: 1 for finishing, 2 for half the turns PERFECT, 3 for 90 %.
     const ratio = this.gateTurns > 0 ? this.perfects / this.gateTurns : 0;
-    const stars = 1 + (ratio >= 0.5 ? 1 : 0) + (ratio >= 0.9 ? 1 : 0);
+    const stars = 1 + (ratio >= STAR_RATIOS[0] ? 1 : 0) + (ratio >= STAR_RATIOS[1] ? 1 : 0);
     const previousStars = save.starsFor(level.id);
     save.recordStars(level.id, stars);
     if (this.course.warped) save.recordWarp(level.id);
@@ -609,7 +616,9 @@ export class GameScene extends Phaser.Scene {
         if (this.frenzy) return;
         continue;
       }
-      if (dist < hz.radius + radius) {
+      // Saws and bombs hit a little inside their drawn edge: a graze that
+      // looks like a miss should be a miss.
+      if (dist < hz.radius * HAZARD_HITBOX + radius) {
         if (this.elapsed < this.safeUntil) continue;
         const a = this.ability;
         if (a && (this.elapsed < a.graceUntil || a.def.ghost)) continue;
@@ -748,7 +757,9 @@ export class GameScene extends Phaser.Scene {
       this.hazardViews.get(hz)?.destroy();
       this.hazardViews.delete(hz);
       // Land just beyond what's on screen, so it pops up again ahead of you.
-      const placed = [LOOKAHEAD + 2, LOOKAHEAD + 3, LOOKAHEAD + 4].some((ahead) => {
+      // Make sure there is track out there to run to.
+      this.track.ensureAhead(this.current, LOOKAHEAD + 7);
+      const placed = [LOOKAHEAD + 2, LOOKAHEAD + 3, LOOKAHEAD + 4, LOOKAHEAD + 5, LOOKAHEAD + 6].some((ahead) => {
         const seg = this.track.get(this.current + ahead);
         return !!seg && this.track.moveDuckTo(hz, seg);
       });
@@ -862,18 +873,40 @@ export class GameScene extends Phaser.Scene {
     this.game.events.emit(EV.ability, { state, frac: a ? Math.max(0, (a.until - this.elapsed) / ABILITY_SECONDS) : 0 });
   }
 
+  /**
+   * After the 4-tap spin, face the way the track goes. If the spin started
+   * with a corner tap (or right after one), four right turns would bring you
+   * back to the heading BEFORE the corner, straight into the wall.
+   */
+  private snapToTrack() {
+    const cur = this.track.get(this.current);
+    const next = this.track.get(this.current + 1);
+    if (!cur) return;
+    const dir = next && pointInRect(this.player.x, this.player.y, next.rect) ? next.dir : cur.dir;
+    if (dir !== this.player.dir) {
+      this.player.dir = dir;
+      this.playerView.onTurn();
+    }
+  }
+
   private tryActivateAbility() {
     if (this.ability) return;
     if (this.abilityCharges <= 0) {
       const msg = this.course.level ? 'ONCE PER LEVEL' : 'RECHARGING';
       this.effects.floater(this.player.x, this.player.y - 28, msg, css.inkDim, 12);
       sfx.denied();
+      // The spin itself still works as a panic move: you come out facing the track.
+      this.snapToTrack();
       return;
     }
     const skin = skinById(save.skin);
     const def = abilityFor(skin.id);
     this.abilityCharges--;
-    if (!this.course.level) this.rechargeAtM = this.distance * METERS_PER_PX + SURVIVAL_RECHARGE_M;
+    // Survival recharge starts counting when the ability ENDS (see endAbility),
+    // otherwise at top speed it would be ready again the moment it ran out.
+    this.rechargeAtM = Infinity;
+    this.rechargeAtT = Infinity;
+    this.snapToTrack();
     this.ability = {
       def,
       until: this.elapsed + ABILITY_SECONDS,
@@ -901,6 +934,10 @@ export class GameScene extends Phaser.Scene {
   private endAbility(silent = false) {
     if (!this.ability) return;
     this.ability = null;
+    if (!this.course.level) {
+      this.rechargeAtM = this.distance * METERS_PER_PX + SURVIVAL_RECHARGE_M;
+      this.rechargeAtT = this.elapsed + SURVIVAL_RECHARGE_S;
+    }
     this.playerView.setAbilityLook(null);
     this.hazardViews.forEach((v) => v.setFrozen(false));
     if (!silent) {
@@ -1186,7 +1223,7 @@ export class GameScene extends Phaser.Scene {
   private checkMilestones() {
     const m = this.distance * METERS_PER_PX;
     // Survival: the ability recharges every so often.
-    if (this.abilityCharges === 0 && !this.ability && m >= this.rechargeAtM) {
+    if (this.abilityCharges === 0 && !this.ability && m >= this.rechargeAtM && this.elapsed >= this.rechargeAtT) {
       this.abilityCharges = 1;
       this.effects.floater(this.player.x, this.player.y - 30, 'ABILITY READY', css.ink, 14);
       sfx.revive();

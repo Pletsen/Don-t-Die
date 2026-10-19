@@ -90,8 +90,8 @@ export class ClearScreen {
     this.ducksLine.setText(d.ducks > 0 ? `+${d.ducks} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
 
     if (d.warped) this.hint.setText('WARP STAR FOUND').setColor(css.orange);
-    else if (d.stars < 2) this.hint.setText('2 STARS: HALF YOUR TURNS PERFECT').setColor(css.inkDim);
-    else if (d.stars < 3) this.hint.setText('3 STARS: 90% OF TURNS PERFECT').setColor(css.inkDim);
+    else if (d.stars < 2) this.hint.setText('2 STARS: 60% OF TURNS PERFECT').setColor(css.inkDim);
+    else if (d.stars < 3) this.hint.setText('3 STARS: 80% OF TURNS PERFECT').setColor(css.inkDim);
     else this.hint.setText(d.previousStars < 3 ? 'FLAWLESS' : '').setColor(css.orange);
 
     this.starSlots.clear();

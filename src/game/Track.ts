@@ -1,6 +1,7 @@
 import type { Course } from './course';
 import type { HazardRules } from './levels';
 import { seededRng, type Rng } from './rng';
+import { METERS_PER_PX } from './tuning';
 
 // The track is pure data: rectangles in world space. It knows nothing about
 // drawing, which keeps the rules easy to read and test on their own.
@@ -135,6 +136,8 @@ export class Track {
   private nextId = 0;
   private rng: Rng;
   private warpPlaced = false;
+  /** At most one golden duck per run. */
+  private goldenPlaced = false;
 
   constructor(
     private course: Course,
@@ -251,6 +254,8 @@ export class Track {
   private placeWarpStar(seg: Segment) {
     const at = this.course.warpAtPx;
     if (at === null || this.warpPlaced || this.course.warped) return;
+    // Not in the first two levels: beginners turning early hit it by accident.
+    if (this.course.level && this.course.level.id <= 2) return;
     const margin = seg.halfWidth + 30;
     if (seg.length < margin * 2 + 20 || seg.travelled + seg.length - margin < at) return;
     const along = Math.max(margin, Math.min(seg.length - margin, at - seg.travelled));
@@ -275,14 +280,20 @@ export class Track {
   private makeHazards(seg: Segment): Hazard[] {
     const rules = this.course.hazardsAt(seg.travelled);
     const roll = this.rng();
-    if (!rules || roll > rules.chance) return [];
+    // In a level, hazards ease in: none in the first 60 m, then their chance
+    // ramps up to full over the next ~120 m. No more dying on the first corner.
+    const m = seg.travelled * METERS_PER_PX;
+    const ramp = this.course.level && !this.course.warped ? Math.max(0, Math.min(1, (m - 60) / 120)) : 1;
+    if (!rules || ramp <= 0 || roll > rules.chance * (0.4 + 0.6 * ramp)) return this.warpDanger(seg);
     // Too short a straight to fit a hazard fairly.
-    if (seg.length < (seg.halfWidth + 24) * 2 + 20) return [];
+    if (seg.length < this.startMargin(seg) + seg.halfWidth + 24 + 20) return [];
 
     const side = this.rng() < 0.5 ? -1 : 1;
     const first = this.makeHazard(seg, rules, side, this.rand(0.4, 0.72), false);
     const out = [first];
-    if (rules.perSegment === 2 && this.rng() < 0.6) {
+    // A second hazard only next to a static first one: a moving hazard plus a
+    // second one could close the lane completely (1-frame corners).
+    if (rules.perSegment === 2 && !first.moving && this.rng() < 0.6) {
       // Second hazard: static and on the same side, so the far lane stays open.
       out.push(this.makeHazard(seg, { ...rules, placement: 'side', moving: 0 }, side, this.rand(0.2, 0.32), true));
     }
@@ -290,6 +301,23 @@ export class Track {
     if (out.length === 2 && Math.hypot(out[0].x - out[1].x, out[0].y - out[1].y) < 40) out.pop();
     const goal = this.course.goalPx;
     return out.filter((h) => goal === null || this.alongTrack(seg, h) < goal - 60);
+  }
+
+  /** Distance kept free after a corner: ~0.16 s of travel, at least 24 px. */
+  private startMargin(seg: Segment) {
+    return seg.halfWidth + Math.max(24, this.course.speedAt(seg.travelled) * 0.16);
+  }
+
+  /**
+   * After the warp in worlds 3 and 4 the party isn't completely safe: now and
+   * then a static saw sits at the side of a duck straight.
+   */
+  private warpDanger(seg: Segment): Hazard[] {
+    const world = this.course.level?.world ?? 0;
+    if (!this.course.warped || world < 2 || this.rng() > 0.25) return [];
+    if (seg.length < this.startMargin(seg) + seg.halfWidth + 44) return [];
+    const saw = this.makeHazard(seg, { chance: 1, kinds: ['saw'], placement: 'side', moving: 0 }, this.rng() < 0.5 ? -1 : 1, this.rand(0.4, 0.7), true);
+    return [saw];
   }
 
   /**
@@ -322,9 +350,11 @@ export class Track {
       placement === 'side' ? this.rand(0.42, 0.62) : placement === 'center' ? this.rand(0, 0.15) : this.rand(0, 0.62);
     const lateral = side * seg.halfWidth * spread;
     // Keep hazards on the straight, clear of both turn squares, so there is
-    // always room to see them coming and steer around them.
-    const margin = seg.halfWidth + 24;
-    const along = Math.max(margin, Math.min(seg.length - margin, t * seg.length));
+    // always room to see them coming and steer around them. The gap after a
+    // corner grows with speed, so there's always time to react.
+    const startMargin = this.startMargin(seg);
+    const endMargin = seg.halfWidth + 24;
+    const along = Math.max(startMargin, Math.min(seg.length - endMargin, t * seg.length));
     const ax = seg.start.x + DIRS[seg.dir].x * along;
     const ay = seg.start.y + DIRS[seg.dir].y * along;
     const horizontal = isHorizontal(seg.dir);
@@ -347,7 +377,11 @@ export class Track {
       alive: true,
     };
     if (kind === 'duck') {
-      const roll = this.rng();
+      // Not from the level's fixed seed: otherwise the same level would hand
+      // out a golden duck on every single warp (farmable). One golden per run.
+      let roll = Math.random();
+      if (roll < DUCK_CHANCE.golden && this.goldenPlaced) roll = DUCK_CHANCE.golden;
+      if (roll < DUCK_CHANCE.golden) this.goldenPlaced = true;
       hazard.variant = roll < DUCK_CHANCE.golden ? 'golden' : roll < DUCK_CHANCE.golden + DUCK_CHANCE.red ? 'red' : 'normal';
       if (hazard.variant !== 'normal') {
         // Special ducks run back and forth across the lane, centred on it.

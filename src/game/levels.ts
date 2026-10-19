@@ -54,9 +54,10 @@ const both: HazardKind[] = ['saw', 'bomb'];
 
 export const LEVELS: LevelDef[] = [
   // World 1: just turning. Learn the rhythm and the PERFECT zone.
-  { id: 1, world: 0, goal: 340, speed: [190, 220], width: [84, 80], arm: [260, 340] },
-  { id: 2, world: 0, goal: 460, speed: [210, 250], width: [80, 74], arm: [230, 320] },
-  { id: 3, world: 0, goal: 560, speed: [230, 280], width: [74, 68], arm: [210, 300] },
+  // (Tuned with bot playtests: a smooth curve, no wall at the end of World 4.)
+  { id: 1, world: 0, goal: 260, speed: [200, 235], width: [84, 78], arm: [260, 340] },
+  { id: 2, world: 0, goal: 380, speed: [220, 265], width: [78, 72], arm: [230, 320] },
+  { id: 3, world: 0, goal: 500, speed: [240, 290], width: [72, 66], arm: [210, 300] },
   { id: 4, world: 0, goal: 720, speed: [250, 310], width: [68, 62], arm: [190, 280] },
   { id: 5, world: 0, goal: 850, speed: [270, 340], width: [64, 56], arm: [175, 270] },
 
@@ -70,16 +71,16 @@ export const LEVELS: LevelDef[] = [
   // World 3: bombs, and the corridor gets tight.
   { id: 11, world: 2, goal: 800, speed: [270, 310], width: [72, 68], arm: [210, 300], hazards: { chance: 0.45, kinds: bomb, placement: 'side' } },
   { id: 12, world: 2, goal: 950, speed: [280, 330], width: [68, 62], arm: [200, 290], hazards: { chance: 0.55, kinds: both, placement: 'any' } },
-  { id: 13, world: 2, goal: 1140, speed: [290, 350], width: [62, 54], arm: [190, 280], hazards: { chance: 0.6, kinds: both, placement: 'any', moving: 0.3 } },
-  { id: 14, world: 2, goal: 1300, speed: [300, 370], width: [60, 52], arm: [185, 270], hazards: { chance: 0.55, kinds: both, placement: 'any', perSegment: 2 } },
-  { id: 15, world: 2, goal: 1600, speed: [320, 400], width: [58, 50], arm: [180, 260], hazards: { chance: 0.65, kinds: both, placement: 'any', moving: 0.4, perSegment: 2 } },
+  { id: 13, world: 2, goal: 1100, speed: [295, 355], width: [62, 55], arm: [190, 280], hazards: { chance: 0.6, kinds: both, placement: 'any', moving: 0.3 } },
+  { id: 14, world: 2, goal: 1200, speed: [300, 365], width: [60, 53], arm: [185, 270], hazards: { chance: 0.55, kinds: both, placement: 'any', perSegment: 2 } },
+  { id: 15, world: 2, goal: 1400, speed: [315, 385], width: [58, 52], arm: [180, 260], hazards: { chance: 0.65, kinds: both, placement: 'any', moving: 0.4, perSegment: 2 } },
 
   // World 4: everything, fast and moving.
-  { id: 16, world: 3, goal: 1270, speed: [340, 420], width: [64, 56], arm: [190, 270], hazards: { chance: 0.6, kinds: both, placement: 'any', moving: 0.5 } },
-  { id: 17, world: 3, goal: 1580, speed: [360, 450], width: [60, 52], arm: [185, 260], hazards: { chance: 0.65, kinds: both, placement: 'any', moving: 0.55, perSegment: 2 } },
-  { id: 18, world: 3, goal: 1900, speed: [380, 480], width: [58, 50], arm: [180, 255], hazards: { chance: 0.7, kinds: both, placement: 'any', moving: 0.6, perSegment: 2 } },
-  { id: 19, world: 3, goal: 2300, speed: [400, 520], width: [54, 48], arm: [175, 250], hazards: { chance: 0.75, kinds: both, placement: 'any', moving: 0.7, perSegment: 2 } },
-  { id: 20, world: 3, goal: 2500, speed: [420, 580], width: [52, 46], arm: [170, 245], hazards: { chance: 0.8, kinds: both, placement: 'any', moving: 0.8, perSegment: 2 } },
+  { id: 16, world: 3, goal: 1200, speed: [330, 400], width: [64, 57], arm: [190, 270], hazards: { chance: 0.6, kinds: both, placement: 'any', moving: 0.5 } },
+  { id: 17, world: 3, goal: 1400, speed: [345, 420], width: [61, 54], arm: [185, 260], hazards: { chance: 0.65, kinds: both, placement: 'any', moving: 0.55, perSegment: 2 } },
+  { id: 18, world: 3, goal: 1600, speed: [360, 440], width: [59, 53], arm: [180, 255], hazards: { chance: 0.7, kinds: both, placement: 'any', moving: 0.6, perSegment: 2 } },
+  { id: 19, world: 3, goal: 1800, speed: [375, 460], width: [58, 52], arm: [175, 250], hazards: { chance: 0.75, kinds: both, placement: 'any', moving: 0.7, perSegment: 2 } },
+  { id: 20, world: 3, goal: 2000, speed: [390, 480], width: [57, 51], arm: [170, 245], hazards: { chance: 0.8, kinds: both, placement: 'any', moving: 0.8, perSegment: 2 } },
 ];
 
 export const levelById = (id: number) => LEVELS.find((l) => l.id === id);

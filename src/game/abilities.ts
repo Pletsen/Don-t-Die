@@ -49,8 +49,10 @@ export interface AbilityDef {
 }
 
 export const ABILITY_SECONDS = 10;
-/** Survival: the ability recharges every this many metres after use. */
+/** Survival: the ability recharges this many metres after it ended... */
 export const SURVIVAL_RECHARGE_M = 500;
+/** ...and at least this many seconds after the ability ended. */
+export const SURVIVAL_RECHARGE_S = 30;
 /** Max time between the four taps, ms (also the wall grace during the spin). */
 export const SPIN_TAP_WINDOW = 280;
 

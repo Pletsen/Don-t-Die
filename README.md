@@ -11,7 +11,7 @@ Spillet åbner i en hovedmenu med **PLAY** (level-kortet), **SURVIVAL**, **SKINS
 | 3 · Bombs | Magenta | Bomber og smallere korridor |
 | 4 · Chaos | Rød | Alt, hurtigt og i bevægelse |
 
-Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis halvdelen af svingene var PERFECT, og 3 ved 90 %. Levels låses op ét ad gangen.
+Hvert level har en fast bane, som er ens hver gang, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
 
 Vil man hellere bare køre, er **SURVIVAL** altid åben: en uendelig bane, der bliver hurtigere og hurtigere, med rekord for længste distance.
 
