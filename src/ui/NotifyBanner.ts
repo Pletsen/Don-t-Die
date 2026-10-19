@@ -93,8 +93,9 @@ export class NotifyBanner {
   }
 
   private restY() {
-    // In a run, sit under the HUD's distance readout.
-    return this.inRun ? this.top + 76 + H_COMPACT / 2 : this.top + H / 2;
+    // In a run, sit under the HUD's distance readout and the combo badge
+    // (centred at top + 76, 34 high), so the two never overlap.
+    return this.inRun ? this.top + 110 + H_COMPACT / 2 : this.top + H / 2;
   }
 
   private next() {
@@ -108,7 +109,9 @@ export class NotifyBanner {
     this.draw(n);
     const y = this.restY();
     this.scene.tweens.killTweensOf(this.root);
-    this.root.setPosition(this.screenW / 2, y - 90).setAlpha(0).setScale(1).setVisible(true);
+    // In a run the banner rises into place from below, so it never slides
+    // across the HUD and combo badge above it.
+    this.root.setPosition(this.screenW / 2, this.inRun ? y + 18 : y - 90).setAlpha(0).setScale(1).setVisible(true);
     this.scene.tweens.add({ targets: this.root, y, alpha: 1, duration: 320, ease: 'Back.easeOut' });
     if (n.ducks) {
       // The "+N" pops a moment after the banner lands.
@@ -126,7 +129,7 @@ export class NotifyBanner {
     this.scene.tweens.killTweensOf(this.root);
     this.scene.tweens.add({
       targets: this.root,
-      y: this.root.y - 70,
+      y: this.root.y + (this.inRun ? 18 : -70),
       alpha: 0,
       duration: 220,
       ease: 'Cubic.easeIn',

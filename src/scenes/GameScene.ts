@@ -6,7 +6,8 @@ import { dailyCourse, endlessCourse, levelCourse, type Course } from '../game/co
 import { levelById } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css, palette, hueColor } from '../game/palette';
+import { css, palette } from '../game/palette';
+import { u2Color } from '../fx/worldPalette';
 import { sfx as realSfx, haptic as realHaptic } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
@@ -699,7 +700,7 @@ export class GameScene extends Phaser.Scene {
     // The bonus universe cycles through the rainbow.
     // Universe 2 cycles through the rainbow, but skips yellow-green so the
     // yellow ducks never melt into the track (hues 160°..330°, back and forth).
-    const accent = this.course.warped ? hueColor(245 + Math.sin(t * 0.9) * 85) : this.course.accentAt(this.distance);
+    const accent = this.course.warped ? u2Color(t) : this.course.accentAt(this.distance);
     shared.warp = lerp(shared.warp, this.course.warped ? 1 : 0, damp(this.course.warped ? 0.2 : 0.0001, dt));
     this.updateWarpStar(t);
 
@@ -1543,10 +1544,10 @@ export class GameScene extends Phaser.Scene {
     let tx = this.player.x + d.x * look;
     let ty = this.player.y + d.y * look;
     if (this.demo) {
-      // Menu: the demo run plays in the upper part of the screen, behind the
-      // logo, above the menu dock.
+      // Menu: the demo run plays in the gap between the logo and the menu
+      // dock, so the ball never runs across the title text.
       tx = this.player.x + d.x * 40;
-      ty = this.player.y + d.y * 40 + (h * 0.2) / this.baseZoom();
+      ty = this.player.y + d.y * 40 + (h * 0.07) / this.baseZoom();
     } else if (this.state === 'ready') {
       tx += Math.sin(t * 0.4) * 20 + 60;
       ty += Math.cos(t * 0.33) * 14 + (h * 0.2) / this.baseZoom();
