@@ -47,6 +47,11 @@ export interface Hazard {
   moveSpeed?: number;
   alive: boolean;
   /**
+   * Bombs only: 0 while the fuse burns, rising to 1 as it charges, and set
+   * to -1 during the short blast, when the bomb hits twice as far.
+   */
+  charge?: number;
+  /**
    * Ducks come in three kinds: normal (+1), red (runs about, +5, never
    * leaves: if you miss it, it runs further up the track) and golden (big,
    * 0.5 % rare, starts a DUCK FRENZY).

@@ -63,6 +63,19 @@ const DEMO_ABILITY: AbilityDef = { name: '', desc: '', autopilot: true, ghost: t
 const NO_HAZARDS: Hazard[] = [];
 /** Saws and bombs collide at this fraction of their drawn radius. */
 const HAZARD_HITBOX = 0.82;
+/** Bombs pulse: they charge up, then blast out to this many times their radius. */
+const BOMB_BLAST = 2;
+const BOMB_PERIOD = 2.6;
+const BOMB_BLAST_TIME = 0.24;
+/** A bomb's charge at this point of the hazard clock (see Hazard.charge). */
+function bombCharge(clock: number, phase: number): number {
+  const t = (clock + (phase / (Math.PI * 2)) * BOMB_PERIOD) % BOMB_PERIOD;
+  const blastAt = BOMB_PERIOD - BOMB_BLAST_TIME;
+  if (t >= blastAt) return -1;
+  const chargeFrom = blastAt - 0.9;
+  return t < chargeFrom ? 0 : (t - chargeFrom) / 0.9;
+}
+
 /** Share of PERFECT turns for the 2nd and 3rd star. */
 const STAR_RATIOS = [0.6, 0.8];
 
@@ -108,6 +121,7 @@ export class GameScene extends Phaser.Scene {
   /** First-ever play of level 1: the first corners slow down with a TAP! hint. */
   private guidedGates = 0;
   private nextGuideAt = 0;
+  private recordShown = false;
   private deathFade = 0;
   /** When the crash happened (ms), so the colour drains only after the blast. */
   private diedAt = 0;
@@ -259,6 +273,7 @@ export class GameScene extends Phaser.Scene {
     this.abilityUsed = false;
     this.lastWildTurn = null;
     this.guidedGates = 0;
+    this.recordShown = false;
     this.course = course;
     this.track = new Track(course);
     this.current = 0;
@@ -482,7 +497,7 @@ export class GameScene extends Phaser.Scene {
     // shake and a flash in the colour of whatever got you.
     this.hitStop(50);
     this.cameras.main.shake(fx ? 140 : 240, fx ? 0.004 : 0.01);
-    this.flash(color === palette.ink ? 0xffffff : color, 160, 0.55);
+    this.flash(color === palette.ink ? 0xffffff : color, 160, 0.4);
     this.cam.punch = 0.14;
 
     if (cause === 'wall') sfx.death();
@@ -630,7 +645,9 @@ export class GameScene extends Phaser.Scene {
     const speed = this.course.speedAt(this.distance);
     const speedNorm = clamp((speed - 230) / 390, 0, 1);
     // The bonus universe cycles through the rainbow.
-    const accent = this.course.warped ? hueColor(t * 70) : this.course.accentAt(this.distance);
+    // Universe 2 cycles through the rainbow, but skips yellow-green so the
+    // yellow ducks never melt into the track (hues 160°..330°, back and forth).
+    const accent = this.course.warped ? hueColor(245 + Math.sin(t * 0.9) * 85) : this.course.accentAt(this.distance);
     shared.warp = lerp(shared.warp, this.course.warped ? 1 : 0, damp(this.course.warped ? 0.2 : 0.0001, dt));
     this.updateWarpStar(t);
 
@@ -766,6 +783,8 @@ export class GameScene extends Phaser.Scene {
     // attempt. Everything on screen moves, not just what's near you.
     for (const seg of this.visibleSegments()) {
       for (const hz of seg.hazards) {
+        // (Frozen bombs don't go off.)
+        if (hz.alive && hz.kind === 'bomb') hz.charge = ab?.freeze ? 0 : bombCharge(this.hazardClock, hz.movePhase);
         if (!hz.alive || !hz.moving) continue;
         const osc = Math.sin(this.hazardClock * (hz.moveSpeed ?? 1.6) + hz.movePhase) * hz.moveRange;
         if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
@@ -786,7 +805,9 @@ export class GameScene extends Phaser.Scene {
       }
       // Saws and bombs hit a little inside their drawn edge: a graze that
       // looks like a miss should be a miss.
-      if (dist < hz.radius * HAZARD_HITBOX + radius) {
+      // A bomb mid-blast reaches much further.
+      const reach = hz.kind === 'bomb' && hz.charge === -1 ? BOMB_BLAST : HAZARD_HITBOX;
+      if (dist < hz.radius * reach + radius) {
         if (this.elapsed < this.safeUntil) continue;
         const a = this.ability;
         if (a && (this.elapsed < a.graceUntil || a.def.ghost)) continue;
@@ -1400,6 +1421,18 @@ export class GameScene extends Phaser.Scene {
   /** Survival easter eggs: a little message at special distances. */
   private checkMilestones() {
     const m = this.distance * METERS_PER_PX;
+    // Passing your record mid-run is a moment: say so, right there.
+    if (!this.recordShown && this.mode === 'survival' && save.best >= 100 && m > save.best) {
+      this.recordShown = true;
+      const { x, y } = this.player;
+      this.effects.floater(x, y - 40, 'NEW RECORD!', '#ffd21f', 24, 3);
+      this.effects.shockwave(x, y, 0xffd21f, 220, 700);
+      this.effects.burst(x, y, [0xffd21f, 0xffffff, 0xff9a2e], save.fxReduced ? 12 : 40);
+      this.cam.punch = 0.12;
+      this.flash(0xffd21f, 220, 0.25);
+      sfx.newBest();
+      haptic([20, 30, 20, 30, 60]);
+    }
     // Survival: the ability recharges every so often.
     if (this.abilityCharges === 0 && !this.ability && m >= this.rechargeAtM && this.elapsed >= this.rechargeAtT) {
       this.abilityCharges = 1;

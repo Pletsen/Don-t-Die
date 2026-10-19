@@ -57,7 +57,14 @@ export class HazardView {
       }
     }
 
-    const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
+    // A soft dark disc underneath: the hazard pops off the track and the
+    // background, whatever is behind it.
+    const shade = scene.add
+      .image(0, 0, TEX.glow)
+      .setTint(0x05070a)
+      .setAlpha(isDuck ? 0.45 : 0.7)
+      .setScale((d * 2.2) / 128);
+    const parts: Phaser.GameObjects.GameObject[] = [shade, this.warn, this.halo, this.body];
     if (hazard.kind === 'bomb') {
       this.fuse = scene.add
         .image(0, 0, TEX.glow)
@@ -111,9 +118,25 @@ export class HazardView {
       this.body.rotation += dt * 9;
       this.halo.setAlpha(0.55 + 0.15 * Math.sin(time * 12));
     } else {
+      // The bomb's fuse: it charges (swells, glows hotter, the ring tightens)
+      // and then blasts out to twice its radius for a moment.
+      const charge = h.charge ?? 0;
       const beat = Math.pow(Math.max(0, Math.sin(time * 7 + h.movePhase)), 6);
-      this.body.setScale(((r * 2.2) / 128) * (1 + beat * 0.12));
-      this.halo.setAlpha(0.45 + beat * 0.5);
+      if (charge === -1) {
+        this.body.setScale(((r * 2.2) / 128) * 1.25);
+        this.halo.setAlpha(1).setScale((r * 2 * 4.2) / 128);
+        this.warn.setScale((r * 2.1) / 58).setAlpha(0.95);
+        if (!this.blasting) {
+          this.blasting = true;
+          this.blastRing();
+        }
+      } else {
+        this.blasting = false;
+        const swell = 1 + charge * charge * 0.22 + beat * 0.08;
+        this.body.setScale(((r * 2.2) / 128) * swell);
+        this.halo.setAlpha(0.4 + beat * 0.3 + charge * 0.6).setScale((r * 2 * 2.6 * (1 + charge * 0.4)) / 128);
+        if (charge > 0) this.warn.setScale((r * (3.4 - charge * 1.6)) / 116).setAlpha(0.25 + charge * 0.7);
+      }
       if (this.fuse) {
         const a = time * 14;
         this.fuse
@@ -122,6 +145,26 @@ export class HazardView {
       }
     }
     this.glow?.sync();
+  }
+
+  private blasting = false;
+
+  /** A quick ring showing the blast's reach. */
+  private blastRing() {
+    const ring = this.scene.add
+      .image(this.hazard.x, this.hazard.y, TEX.ring)
+      .setTint(0xffb36b)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale((this.hazard.radius * 2) / 116)
+      .setDepth(5);
+    this.scene.tweens.add({
+      targets: ring,
+      scale: (this.hazard.radius * 2 * 2.1) / 116,
+      alpha: 0,
+      duration: 260,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
   }
 
   setFrozen(on: boolean) {

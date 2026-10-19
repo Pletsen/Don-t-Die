@@ -552,6 +552,33 @@ export class UIScene extends Phaser.Scene {
     ]);
   }
 
+  private logoLit = false;
+
+  /**
+   * The first time the menu appears the logo switches on like a neon sign:
+   * a few nervous flickers, then full power.
+   */
+  private igniteLogo() {
+    this.logoLit = true;
+    const layers = this.titleLayers;
+    const steps: [number, number][] = [
+      [0, 0],
+      [140, 0.7],
+      [200, 0.05],
+      [320, 0.9],
+      [370, 0.15],
+      [430, 0.5],
+      [470, 0.1],
+      [600, 1],
+    ];
+    for (const [at, a] of steps) {
+      this.time.delayedCall(at, () => {
+        layers.forEach((l, i) => l.setAlpha(i === 2 ? a : a * 0.75));
+        if (a > 0.6) sfx.click();
+      });
+    }
+  }
+
   /** PLAY goes straight into the next level to beat. */
   private playNext() {
     this.play(nextLevelToPlay());
@@ -708,6 +735,7 @@ export class UIScene extends Phaser.Scene {
 
     this.title.setVisible(true).setAlpha(0);
     this.fadeIn(this.title);
+    if (!this.logoLit) this.igniteLogo();
     const stars = save.totalStars();
     const parts = [`${stars} / ${LEVELS.length * 3} STARS`, `${save.ducks} DUCKS`];
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
