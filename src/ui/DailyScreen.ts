@@ -557,6 +557,8 @@ export class DailyScreen {
 
       setIfChanged(r.text, m.text);
       r.text.setColor(m.done ? CAPTION : css.ink);
+      // Never run into the reroll button / the edge.
+      r.text.setScale(Math.min(1, (W - pad * 2 - 40) / Math.max(1, r.text.width)));
       setIfChanged(r.reward, m.done ? 'DONE' : `+${m.reward}`);
       r.reward.setColor(m.done ? CAPTION : GOLD_CSS);
 

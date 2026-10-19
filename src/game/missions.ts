@@ -147,7 +147,7 @@ export const MISSIONS: MissionDef[] = [
     tier: 'hard',
     goal: 1,
     kind: 'sum',
-    text: 'CLEAR A WORLD 2+ LEVEL WITHOUT YOUR ABILITY',
+    text: 'CLEAR WORLD 2+ WITHOUT ABILITY',
     count: (ev) => (end(ev)?.cleared && !end(ev)!.abilityUsed && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
     requires: (c) => c.unlocked >= 6,
   }),
@@ -173,7 +173,7 @@ export const MISSIONS: MissionDef[] = [
     tier: 'hard',
     goal: 90,
     kind: 'best',
-    text: 'LAST 90 SECONDS IN ONE ENDLESS RUN',
+    text: 'LAST 90 SEC IN ONE ENDLESS RUN',
     count: (ev) => (end(ev) && end(ev)!.mode !== 'level' ? Math.floor(end(ev)!.seconds) : 0),
   }),
 ];
