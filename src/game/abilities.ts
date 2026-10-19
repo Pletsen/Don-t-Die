@@ -68,6 +68,8 @@ export const ABILITIES: Record<string, AbilityDef> = {
   blush: { name: 'SO SHY', desc: 'Hazards get shy and slide out of your way.', shy: true },
   moon: { name: 'ORBIT', desc: 'You swing round corners on your own.', bounce: true },
   potato: { name: 'COUCH POTATO', desc: 'The game plays itself. Slowly.', autopilot: true, speed: 0.6 },
+  melon: { name: 'THICK RIND', desc: 'A tough rind takes two hits for you.', shield: 2, word: 'SPLAT' },
+  cookie: { name: 'CRUMBS', desc: 'Every duck counts double.', duckMult: 2 },
 
   // Rare: a stronger effect, often two.
   kitty: { name: 'NINE LIVES', desc: 'Survive one crash. Any crash.', revive: 1 },
@@ -77,12 +79,17 @@ export const ABILITIES: Record<string, AbilityDef> = {
   donut: { name: 'SUGAR RUSH', desc: 'Huge speed, and every turn is PERFECT.', speed: 1.5, perfectAll: true },
   soccer: { name: 'KICKOFF', desc: 'You get kicked! Walls are bumpers, hazards get booted.', bounce: true, speed: 2, smash: true, word: 'BOOT' },
   eyeball: { name: 'THIRD EYE', desc: 'Slow motion, and you see every perfect turn.', slow: 0.55, perfectAll: true },
+  bee: { name: 'HONEY RUSH', desc: 'Buzz faster and collect ducks from afar.', speed: 1.3, magnet: 240 },
+  disco: { name: 'DANCE FLOOR', desc: 'Hazards dance out of your way. Every turn is PERFECT.', shy: true, perfectAll: true },
+  ghost: { name: 'SPOOKY', desc: 'Float straight through hazards. Boo!', ghost: true, slow: 0.85 },
 
   // Epic: unstoppable for ten seconds.
   lava: { name: 'MELTDOWN', desc: 'Hazards melt, walls bounce you, fire everywhere.', smash: true, bounce: true, speed: 1.3, word: 'MELT' },
   galaxy: { name: 'HYPERDRIVE', desc: 'Autopilot at light speed. Double ducks.', autopilot: true, speed: 2.2, smash: true, duckMult: 2, word: 'ZAP' },
   cyber: { name: 'TARGET LOCK', desc: 'Lasers delete every hazard ahead. Perfect turns.', laser: 320, perfectAll: true, bounce: true, word: 'DELETED' },
   pizza: { name: 'PIZZA PARTY', desc: 'Hazards turn into ducks and you pull them in.', ducksFromHazards: true, magnet: 220, duckMult: 2, bounce: true },
+  plasma: { name: 'TESLA STORM', desc: 'Lightning zaps hazards ahead, ducks fly to you, walls bounce you.', laser: 260, magnet: 240, bounce: true, word: 'ZAPPED' },
+  fishbowl: { name: 'TIDAL WAVE', desc: 'Surf a wave: hazards wash away, walls bounce you, double ducks.', smash: true, bounce: true, magnet: 200, duckMult: 2, word: 'SPLASH' },
 
   // Legendary: everything, and it farms ducks.
   crown: {
@@ -114,6 +121,17 @@ export const ABILITIES: Record<string, AbilityDef> = {
     duckMult: 3,
     autopilot: true,
     speed: 1.5,
+  },
+  phoenix: {
+    name: 'REBIRTH',
+    desc: 'Blaze through everything on autopilot, all PERFECT. Rise again from two crashes.',
+    autopilot: true,
+    perfectAll: true,
+    smash: true,
+    speed: 1.5,
+    revive: 2,
+    duckMult: 2,
+    word: 'BURN',
   },
 };
 
