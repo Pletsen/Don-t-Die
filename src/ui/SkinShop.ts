@@ -477,7 +477,7 @@ export class SkinShop {
     this.refreshLcd();
 
     const [owned, total] = gacha.ownedAll();
-    setText(this.collectionLabel, owned === total ? `COLLECTION COMPLETE  ${owned}/${total}` : `COLLECTION  ${owned}/${total}`);
+    setText(this.collectionLabel, owned === total ? `COMPLETE!  ${owned}/${total}` : `COLLECTION  ${owned}/${total}`);
     RARITY_ORDER.forEach((r, i) => setText(this.rarityCounts[i], this.countLabel(r)));
 
     let anyNew = false;
@@ -621,7 +621,8 @@ export class SkinShop {
 
     const start = this.clock + 400;
     this.reels.forEach((reel, r) => {
-      const offset = 3 + Math.floor(Math.random() * REEL_SLOTS);
+      // 3..5 slots on: the prize slot and its neighbours start out of sight.
+      const offset = 3 + Math.floor(Math.random() * 3);
       reel.from = reel.pos;
       reel.to = Math.ceil(reel.pos) + REEL_SLOTS * (2 + r) + offset;
       reel.t0 = start + r * 70;
