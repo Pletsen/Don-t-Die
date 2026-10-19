@@ -428,6 +428,55 @@ class SfxEngine {
     this.denied();
   }
 
+  // --- DUCK-O-MATIC (called through src/ui/shopSfx.ts) --------------------
+
+  /** A duck drops into the coin slot: a short metallic clink, rising. */
+  shopCoin(i: number) {
+    const f = 1568 * Math.pow(2, (i % 6) / 12);
+    this.tone({ freq: f, duration: 0.05, type: 'square', gain: 0.025 });
+    this.tone({ freq: f * 1.5, duration: 0.09, type: 'triangle', gain: 0.03, delay: 0.015 });
+  }
+
+  /** The last reel creeps: a rising shimmer that builds suspense. */
+  shopTease() {
+    this.tone({ freq: 392, glideTo: 784, duration: 0.45, type: 'triangle', gain: 0.05 });
+    this.burst({ filterType: 'highpass', filterFreq: 4000, duration: 0.4, gain: 0.03 });
+  }
+
+  /** Three reels down: the payline flashes. */
+  shopWin() {
+    [0, 4, 7].forEach((st, i) => this.tone({ freq: 659 * Math.pow(2, st / 12), duration: 0.14, type: 'triangle', gain: 0.07, delay: i * 0.05 }));
+    this.thump(110, 0.2, 0.12);
+  }
+
+  /** The capsule jumps out of the machine. */
+  shopCapsule() {
+    this.tone({ freq: 220, glideTo: 660, duration: 0.18, type: 'sine', gain: 0.12 });
+  }
+
+  /** Each shake of the capsule: a knock, higher every time. */
+  shopShake(i: number) {
+    this.thump(160 + i * 30, 0.22, 0.08);
+    this.tone({ freq: 880 + i * 120, duration: 0.05, type: 'square', gain: 0.02 });
+  }
+
+  /** The capsule pops open. */
+  shopPop() {
+    this.burst({ filterType: 'bandpass', filterFreq: 1800, duration: 0.12, gain: 0.18 });
+    this.thump(90, 0.3, 0.15);
+  }
+
+  /** A duplicate bursts into ducks. */
+  shopBurst() {
+    this.quack(1.25);
+    this.burst({ filterType: 'highpass', filterFreq: 2500, duration: 0.25, gain: 0.06 });
+  }
+
+  /** A refunded duck lands in the counter. */
+  shopDuckIn(i: number) {
+    this.coin(i);
+  }
+
   /** A duck lands in the counter: a bright little blip that climbs. */
   coin(i: number) {
     this.tone({ freq: 1046 * Math.pow(2, Math.min(i, 12) / 24), duration: 0.07, type: 'triangle', gain: 0.05 });
