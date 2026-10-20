@@ -76,7 +76,7 @@ export const skinsOf = (rarity: Rarity) => SKINS.filter((s) => s.rarity === rari
 
 export const SPIN_COST = 50;
 /** Ducks back for a duplicate (only possible once that rarity's set is complete). */
-export const REFUND: Record<Rarity, number> = { common: 10, rare: 20, epic: 40, legendary: 80 };
+export const REFUND: Record<Rarity, number> = { common: 5, rare: 10, epic: 20, legendary: 35 };
 /** @deprecated Duplicates refund by rarity now: use REFUND[rarity]. */
 export const DUPLICATE_REFUND = REFUND.common;
 /** Pity: an epic-or-better within this many spins, a legendary within this many. */

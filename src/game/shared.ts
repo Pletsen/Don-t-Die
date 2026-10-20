@@ -98,6 +98,8 @@ export interface NotifyData {
   color?: number;
   /** Ducks awarded with it, shown as "+N". */
   ducks?: number;
+  /** Show it mid-run too (records, milestones). Others wait for the run to end. */
+  live?: boolean;
 }
 
 /** `level: null` means survival mode; `daily: true` plays today's Daily Run. */

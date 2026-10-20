@@ -1,7 +1,7 @@
 import { EV, type HudData, type NotifyData, type RunMode, type StatEvent } from './shared';
 import { save } from './storage';
 import { readJSON, writeJSON } from './persist';
-import { LEVELS, WORLDS, levelById } from './levels';
+import { LEVELS, levelById } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
 import { Daily, DAILY_MILESTONES, newDailyData, todayKey, type DailyData } from './daily';
@@ -25,13 +25,13 @@ const VERSION = 1;
 /** Economy (designer's numbers). */
 export const ECONOMY = {
   /** Ducks per star you didn't have before. */
-  perNewStar: 5,
-  /** First clear of a level: 5 (level 1) up to 15 (level 20). */
-  firstClear: (id: number) => 5 + Math.round(((id - 1) / Math.max(1, LEVELS.length - 1)) * 10),
+  perNewStar: 2,
+  /** First clear of a level: 2 (level 1) up to 6 (level 20). */
+  firstClear: (id: number) => 2 + Math.round(((id - 1) / Math.max(1, LEVELS.length - 1)) * 4),
   /** Survival: one duck per this many metres. */
   survivalMetersPerDuck: 100,
   /** A free spin each time total stars reach one of these. */
-  starRoad: [15, 30, 45, 60],
+  starRoad: [20, 40, 60],
 };
 
 export interface Stats {
@@ -483,6 +483,7 @@ class Progress {
         title: run.mode === 'daily' ? 'NEW DAILY BEST!' : 'NEW RECORD!',
         subtitle: `PAST ${run.record.toFixed(1)} M · KEEP GOING`,
         color: 0xff9a2e,
+        live: true,
       });
     }
     if (run.mode === 'daily' && d.meters >= run.nextMilestone) {
@@ -594,23 +595,13 @@ class Progress {
     this.live = null;
 
     if (ev.mode === 'level' && ev.level !== null && levelById(ev.level)) this.endLevel(ev, sum);
-    else if (ev.mode === 'survival') this.endSurvival(ev, sum, !!live?.announced);
+    else if (ev.mode === 'survival') this.endSurvival(ev, sum);
     else if (ev.mode === 'daily') this.endDaily(ev, sum, live);
 
-    // One banner for the run's routine rewards (live ones were paid already).
+    // Pay the run's routine rewards (live ones were paid already). No banner:
+    // the clear screen and the death card list them already.
     sum.ducks = sum.rewards.reduce((t, r) => t + r.ducks, 0);
-    const due = sum.rewards.filter((r) => !r.live);
-    const dueDucks = due.reduce((t, r) => t + r.ducks, 0);
-    if (dueDucks > 0) {
-      due.forEach((r) => this.reward(r.ducks, ev.mode === 'level' ? 'level' : ev.mode));
-      const [first, ...rest] = due;
-      this.notify({
-        title: first.label,
-        subtitle: rest.length ? rest.map((r) => r.label).join(' · ') : 'RUN REWARD',
-        color: 0xffd21f,
-        ducks: dueDucks,
-      });
-    }
+    for (const r of sum.rewards) if (!r.live) this.reward(r.ducks, 'reward');
     this.lastRun = sum;
 
     this.missions.onStat(ev);
@@ -628,15 +619,8 @@ class Progress {
     if (p > rec.best) {
       rec.best = p;
       // Only a failed attempt that got further than before is a "NEW BEST %".
-      if (!ev.cleared && sum.bestBefore > 0 && p - sum.bestBefore >= 0.01) {
-        sum.newBest = true;
-        const level = levelById(id)!;
-        this.notify({
-          title: `NEW BEST · ${Math.floor(p * 100)}%`,
-          subtitle: `LEVEL ${id} · WAS ${Math.floor(sum.bestBefore * 100)}%`,
-          color: WORLDS[level.world].color,
-        });
-      }
+      // (The death card shows it; no banner.)
+      if (!ev.cleared && sum.bestBefore > 0 && p - sum.bestBefore >= 0.01) sum.newBest = true;
     }
     sum.best = rec.best;
     if (!ev.cleared) return;
@@ -657,7 +641,7 @@ class Progress {
     }
   }
 
-  private endSurvival(ev: Extract<StatEvent, { type: 'runEnd' }>, sum: RunSummary, announced: boolean) {
+  private endSurvival(ev: Extract<StatEvent, { type: 'runEnd' }>, sum: RunSummary) {
     const sv = this.data.survival;
     const m = ev.meters;
     sum.bestBefore = sv.best;
@@ -674,9 +658,6 @@ class Progress {
     if (m > sv.best) {
       sv.best = m;
       sum.newBest = true;
-      if (!announced && sum.bestBefore > 0) this.notify({ title: 'NEW RECORD!', subtitle: `${m.toFixed(1)} M IN SURVIVAL`, color: 0xff9a2e });
-    } else if (sum.rank !== null && sum.rank > 1 && sv.top.length >= 3) {
-      this.notify({ title: `TOP 5 RUN · #${sum.rank}`, subtitle: `${m.toFixed(1)} M IN SURVIVAL`, color: 0x2be8ff });
     }
     sum.best = sv.best;
   }
@@ -687,10 +668,10 @@ class Progress {
     const paid = live?.paid ?? [];
     this.payMilestones(ev.meters, paid);
     sum.rewards.push(...paid.map((r) => ({ ...r, live: true })));
-    const r = this.daily.endRun(ev.meters);
+    this.daily.endRun(ev.meters);
     sum.newBest = ev.meters > sum.bestBefore;
     sum.best = this.daily.run().best;
-    if (!live?.announced && r.todayBest) this.notify({ title: 'NEW DAILY BEST', subtitle: `${ev.meters.toFixed(1)} M TODAY`, color: 0xff9a2e });
+    // (The death card shows NEW DAILY BEST.)
   }
 
   /** A free spin for every Star Road threshold reached. */

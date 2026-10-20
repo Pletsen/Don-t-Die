@@ -11,6 +11,8 @@ import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { display } from './game/display';
+import { save } from './game/storage';
+import { progress } from './game/progress';
 
 // Phaser has no built-in support for sharp rendering on high-density screens
 // (phones, retina laptops). We make the canvas `devicePixelRatio` times larger
@@ -58,7 +60,7 @@ async function start() {
   });
 
   // Handy for debugging in the browser console and for automated tests.
-  Object.assign(window, { game, glowFx });
+  Object.assign(window, { game, glowFx, save, progress });
 
   // Resizes come in bursts (rotation, keyboard, browser bars): apply the last
   // one on the next frame instead of rebuilding the canvas for each.

@@ -205,19 +205,19 @@ export function dailyModifier(key = todayKey()): DailyModifier {
 
 /** Daily Run milestones: each pays once per day. */
 export const DAILY_MILESTONES = [
-  { m: 250, ducks: 10 },
-  { m: 600, ducks: 15 },
-  { m: 1000, ducks: 25 },
+  { m: 250, ducks: 5 },
+  { m: 600, ducks: 10 },
+  { m: 1000, ducks: 15 },
 ];
 
 /** Streak rewards for day 1..7 of a cycle. Day 7 is a free spin instead of ducks. */
 export const STREAK_REWARDS: { ducks: number; spins: number }[] = [
+  { ducks: 5, spins: 0 },
+  { ducks: 5, spins: 0 },
+  { ducks: 10, spins: 0 },
   { ducks: 10, spins: 0 },
   { ducks: 15, spins: 0 },
-  { ducks: 20, spins: 0 },
-  { ducks: 25, spins: 0 },
-  { ducks: 30, spins: 0 },
-  { ducks: 40, spins: 0 },
+  { ducks: 15, spins: 0 },
   { ducks: 0, spins: 1 },
 ];
 
@@ -345,7 +345,7 @@ export class Daily {
       rec.paid.push(ms.m);
       total += ms.ducks;
       this.hooks.reward(ms.ducks, 'daily');
-      this.hooks.notify({ title: `DAILY RUN ${ms.m} M`, subtitle: 'MILESTONE REACHED', color: 0xffd21f, ducks: ms.ducks });
+      this.hooks.notify({ title: `DAILY RUN ${ms.m} M`, subtitle: 'MILESTONE REACHED', color: 0xffd21f, ducks: ms.ducks, live: true });
     }
     if (total) this.hooks.dirty();
     return total;

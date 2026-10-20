@@ -55,15 +55,15 @@ Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD
 
 ### Dagligt: DAILY
 
-- **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +10/+15/+25 ænder, én gang om dagen.
-- **3 daglige missioner** (let/medium/svær, +10/+15/+25, +20 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
-- **Streak:** kom igen hver dag for 10, 15, 20, 25, 30, 40 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
+- **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +5/+10/+15 ænder, én gang om dagen.
+- **3 daglige missioner** (let/medium/svær, +5/+10/+15, +10 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
+- **Streak:** kom igen hver dag for 5, 5, 10, 10, 15, 15 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
 
 Det hele ligger i `src/game/progress.ts`, `missions.ts`, `daily.ts` og `achievements.ts` og gemmes i ét versioneret save (`dontdie_progress_v1`).
 
 ### Rekorder og achievements: RECORDS
 
-Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** med ænder som belønning. Bannere glider ned fra toppen, når du klarer en mission, låser en achievement op eller slår en rekord. Under en tur er de små og kan ikke trykkes på, så et tryk stadig drejer kuglen.
+Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** med små ænde-belønninger. Bannere glider ned fra toppen, når du klarer en mission, låser en achievement op eller får et gratis spin. Under en tur vises kun en ny rekord og daglige milepæle (små, og et tryk drejer stadig kuglen); resten venter, til turen er slut, og flere belønninger på én gang samles i ét banner ("3 REWARDS").
 
 ### Warp-stjernen og Universe 2
 
@@ -81,9 +81,9 @@ Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`). Dør d
 
 ### Skins og DUCK-O-MATIC
 
-Ænder er valuta. Ét træk i DUCK-O-MATIC koster 50 ænder (eller et gratis spin fra streaks og "Star Road": 15/30/45/60 stjerner). Spillemaskinen er fair:
+Ænder er valuta, og de fleste samler du selv på banen; første gennemførsel og nye stjerner giver lidt ekstra (2–6 og 2 pr. stjerne). Ét træk i DUCK-O-MATIC koster 50 ænder (eller et gratis spin fra streaks og "Star Road": 20/40/60 stjerner). Spillemaskinen er fair:
 
-- Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 10/20/40/80 ænder tilbage.
+- Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 5/10/20/35 ænder tilbage.
 - Pity: mindst epic inden for 15 spin, legendary inden for 60. Tælleren står på maskinen.
 
 | Sjældenhed | Chance | Skins |

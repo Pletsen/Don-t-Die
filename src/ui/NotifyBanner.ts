@@ -32,6 +32,8 @@ export class NotifyBanner {
   private amount: Phaser.GameObjects.Text;
   private hit: Phaser.GameObjects.Zone;
   private queue: NotifyData[] = [];
+  /** Rewards earned mid-run, shown together when the run ends. */
+  private held: NotifyData[] = [];
   private showing = false;
   private inRun = false;
   private w = W_MAX;
@@ -71,11 +73,58 @@ export class NotifyBanner {
   /** Compact, tap-through banners below the HUD while playing. */
   setInRun(on: boolean) {
     this.inRun = on;
+    if (!on && this.held.length) {
+      const held = this.held;
+      this.held = [];
+      held.forEach((n) => this.queue.push(n));
+      if (!this.showing) this.next();
+    }
   }
 
   push(n: NotifyData) {
+    // Mid-run only the live ones (a new record, a daily milestone) show; the
+    // rest would just cover the track, so they wait for the run to end.
+    if (this.inRun && !n.live) {
+      this.held.push(n);
+      return;
+    }
     this.queue.push(n);
     if (!this.showing) this.next();
+  }
+
+  /**
+   * Several duck rewards waiting at once become one banner ("3 REWARDS"),
+   * so a run's end never turns into a parade. Banners without ducks (a free
+   * spin, a record) still show on their own.
+   */
+  private coalesce() {
+    const paid = this.queue.filter((n) => n.ducks && n.ducks > 0);
+    if (paid.length < 2) return;
+    const rest = this.queue.filter((n) => !(n.ducks && n.ducks > 0));
+    // "2 MISSIONS · 3 ACHIEVEMENTS", plus anything else by its own title.
+    let missions = 0;
+    let achievements = 0;
+    const other: string[] = [];
+    for (const n of paid) {
+      const many = /^(\d+) ACHIEVEMENTS/.exec(n.title);
+      if (many) achievements += Number(many[1]);
+      else if (/^ACHIEVEMENT/.test(n.subtitle ?? '')) achievements++;
+      else if (/MISSION/.test(n.title)) missions++;
+      else other.push(n.title);
+    }
+    const plural = (k: number, word: string) => `${k} ${word}${k === 1 ? '' : 'S'}`;
+    const parts = [
+      ...(missions ? [plural(missions, 'MISSION')] : []),
+      ...(achievements ? [plural(achievements, 'ACHIEVEMENT')] : []),
+      ...other,
+    ];
+    const merged: NotifyData = {
+      title: `${paid.length} REWARDS`,
+      subtitle: parts.slice(0, 3).join(' · ') + (parts.length > 3 ? ' …' : ''),
+      color: 0xffd21f,
+      ducks: paid.reduce((t, n) => t + (n.ducks ?? 0), 0),
+    };
+    this.queue = [merged, ...rest];
   }
 
   /** Hide the current banner now (tap on it). */
@@ -89,6 +138,7 @@ export class NotifyBanner {
   /** Drop everything (e.g. when the app goes to the background). */
   clear() {
     this.queue = [];
+    this.held = [];
     this.dismiss();
   }
 
@@ -99,6 +149,7 @@ export class NotifyBanner {
   }
 
   private next() {
+    this.coalesce();
     const n = this.queue.shift();
     if (!n) {
       this.showing = false;

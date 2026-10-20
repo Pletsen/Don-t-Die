@@ -10,9 +10,9 @@ import type { ProgressHooks } from './progress';
 export type Tier = 'easy' | 'medium' | 'hard';
 
 export const TIERS: Tier[] = ['easy', 'medium', 'hard'];
-export const TIER_REWARD: Record<Tier, number> = { easy: 10, medium: 15, hard: 25 };
+export const TIER_REWARD: Record<Tier, number> = { easy: 5, medium: 10, hard: 15 };
 export const TIER_COLOR: Record<Tier, number> = { easy: 0x2be8ff, medium: 0xff9a2e, hard: 0xff2f9e };
-export const ALL_DONE_BONUS = 20;
+export const ALL_DONE_BONUS = 10;
 export const REROLLS_PER_DAY = 1;
 
 /** What a mission may look at to decide if it makes sense for this player yet. */
@@ -84,8 +84,9 @@ export const MISSIONS: MissionDef[] = [
     tier: 'medium',
     goal: 1,
     kind: 'sum',
-    text: 'CLEAR A LEVEL WITH 2+ STARS',
-    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 2 ? 1 : 0),
+    text: 'CLEAR LEVEL 3+ WITH 2+ STARS',
+    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 2 && (end(ev)!.level ?? 0) >= 3 ? 1 : 0),
+    requires: (c) => c.unlocked >= 3,
   }),
   m({ id: 'm_ability3', tier: 'medium', goal: 3, kind: 'sum', text: 'USE YOUR SKIN ABILITY 3 TIMES', count: (ev) => (ev.type === 'ability' ? 1 : 0) }),
   m({
@@ -121,8 +122,9 @@ export const MISSIONS: MissionDef[] = [
     tier: 'hard',
     goal: 1,
     kind: 'sum',
-    text: 'CLEAR A LEVEL WITH 3 STARS',
-    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 3 ? 1 : 0),
+    text: 'CLEAR LEVEL 6+ WITH 3 STARS',
+    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 3 && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
+    requires: (c) => c.unlocked >= 6,
   }),
   m({
     id: 'h_warp',

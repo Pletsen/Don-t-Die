@@ -427,7 +427,6 @@ export class GameScene extends Phaser.Scene {
     this.effects.floater(x, y - 44, z.def.name, `#${z.def.color.toString(16).padStart(6, '0')}`, 20, 3);
     this.effects.shockwave(x, y, z.def.color, 180, 650);
     sfx.sweep();
-    this.game.events.emit(EV.notify, { title: `ZONE: ${z.def.name}`, subtitle: z.def.hint, color: z.def.color });
   }
 
   /** Tell progress tracking (missions, achievements, records) what happened. */
