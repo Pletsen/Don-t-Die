@@ -248,8 +248,16 @@ class SfxEngine {
 
   /** Plays a recording. Returns false if it isn't loaded, so the caller can use a synth sound. */
   private sample(name: DuckSound, o: PlayOpts) {
+    return this.playFrom(this.samples, name, o);
+  }
+
+  /**
+   * Plays a recording from any SampleBank on the same output as the ducks,
+   * so mute and volume apply to it too (the skin voices use this).
+   */
+  playFrom<K extends string>(bank: SampleBank<K>, name: K, o: PlayOpts = {}) {
     if (!this.ctx || !this.master) return false;
-    return this.samples.play(this.ctx, this.master, name, o);
+    return bank.play(this.ctx, this.master, name, o);
   }
 
   /** Bonked a rubber duck. `pitch` above 1 for small ducks, below 1 for big ones. */

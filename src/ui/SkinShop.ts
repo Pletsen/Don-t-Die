@@ -6,6 +6,7 @@ import { PITY, RARITIES, RARITY_ORDER, SKINS, SPIN_COST, skinById, skinTexture, 
 import { gacha, type SpinResult } from '../game/gacha';
 import { abilityFor } from '../game/abilities';
 import { sfx } from '../audio/Sfx';
+import { skinVoices } from '../audio/skinVoices';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { makeButton, makeText, type Button } from './widgets';
 import { M, Q, SHOP_TEX, TILE_IN, TILE_TEX, bulbX, ensureShopTextures, reelX, safeBottom } from './shopTextures';
@@ -579,6 +580,7 @@ export class SkinShop {
       return;
     }
     sfx.click();
+    skinVoices.preview(skin.id);
     this.selected = skin.id;
     if (save.skin !== skin.id) {
       save.setSkin(skin.id);
@@ -914,6 +916,7 @@ export class SkinShop {
     this.seam.setAlpha(1);
 
     shopSfx.pop(rarity);
+    if (isNew) skinVoices.reveal(skin.id, rarity);
     this.hold = false;
     this.refresh();
     this.scene.game.events.emit(EV.stat, { type: 'spin', skin: skin.id, rarity, isNew } satisfies StatEvent);

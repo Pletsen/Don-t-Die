@@ -10,6 +10,7 @@ import { css, palette } from '../game/palette';
 import { u2Color } from '../fx/worldPalette';
 import { sfx as realSfx, haptic as realHaptic } from '../audio/Sfx';
 import { music } from '../audio/Music';
+import { skinVoices } from '../audio/skinVoices';
 import { CorridorView, LOOKAHEAD } from '../fx/CorridorView';
 import { PlayerView } from '../fx/PlayerView';
 import { HazardView } from '../fx/HazardView';
@@ -326,6 +327,7 @@ export class GameScene extends Phaser.Scene {
     if (this.abilityLocked) this.abilityCharges = 0;
     sfx.unlock();
     sfx.start();
+    skinVoices.runStart(save.skin);
     this.state = 'play';
     music.setEnergy(1);
     this.playerView.setEmitting(true);
@@ -1213,6 +1215,7 @@ export class GameScene extends Phaser.Scene {
     this.cam.punch = 0.15;
     shared.pulse = 1;
     sfx.ability(skin.rarity);
+    skinVoices.power(skin.id);
     haptic([20, 30, 60]);
     this.emitAbility();
   }
