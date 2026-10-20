@@ -160,6 +160,7 @@ export class UIScene extends Phaser.Scene {
       (level) => this.play(level),
       () => this.toggleRainbow(),
       () => this.showMenu(),
+      (msg) => this.toast(msg, 1800),
     );
     this.daily = new DailyScreen(this, { play: () => this.playDaily(), back: () => this.showMenu() });
     this.records = new RecordsScreen(this, { back: () => this.showMenu() });
@@ -256,6 +257,8 @@ export class UIScene extends Phaser.Scene {
 
   private toast(msg: string, hold = 1600) {
     const { w, h } = display.size(this);
+    // Long messages wrap instead of running off a narrow screen.
+    this.toastText.setWordWrapWidth(w - 48).setAlign('center');
     this.toastText.setText(msg).setPosition(w / 2, h - 100 - display.safeBottom());
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(1).setScale(1.4);
@@ -889,7 +892,7 @@ export class UIScene extends Phaser.Scene {
     if (fromRun) this.game.events.emit(EV.menu);
 
     sfx.swoosh();
-    // Re-layout: the NORMAL / HARD tabs appear once level 20 is cleared.
+    // Re-layout (the level map may have changed since it was last laid out).
     const { w, h } = display.size(this);
     this.select.layout(w, h, 16 + display.safeTop() + 52);
     this.select.showSetOf(this.level ?? nextLevelToPlay());

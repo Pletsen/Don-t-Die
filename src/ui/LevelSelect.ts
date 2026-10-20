@@ -61,6 +61,8 @@ export class LevelSelect {
   private hard = false;
   private normalTab: Button;
   private hardTab: Button;
+  /** The HARD tab before level 20 is cleared: greyed, with a lock. */
+  private hardLocked: Button;
   private pokes = 0;
   private lastPoke = 0;
 
@@ -69,6 +71,7 @@ export class LevelSelect {
     private onPick: (level: number | null) => void,
     private onSecret: () => void,
     onBack: () => void,
+    private toast: (msg: string) => void = () => {},
   ) {
     this.back = makeIconButton(scene, 'back', onBack);
     this.header = makeText(scene, 0, 0, 'LEVELS', { size: 24, spacing: 3 }).setOrigin(0.5);
@@ -85,9 +88,11 @@ export class LevelSelect {
       this.worldStars.push(makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1 }).setOrigin(1, 0));
     });
 
-    // NORMAL / HARD tabs, shown once HARD MODE is open.
+    // NORMAL / HARD tabs. Until level 20 is cleared the HARD tab is a teaser:
+    // greyed, with a lock, and tapping it says what opens it.
     this.normalTab = makeButton(scene, { label: 'NORMAL', width: 120, height: 34, style: 'ghost', onPress: () => this.setHard(false) });
     this.hardTab = makeButton(scene, { label: 'HARD', width: 120, height: 34, style: 'ghost', color: palette.crimson, onPress: () => this.setHard(true) });
+    this.hardLocked = makeButton(scene, { label: 'HARD', icon: 'lock', width: 120, height: 34, style: 'ghost', color: 0x4a5866, onPress: () => this.lockedHard() });
 
     for (const level of [...LEVELS, ...HARD_LEVELS]) {
       const glow = scene.add.graphics();
@@ -121,9 +126,20 @@ export class LevelSelect {
       ...this.tiles.map((t) => t.root),
       this.normalTab,
       this.hardTab,
+      this.hardLocked,
       this.back,
     ]);
     this.root.setVisible(false);
+  }
+
+  /** Tapped the locked HARD tab: it shakes, and a toast says how to open it. */
+  private lockedHard() {
+    sfx.denied();
+    const tab = this.hardLocked;
+    this.scene.tweens.killTweensOf(tab);
+    tab.setX(66);
+    this.scene.tweens.add({ targets: tab, x: 70, duration: 40, yoyo: true, repeat: 2, onComplete: () => tab.setX(66) });
+    this.toast(`CLEAR LEVEL ${LEVELS[LEVELS.length - 1].id} TO UNLOCK HARD MODE`);
   }
 
   /** Show the NORMAL or the HARD set. */
@@ -144,10 +160,11 @@ export class LevelSelect {
   refresh() {
     const s = this.size;
     const next = nextLevelToPlay();
-    const tabs = hardUnlocked();
-    if (!tabs) this.hard = false;
-    this.normalTab.setVisible(tabs).setAlpha(this.hard ? 0.45 : 1);
-    this.hardTab.setVisible(tabs).setAlpha(this.hard ? 1 : 0.45);
+    const open = hardUnlocked();
+    if (!open) this.hard = false;
+    this.normalTab.setAlpha(this.hard ? 0.45 : 1);
+    this.hardTab.setVisible(open).setAlpha(this.hard ? 1 : 0.45);
+    this.hardLocked.setVisible(!open);
     this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS').setColor(this.hard ? '#ff2d55' : '#eaf6ff');
     for (const t of this.tiles) {
       t.root.setVisible(!!t.level.hard === this.hard);
@@ -210,12 +227,11 @@ export class LevelSelect {
     this.header.setPosition(0, y + 22);
     this.totalStars.setPosition(-left, y + 22);
     y += 64;
-    // NORMAL / HARD tabs (once HARD MODE is open).
-    if (hardUnlocked()) {
-      this.normalTab.setPosition(-66, y + 4);
-      this.hardTab.setPosition(66, y + 4);
-      y += 50;
-    }
+    // NORMAL / HARD tabs (HARD is a locked teaser until level 20 is cleared).
+    this.normalTab.setPosition(-66, y + 4);
+    this.hardTab.setPosition(66, y + 4);
+    this.hardLocked.setPosition(66, y + 4);
+    y += 50;
     const plateTop = y - 10;
 
     WORLDS.forEach((_, wi) => {
