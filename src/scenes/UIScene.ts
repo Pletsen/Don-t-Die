@@ -339,6 +339,7 @@ export class UIScene extends Phaser.Scene {
     const changed = a.state !== this.abilityState.state;
     if (changed && a.state === 'active') this.cutIn();
     this.abilityState = a;
+    this.abilityPill.setVisible(a.state !== 'locked');
     if (!changed && this.time.now - this.lastAbilityDraw < 80) return;
     this.lastAbilityDraw = this.time.now;
     this.drawAbilityPill();

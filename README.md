@@ -10,7 +10,7 @@ Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, 
 - **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **SKINS** er spillemaskinen DUCK-O-MATIC, og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
 - Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS), lyd og effekter.
 
-Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
+Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
 
 Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
 
@@ -97,7 +97,7 @@ Skins er data i `src/game/skins.ts`, og hvert skin tegnes i `src/fx/skinTextures
 
 ### Super power (skin-evner)
 
-**Tryk 4 gange hurtigt.** Hvert tryk drejer 90°, så du laver et lille loop, og så tænder skinnets evne i 10 sekunder: et skråt bånd med skinnets ansigt og evnens navn fejer over skærmen. Du kommer altid ud af loopet med retning langs banen, også hvis det startede i et sving. Den kan bruges én gang pr. level. I Survival lades den op 500 m og 30 sekunder efter, at den sluttede.
+**Tryk 4 gange hurtigt.** Hvert tryk drejer 90°, så du laver et lille loop, og så tænder skinnets evne i 10 sekunder: et skråt bånd med skinnets ansigt og evnens navn fejer over skærmen. Du kommer altid ud af loopet med retning langs banen, også hvis det startede i et sving. Den kan bruges én gang pr. level og låses op fra level 3 (level 1–2 lærer det basale). I Survival lades den op 500 m og 30 sekunder efter, at den sluttede.
 
 - **Common:** FOCUS, COOL HEAD, BUBBLE, SQUEEZE, GRAPEVINE, ZEST RUSH, DEEP FREEZE, SO SHY, ORBIT, COUCH POTATO, THICK RIND, CRUMBS
 - **Rare:** NINE LIVES, TONGUE, BAMBOO BITE, BOUNCY, SUGAR RUSH, KICKOFF, THIRD EYE, HONEY RUSH, DANCE FLOOR, SPOOKY

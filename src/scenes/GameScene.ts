@@ -34,6 +34,8 @@ const MILESTONES: [number, string][] = [
 ];
 
 /** DUCK FRENZY: tap as fast as you can for this long, one duck per tap. */
+/** Skin powers unlock on this level (levels before it teach the basics). */
+const ABILITY_FROM_LEVEL = 3;
 const FRENZY_SECONDS = 8;
 const FRENZY_MAX = 70;
 /** Pause after the frenzy so leftover taps don't steer you into a wall. */
@@ -154,6 +156,8 @@ export class GameScene extends Phaser.Scene {
     nextImplode: number;
   } | null = null;
   private abilityCharges = 1;
+  /** Levels 1-2 teach the basics: no skin power yet (the tip comes before level 3). */
+  private abilityLocked = false;
   private rechargeAtM = Infinity;
   /** Survival: the ability also needs this much run time to pass (seconds). */
   private rechargeAtT = Infinity;
@@ -259,6 +263,7 @@ export class GameScene extends Phaser.Scene {
     this.setUniverse(false);
     this.ability = null;
     this.abilityCharges = 1;
+    this.abilityLocked = false;
     this.rechargeAtM = Infinity;
     this.rechargeAtT = Infinity;
     this.recentTaps = [];
@@ -314,6 +319,8 @@ export class GameScene extends Phaser.Scene {
     if (this.course.warped) this.setUniverse(true);
     // Level 1, never cleared: guide the first corners.
     this.guidedGates = level && level.id === 1 && save.starsFor(1) === 0 ? 3 : 0;
+    this.abilityLocked = !!level && level.id < ABILITY_FROM_LEVEL;
+    if (this.abilityLocked) this.abilityCharges = 0;
     sfx.unlock();
     sfx.start();
     this.state = 'play';
@@ -446,6 +453,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.ability?.def.autopilot) return; // hands off: the ability is driving
+    // The guided first corners forgive an early tap: new players tap the
+    // moment the run starts, and dying 3 seconds in teaches nothing.
+    if (this.guidedGates > 0 && this.tooEarlyForGuide()) {
+      this.effects.floater(this.player.x, this.player.y - 26, 'WAIT…', css.ink, 14, 2);
+      return;
+    }
     const now = this.time.now;
     const dirBefore = this.player.dir;
     this.turn();
@@ -462,6 +475,14 @@ export class GameScene extends Phaser.Scene {
       this.recentTaps = [];
       if (back) this.tryActivateAbility();
     }
+  }
+
+  /** Heading for the next corner but not in its square yet. */
+  private tooEarlyForGuide() {
+    const cur = this.track.get(this.current);
+    const next = this.track.get(this.current + 1);
+    if (!cur || !next?.gate || this.player.dir !== cur.dir) return false;
+    return !pointInRect(this.player.x, this.player.y, next.gate);
   }
 
   private goalMeters() {
@@ -1119,7 +1140,7 @@ export class GameScene extends Phaser.Scene {
 
   private emitAbility() {
     const a = this.ability;
-    const state = a ? 'active' : this.abilityCharges > 0 ? 'ready' : this.course.level ? 'used' : 'recharging';
+    const state = a ? 'active' : this.abilityLocked ? 'locked' : this.abilityCharges > 0 ? 'ready' : this.course.level ? 'used' : 'recharging';
     this.game.events.emit(EV.ability, { state, frac: a ? Math.max(0, (a.until - this.elapsed) / ABILITY_SECONDS) : 0 });
   }
 
@@ -1141,6 +1162,10 @@ export class GameScene extends Phaser.Scene {
 
   private tryActivateAbility() {
     if (this.ability) return;
+    if (this.abilityLocked) {
+      this.snapToTrack();
+      return;
+    }
     if (this.abilityCharges <= 0) {
       const msg = this.course.level ? 'ONCE PER LEVEL' : 'RECHARGING';
       this.effects.floater(this.player.x, this.player.y - 28, msg, css.inkDim, 12);
