@@ -207,7 +207,7 @@ src/
 └── audio/
     ├── Sfx.ts            Lydeffekter, syntetiseret live + rigtige andelyde
     ├── samples.ts        Indlæser og afspiller lydfilerne i public/sfx
-    └── Music.ts          Baggrundsmusik i A-mol, genereret live (rolig i menuer, med trommer når man spiller)
+    └── Music.ts          Baggrundsmusik genereret live: én sang pr. verden (rolig i menuer, med trommer når man spiller)
 ```
 
 **Grundidé:** Logik og grafik er holdt adskilt. `Track.ts` ved kun, hvor banen er (rektangler og tal). `CorridorView.ts` ved kun, hvordan den skal se ud. Derfor kan du ændre udseendet uden at ødelægge reglerne, og omvendt.
@@ -230,7 +230,7 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
 - **Ny lyd:** `src/audio/Sfx.ts`. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
-- **Musikken:** `src/audio/Music.ts`. `CHORDS` er akkordrækken, `BPM` tempoet og `VOLUME` lydstyrken. Trommer og bas ligger i `playStep`.
+- **Musikken:** `src/audio/Music.ts`. `SONGS` har én sang pr. verden (A-mol 108 BPM, D-mol 114, E-mol 118, F#-mol 124) med akkorder og to arpeggio-mønstre. Hver sang kører en form på 32 takter (A, A med løftet arpeggio, B med åben hi-hat, breakdown uden trommer), med et clap-fill hver 8. takt. `VOLUME` er lydstyrken; trommer og bas ligger i `playStep`.
 
 Mens `npm run dev` kører, opdateres spillet i browseren, hver gang du gemmer en fil.
 
