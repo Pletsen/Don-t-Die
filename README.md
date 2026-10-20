@@ -54,7 +54,7 @@ En uendelig bane, der bliver hurtigere og hurtigere. Forhindringerne starter ved
 | DUCK POND | ænder i Survival: dem beholder du |
 | CALM | et pusterum |
 
-Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD!**). Survival giver også 1 and pr. 100 m.
+Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD!**). Survival giver også 1 and pr. 200 m.
 
 ### Dagligt: DAILY
 
@@ -86,9 +86,9 @@ Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`).
 
 ### Skins og DUCK-O-MATIC
 
-Ænder er valuta, og de fleste samler du selv på banen; første gennemførsel og nye stjerner giver lidt ekstra (2–6 og 2 pr. stjerne). Ét træk i DUCK-O-MATIC koster 50 ænder (eller et gratis spin fra streaks og "Star Road": 20/40/60 stjerner). Spillemaskinen er fair:
+Ænder er valuta, og de fleste samler du selv på banen; første gennemførsel og nye stjerner giver lidt ekstra (2–6 og 2 pr. stjerne). Ét træk i DUCK-O-MATIC koster 100 ænder (eller et gratis spin fra streaks og "Star Road": 20/40/60 stjerner). Spillemaskinen er fair:
 
-- Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 5/10/20/35 ænder tilbage.
+- Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 10/20/40/70 ænder tilbage.
 - Pity: mindst epic inden for 15 spin, legendary inden for 60. Tælleren står på maskinen.
 
 | Sjældenhed | Chance | Skins |

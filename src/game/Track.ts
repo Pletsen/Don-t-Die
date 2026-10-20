@@ -354,7 +354,7 @@ export class Track {
    * safe, so reading the hazards right pays twice.
    */
   private duckInSafeLane(seg: Segment, list: Hazard[]) {
-    const chance = (this.course.duckChanceAt?.(seg.travelled) ?? 0) * 0.6;
+    const chance = (this.course.duckChanceAt?.(seg.travelled) ?? 0) * 0.4;
     if (this.course.warped || !list.length || this.rng() >= chance) return;
     const span = this.freeSpan(seg, list);
     if (span.width < 30) return;

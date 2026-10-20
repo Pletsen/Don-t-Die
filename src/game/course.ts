@@ -63,7 +63,7 @@ const DUCKS: HazardRules = { chance: 0.75, kinds: ['duck'], placement: 'any', pe
 /** Guaranteed safe tap window (s) per world: forgiving early, tight late. */
 const LEVEL_WINDOW = [0.24, 0.2, 0.17, 0.15];
 /** Chance of a duck on a hazard-free straight, per world. */
-const LEVEL_DUCKS = [0.2, 0.3, 0.32, 0.34];
+const LEVEL_DUCKS = [0.15, 0.2, 0.2, 0.2];
 /** Universe 2 isn't completely safe in later worlds: a stray static saw now and then. */
 const WARP_DANGER = [0, 0.1, 0.22, 0.32];
 

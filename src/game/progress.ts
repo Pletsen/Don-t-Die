@@ -31,7 +31,7 @@ export const ECONOMY = {
   firstClear: (id: number) =>
     (2 + Math.round(((levelNumber(id) - 1) / Math.max(1, LEVELS.length - 1)) * 4)) * (isHardLevel(id) ? 2 : 1),
   /** Survival: one duck per this many metres. */
-  survivalMetersPerDuck: 100,
+  survivalMetersPerDuck: 200,
   /** A free spin each time total stars reach one of these. */
   starRoad: [20, 40, 60],
 };
