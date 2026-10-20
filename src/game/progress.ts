@@ -4,8 +4,8 @@ import { readJSON, writeJSON } from './persist';
 import { LEVELS, isHardLevel, levelById, levelNumber } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
-import { Daily, DAILY_MILESTONES, newDailyData, todayKey, type DailyData } from './daily';
-import { submitScore } from '../native/bridge';
+import { Daily, DAILY_MILESTONES, dailyModifier, dayKey, dayNumber, newDailyData, todayKey, type DailyData } from './daily';
+import { offerReminders, offerReview, setReminderSource, submitScore, syncReminders, type ReminderState } from '../native/bridge';
 
 // Progress hub: lifetime stats, records, economy rewards, daily missions,
 // streak and achievements. GameScene and the shop only *report* what happened
@@ -306,6 +306,20 @@ class Progress {
       this.isNew = false;
       this.flush();
     }
+    // Native app: the Daily Run / streak reminders are planned from this save.
+    setReminderSource(() => this.reminderState());
+  }
+
+  private reminderState(): ReminderState {
+    const s = this.data.daily.streak;
+    return {
+      today: dayNumber(),
+      playedToday: this.daily.run().attempts > 0,
+      streak: this.daily.streak().count,
+      // With a shield, one missed day is still saved.
+      streakDeadline: s.lastDay + (s.shield > 0 ? 2 : 1),
+      twist: (day) => dailyModifier(dayKey(day)).name,
+    };
   }
 
   // --- Read API ---------------------------------------------------------------
@@ -384,6 +398,7 @@ class Progress {
     if (r) {
       this.flush();
       this.changed();
+      syncReminders();
     }
     return r;
   }
@@ -610,6 +625,13 @@ class Progress {
     if (ev.mode === 'survival') submitScore('survival', ev.meters);
     else if (ev.mode === 'daily') submitScore('daily', ev.meters);
     else if (sum.newStars > 0) submitScore('stars', this.totalStars() + save.hardStars());
+    // Native prompts wait for a calm moment (UIScene), never a death card: a
+    // rating after a great run, the reminders after a Daily Run.
+    if ((ev.cleared && ev.stars === 3 && (ev.level ?? 0) >= 5) || (ev.mode === 'survival' && sum.newBest && sum.bestBefore >= 200)) offerReview();
+    if (ev.mode === 'daily') {
+      offerReminders();
+      syncReminders();
+    }
 
     this.missions.onStat(ev);
     this.achievements.check(ev);
