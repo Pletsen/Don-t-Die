@@ -22,6 +22,7 @@ export type IconName =
   | 'infinity'
   | 'gift'
   | 'help'
+  | 'share'
   | 'close';
 
 export function drawIcon(
@@ -142,6 +143,17 @@ export function drawIcon(
       line(12, 7, 12, 20);
       arc(9.5, 6, 2.5, 0, Math.PI * 2);
       arc(14.5, 6, 2.5, 0, Math.PI * 2);
+      break;
+    case 'share':
+      // A tray with an arrow coming out of it.
+      line(6, 11, 6, 20);
+      line(6, 20, 18, 20);
+      line(18, 20, 18, 11);
+      line(6, 11, 9, 11);
+      line(15, 11, 18, 11);
+      line(12, 3, 12, 15);
+      line(8.5, 6.5, 12, 3);
+      line(15.5, 6.5, 12, 3);
       break;
     case 'help':
       arc(12, 9, 4, Math.PI * 1.1, Math.PI * 2.4);

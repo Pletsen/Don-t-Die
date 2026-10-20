@@ -5,6 +5,7 @@ import { LEVELS, isHardLevel, levelById, levelNumber } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
 import { Daily, DAILY_MILESTONES, newDailyData, todayKey, type DailyData } from './daily';
+import { submitScore } from '../native/bridge';
 
 // Progress hub: lifetime stats, records, economy rewards, daily missions,
 // streak and achievements. GameScene and the shop only *report* what happened
@@ -604,6 +605,11 @@ class Progress {
     sum.ducks = sum.rewards.reduce((t, r) => t + r.ducks, 0);
     for (const r of sum.rewards) if (!r.live) this.reward(r.ducks, 'reward');
     this.lastRun = sum;
+
+    // Game Center (native app only; nothing happens on the web).
+    if (ev.mode === 'survival') submitScore('survival', ev.meters);
+    else if (ev.mode === 'daily') submitScore('daily', ev.meters);
+    else if (sum.newStars > 0) submitScore('stars', this.totalStars() + save.hardStars());
 
     this.missions.onStat(ev);
     this.achievements.check(ev);

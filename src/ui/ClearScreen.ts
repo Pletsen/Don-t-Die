@@ -1,10 +1,10 @@
 import { WORLDS, lastOfSet, levelById, levelName } from '../game/levels';
 import type { ClearData } from '../game/shared';
-import { css } from '../game/palette';
+import { css, palette } from '../game/palette';
 import { save } from '../game/storage';
 import { sfx } from '../audio/Sfx';
 import Phaser from 'phaser';
-import { drawStar, hexColor, makeButton, makeText, type Button } from './widgets';
+import { drawStar, hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton } from './widgets';
 import { TEX, DUCK_RES } from '../fx/textures';
 
 const STAR_R = 24;
@@ -25,6 +25,7 @@ export class ClearScreen {
   private retry: Button;
   private levels: Button;
   private menu: Button;
+  private share: IconButton;
   private plate: Phaser.GameObjects.Graphics;
   private sparks: Phaser.GameObjects.Particles.ParticleEmitter;
   private ringPool: Phaser.GameObjects.Image[] = [];
@@ -34,7 +35,7 @@ export class ClearScreen {
 
   constructor(
     private scene: Phaser.Scene,
-    handlers: { next: () => void; retry: () => void; levels: () => void; menu: () => void },
+    handlers: { next: () => void; retry: () => void; levels: () => void; menu: () => void; share: () => void },
   ) {
     this.label = makeText(scene, 0, 0, '', { font: 'mono', size: 12, spacing: 3 }).setOrigin(0.5);
     this.title = makeText(scene, 0, 0, 'CLEAR', { size: 68, glow: true }).setOrigin(0.5);
@@ -67,6 +68,7 @@ export class ClearScreen {
     this.retry = makeButton(scene, { label: 'RETRY', icon: 'retry', width: 92, style: 'ghost', onPress: handlers.retry });
     this.levels = makeButton(scene, { label: 'LEVELS', icon: 'levels', width: 92, style: 'ghost', onPress: handlers.levels });
     this.menu = makeButton(scene, { label: 'MENU', icon: 'home', width: 92, style: 'ghost', onPress: handlers.menu });
+    this.share = makeIconButton(scene, 'share', handlers.share, palette.cyan, true);
 
     this.root = scene.add.container(0, 0, [
       this.plate,
@@ -82,6 +84,7 @@ export class ClearScreen {
       this.retry,
       this.levels,
       this.menu,
+      this.share,
     ]);
     this.root.setVisible(false);
   }
@@ -91,6 +94,7 @@ export class ClearScreen {
     const oy = h * 0.34;
     const pw = Math.min(w - 24, 340);
     this.box = { x: cx - pw / 2, y: oy - 92, w: pw, h: 436 };
+    this.share.setPosition(cx + pw / 2 - 30, oy - 92 + 30);
     this.drawPlate();
     this.label.setPosition(cx, oy - 58);
     this.title.setPosition(cx, oy);

@@ -1,5 +1,6 @@
 import { save } from '../game/storage';
 import { SampleBank, vary, type PlayOpts } from './samples';
+import { vibrate } from '../native/bridge';
 
 // Almost all sounds are synthesised live with the Web Audio API, so every
 // sound can be tuned with a few numbers. The ducks are the exception: they use
@@ -536,9 +537,6 @@ export const sfx = new SfxEngine();
 
 export function haptic(pattern: number | number[]) {
   if (save.fxReduced) return;
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // Not supported (e.g. iOS Safari).
-  }
+  // Native haptics in the app (iPhones ignore navigator.vibrate), else the browser's.
+  vibrate(pattern);
 }

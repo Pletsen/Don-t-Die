@@ -202,7 +202,18 @@ export function makeButton(scene: Phaser.Scene, o: ButtonOpts): Button {
  */
 export type IconButton = Phaser.GameObjects.Container & { setIcon(name: IconName, active?: boolean): void };
 
-export function makeIconButton(scene: Phaser.Scene, name: IconName, onPress: () => void, color: number = palette.cyan): IconButton {
+/**
+ * A round icon button. `onRelease` fires on pointer up instead of down: use
+ * it for anything that opens a system sheet (sharing), which browsers only
+ * allow from a finished tap.
+ */
+export function makeIconButton(
+  scene: Phaser.Scene,
+  name: IconName,
+  onPress: () => void,
+  color: number = palette.cyan,
+  onRelease = false,
+): IconButton {
   const g = scene.add.graphics();
   const hit = scene.add.zone(0, 0, 48, 48).setInteractive({ useHandCursor: true });
   const btn = scene.add.container(0, 0, [g, hit]) as IconButton;
@@ -213,7 +224,7 @@ export function makeIconButton(scene: Phaser.Scene, name: IconName, onPress: () 
     drawIcon(g, icon, 0, 0, 18, active ? color : 0x6f8496);
   };
   btn.setIcon(name);
-  hit.on('pointerdown', () => {
+  hit.on(onRelease ? 'pointerup' : 'pointerdown', () => {
     if (inactive(hit)) return;
     sfx.unlock();
     sfx.click();

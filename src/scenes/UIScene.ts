@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyData, type HudData } from '../game/shared';
 import { display } from '../game/display';
 import { save } from '../game/storage';
-import { css } from '../game/palette';
+import { css, palette } from '../game/palette';
 import { LEVELS, WORLDS, isHardLevel, lastOfSet, levelById, levelName, levelNumber } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
@@ -18,6 +18,8 @@ import { RecordsScreen } from '../ui/RecordsScreen';
 import { NotifyBanner } from '../ui/NotifyBanner';
 import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
+import { renderCard, type CardInfo } from '../ui/shareCard';
+import { share } from '../native/bridge';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
@@ -118,6 +120,10 @@ export class UIScene extends Phaser.Scene {
   private retryPill!: Button;
   private overLevels!: Button;
   private overMenu!: Button;
+  private overShare!: IconButton;
+  /** The result card for sharing, rendered as soon as a result shows (sharing must start right on the tap). */
+  private card: { info: CardInfo; text: string; blob: Promise<Blob | null> } | null = null;
+  private lastClear: ClearData | null = null;
 
   private glitchUntil = 0;
   private toastText!: Phaser.GameObjects.Text;
@@ -165,6 +171,7 @@ export class UIScene extends Phaser.Scene {
       retry: () => this.play(this.level),
       levels: () => this.showSelect(),
       menu: () => this.showMenu(),
+      share: () => this.shareResult(),
     });
     // Finishing HOW TO PLAY before ever clearing level 1 starts level 1.
     this.howTo = new HowToPlay(this, (finished) => (finished && save.starsFor(1) === 0 ? this.play(1) : this.showMenu()));
@@ -673,9 +680,10 @@ export class UIScene extends Phaser.Scene {
     this.tipText = this.text(0, 0, '', { size: 13, color: '#8fa3b5', spacing: 0.5 }).setOrigin(0.5).setAlign('center');
     this.tipText.setWordWrapWidth(270);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
-    this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 280, height: 56, onPress: () => this.retry() });
+    this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 226, height: 56, onPress: () => this.retry() });
     this.overLevels = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 134, style: 'ghost', onPress: () => this.showSelect() });
     this.overMenu = makeButton(this, { label: 'MENU', icon: 'home', width: 134, style: 'ghost', onPress: () => this.showMenu() });
+    this.overShare = makeIconButton(this, 'share', () => this.shareResult(), palette.cyan, true);
     this.confetti = this.add
       .particles(0, 0, TEX.shard, {
         emitting: false,
@@ -702,6 +710,7 @@ export class UIScene extends Phaser.Scene {
       this.retryPill,
       this.overLevels,
       this.overMenu,
+      this.overShare,
     ]);
     this.over.setAlpha(0).setVisible(false);
   }
@@ -1058,6 +1067,7 @@ export class UIScene extends Phaser.Scene {
     this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 300;
     this.lastDeath = d;
+    this.prepareCard('death');
     this.onHud(d, true);
     this.fadeOut(this.hud);
 
@@ -1141,7 +1151,7 @@ export class UIScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onUpdate: () => this.scoreText.setText(unit === '%' ? `${Math.round(counter.v)}%` : `${counter.v.toFixed(0)} M`),
     });
-    [this.retryPill, this.overLevels, this.overMenu].forEach((b, i) => {
+    [this.retryPill, this.overShare, this.overLevels, this.overMenu].forEach((b, i) => {
       b.setAlpha(0);
       this.tweens.add({ targets: b, alpha: 1, delay: 220 + i * 60, duration: 240 });
     });
@@ -1192,6 +1202,9 @@ export class UIScene extends Phaser.Scene {
     } else this.overMenu.setPosition(cx, btnY);
     this.overBar.setY(this.overBar.y - 4);
     const pw = Math.min(w - 24, 340);
+    // RETRY with the share button beside it.
+    this.retryPill.setX(cx - 28);
+    this.overShare.setPosition(cx + 117, this.retryPill.y);
     this.overPlate.clear();
     this.overPlate.fillStyle(0x0a0f18, 0.92).fillRoundedRect(cx - pw / 2, top, pw, total, 24);
     this.overPlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(cx - pw / 2, top, pw, total, 24);
@@ -1199,6 +1212,8 @@ export class UIScene extends Phaser.Scene {
 
   private onCleared(d: ClearData) {
     this.mode = 'clear';
+    this.lastClear = d;
+    this.prepareCard('clear');
     this.banner.setInRun(false);
     this.pauseSheet.setVisible(false);
     this.countdown.setVisible(false);
@@ -1274,6 +1289,65 @@ export class UIScene extends Phaser.Scene {
     if (!b.visible) return;
     this.tweens.killTweensOf(b);
     this.tweens.add({ targets: b, alpha: 0, duration: 150, onComplete: () => b.setVisible(false).setAngle(0) });
+  }
+
+  // --- Sharing -----------------------------------------------------------------
+
+  /** Build the result card for the screen that just opened (rendering takes a moment). */
+  private prepareCard(kind: 'death' | 'clear') {
+    const made = kind === 'clear' ? this.clearCard() : this.deathCard();
+    this.card = made ? { ...made, blob: renderCard(made.info) } : null;
+  }
+
+  private clearCard(): { info: CardInfo; text: string } | null {
+    const d = this.lastClear;
+    const level = d && levelById(d.level);
+    if (!d || !level) return null;
+    const name = levelName(d.level);
+    return {
+      info: {
+        kicker: `${name} · ${WORLDS[level.world].name}`,
+        big: 'CLEAR',
+        stars: d.stars,
+        sub: `${d.seconds.toFixed(1)} SEC  ·  PERFECT ${d.perfects}/${d.turns}`,
+        color: hexColor(WORLDS[level.world].color),
+      },
+      text: `I cleared ${name} in DON'T DIE with ${d.stars} ${d.stars === 1 ? 'star' : 'stars'} ${'★'.repeat(d.stars)}. One tap. One rule.`,
+    };
+  }
+
+  private deathCard(): { info: CardInfo; text: string } | null {
+    const d = this.lastDeath;
+    if (!d) return null;
+    const m = d.meters.toFixed(0);
+    const level = d.level !== null ? levelById(d.level) : undefined;
+    if (level && d.goal !== null) {
+      const pct = Math.floor(Math.min(1, d.meters / d.goal) * 100);
+      return {
+        info: { kicker: `${levelName(level.id)} · ${WORLDS[level.world].name}`, big: `${pct}%`, sub: `${m} / ${d.goal.toFixed(0)} M`, color: hexColor(WORLDS[level.world].color) },
+        text: `I got ${pct}% of ${levelName(level.id)} in DON'T DIE. So close. One tap. One rule.`,
+      };
+    }
+    if (this.runMode === 'daily') {
+      const run = progress.daily.run();
+      return {
+        info: { kicker: `DAILY RUN · ${run.modifier.name}`, big: `${m} M`, sub: `${run.key}  ·  BEST ${run.best.toFixed(0)} M`, color: hexColor(run.modifier.color) },
+        text: `Today's DON'T DIE Daily Run (${run.modifier.name}): ${m} m. Same track for everyone today. Can you beat it?`,
+      };
+    }
+    return {
+      info: { kicker: 'SURVIVAL', big: `${m} M`, sub: `BEST ${Math.max(d.best, d.meters).toFixed(0)} M  ·  ${d.seconds.toFixed(1)} SEC`, color: css.orange },
+      text: `I survived ${m} m in DON'T DIE. Beat that!`,
+    };
+  }
+
+  private async shareResult() {
+    const card = this.card;
+    if (!card) return;
+    const blob = await card.blob;
+    const r = await share(card.text, blob ?? undefined);
+    if (r === 'copied') this.toast('COPIED: PASTE IT ANYWHERE');
+    else if (r === 'failed') this.toast("COULDN'T SHARE");
   }
 
   private flavorLine(d: DeathData) {
