@@ -1,0 +1,101 @@
+# Build the DON'T DIE iPhone app on a GitHub macOS runner and upload it to
+# TestFlight. No Mac needed.
+#
+# NOT ACTIVE: GitHub only runs workflows from .github/workflows/. When the
+# game is ready for iOS, copy this file to .github/workflows/testflight.yml
+# (store/ios-plan.md, "Build on GitHub Actions" has every step).
+#
+# Secrets it needs (repo Settings > Secrets and variables > Actions):
+#   APPLE_TEAM_ID   the 10-character Team ID (developer.apple.com > Membership)
+#   ASC_KEY_ID      App Store Connect API key ID (Users and Access > Integrations)
+#   ASC_ISSUER_ID   the issuer ID shown above the key list
+#   ASC_KEY_P8      the downloaded AuthKey_XXXX.p8, base64-encoded
+#                   (base64 -i AuthKey_XXXX.p8 | pbcopy, or any base64 tool)
+name: iOS TestFlight
+
+on:
+  # Run it by hand from the Actions tab, or push a tag like v1.0.0.
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Use the newest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build the web game
+        run: |
+          npm ci
+          npm run build
+
+      - name: Make the iOS project
+        # ios/ is generated fresh on every build from store/ios/, so nobody
+        # ever edits an Xcode project by hand.
+        run: |
+          cp store/ios/capacitor.config.ts capacitor.config.ts
+          npx cap add ios
+          bash store/ios/configure-ios.sh
+          npx cap sync ios
+
+      - name: App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Archive (signed by Xcode with the API key)
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="${{ github.run_number }}"
+
+      - name: Upload to App Store Connect (then it appears in TestFlight)
+        env:
+          TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :teamID $TEAM" store/ios/ExportOptions.plist
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist store/ios/ExportOptions.plist \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Keep the build logs if something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-logs
+          path: ~/Library/Logs/DiagnosticReports
+          if-no-files-found: ignore
