@@ -158,6 +158,8 @@ export class GameScene extends Phaser.Scene {
   private abilityCharges = 1;
   /** Levels 1-2 teach the basics: no skin power yet (the tip comes before level 3). */
   private abilityLocked = false;
+  /** Counts runs, so a result screen meant for a run that's over never shows up during the next. */
+  private runId = 0;
   private rechargeAtM = Infinity;
   /** Survival: the ability also needs this much run time to pass (seconds). */
   private rechargeAtT = Infinity;
@@ -253,6 +255,7 @@ export class GameScene extends Phaser.Scene {
   // --- Run lifecycle --------------------------------------------------------
 
   private resetRun(course: Course) {
+    this.runId++;
     this.hazardViews.forEach((v) => v.destroy());
     this.hazardViews.clear();
     this.effects.clear();
@@ -632,7 +635,9 @@ export class GameScene extends Phaser.Scene {
       keptDucks,
       deaths: save.deaths,
     };
+    const run = this.runId;
     this.time.delayedCall(380, () => {
+      if (run !== this.runId) return;
       if (isNewBest && meters > 1) sfx.newBest();
       this.game.events.emit(EV.died, data);
     });
@@ -698,7 +703,10 @@ export class GameScene extends Phaser.Scene {
       warped: this.course.warped,
       ducks: this.ducks,
     };
-    this.time.delayedCall(560, () => this.game.events.emit(EV.cleared, data));
+    const run = this.runId;
+    this.time.delayedCall(560, () => {
+      if (run === this.runId) this.game.events.emit(EV.cleared, data);
+    });
   }
 
   // --- Frame loop -----------------------------------------------------------
