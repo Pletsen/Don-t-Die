@@ -22,6 +22,7 @@ import { glowFx } from '../fx/glow';
 import { Ambient } from '../fx/Ambient';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, SURVIVAL_RECHARGE_S, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
+import { todaysGuest } from '../game/guest';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
 
@@ -119,6 +120,8 @@ export class GameScene extends Phaser.Scene {
   private bestCombo = 0;
   private abilityUsed = false;
   private mode: RunMode = 'survival';
+  /** The skin this run is played with: the equipped one, or today's guest in the Daily Run. */
+  private skinId = save.skin;
   /** The last tap that wasn't a corner turn, to explain a wall crash (TOO EARLY / TOO LATE). */
   private lastWildTurn: { t: number; early: boolean } | null = null;
   /** First-ever play of level 1: the first corners slow down with a TAP! hint. */
@@ -197,7 +200,8 @@ export class GameScene extends Phaser.Scene {
       [EV.menu, this.onMenu],
       [EV.tap, this.onTap],
       [EV.fxChanged, this.applyFxSetting],
-      [EV.skin, () => this.playerView.setSkin(save.skin)],
+      // A newly equipped skin shows at once, except over a Daily Run's guest.
+      [EV.skin, () => (this.demo || this.mode !== 'daily') && this.useSkin(save.skin)],
       [EV.pause, this.onPause],
       [EV.resume, this.onResume],
     ];
@@ -254,7 +258,14 @@ export class GameScene extends Phaser.Scene {
 
   // --- Run lifecycle --------------------------------------------------------
 
-  private resetRun(course: Course) {
+  /** Dress the ball (and the HUD, through shared.skin) in a skin for this run. */
+  private useSkin(id: string) {
+    this.skinId = id;
+    shared.skin = id;
+    this.playerView.setSkin(id);
+  }
+
+  private resetRun(course: Course, skinId = save.skin) {
     this.runId++;
     this.hazardViews.forEach((v) => v.destroy());
     this.hazardViews.clear();
@@ -303,7 +314,7 @@ export class GameScene extends Phaser.Scene {
     this.nearHazardFlags = new WeakSet();
 
     this.playerView.reset();
-    this.playerView.setSkin(save.skin);
+    this.useSkin(skinId);
     this.playerView.setPosition(0, 0);
     this.playerView.setEmitting(false);
 
@@ -316,7 +327,8 @@ export class GameScene extends Phaser.Scene {
     this.resetPerfWindow();
     this.quitRun();
     const level = req.level === null ? undefined : levelById(req.level);
-    this.resetRun(req.daily ? dailyCourse() : level ? levelCourse(level) : endlessCourse());
+    // The Daily Run is played with today's guest skin (power included).
+    this.resetRun(req.daily ? dailyCourse() : level ? levelCourse(level) : endlessCourse(), req.daily ? todaysGuest().id : save.skin);
     this.mode = this.course.mode;
     // The UNIVERSE 2 daily starts in the bonus universe.
     if (this.course.warped) this.setUniverse(true);
@@ -565,7 +577,7 @@ export class GameScene extends Phaser.Scene {
 
     const { x, y } = this.player;
     const fx = save.fxReduced;
-    this.effects.deathBlast(x, y, color, skinById(save.skin).glow, fx);
+    this.effects.deathBlast(x, y, color, skinById(this.skinId).glow, fx);
     this.effects.debris(x, y, color, fx ? 8 : 22);
     this.playerView.fadeOut(this);
 
@@ -1182,7 +1194,7 @@ export class GameScene extends Phaser.Scene {
       this.snapToTrack();
       return;
     }
-    const skin = skinById(save.skin);
+    const skin = skinById(this.skinId);
     const def = abilityFor(skin.id);
     this.abilityCharges--;
     this.abilityUsed = true;
@@ -1382,9 +1394,9 @@ export class GameScene extends Phaser.Scene {
     a.graceUntil = this.elapsed + 1.2;
     this.slowMo = 0.5;
     const { x, y } = this.player;
-    const kitty = save.skin === 'kitty';
+    const kitty = this.skinId === 'kitty';
     this.effects.flare(x, y, 0xffffff, 150);
-    this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
+    this.effects.shockwave(x, y, skinById(this.skinId).glow, 180, 600);
     this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18, 3);
     this.hitStop(40);
     this.cameras.main.shake(200, 0.006);

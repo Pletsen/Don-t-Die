@@ -6,6 +6,9 @@ import { TEX, DUCK_RES } from '../fx/textures';
 import { progress } from '../game/progress';
 import { formatCountdown, prettyDate } from '../game/daily';
 import { TIER_COLOR, ALL_DONE_BONUS } from '../game/missions';
+import { todaysGuest } from '../game/guest';
+import { RARITIES, skinTexture } from '../game/skins';
+import { abilityFor } from '../game/abilities';
 import { drawStar, hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton } from './widgets';
 
 // --- Shared look for the progression screens (Daily, Records, banners) ------
@@ -181,7 +184,10 @@ export class TopBar {
 
 // --- The Daily screen ---------------------------------------------------------------
 
-const RUN_H = 236;
+/** Today's guest skin: a row inside the Daily Run card, above PLAY. */
+const GUEST_Y = 174;
+const GUEST_H = 74;
+const RUN_H = 236 + GUEST_H + 10;
 const STREAK_H = 170;
 const MISSION_ROW = 62;
 const MISSIONS_H = 44 + MISSION_ROW * 3 + 6;
@@ -220,6 +226,12 @@ export class DailyScreen {
   private msTop: Phaser.GameObjects.Text[] = [];
   private msBottom: Phaser.GameObjects.Text[] = [];
   private runBest: Phaser.GameObjects.Text;
+  private guestPlate: Phaser.GameObjects.Graphics;
+  private guestFace: Phaser.GameObjects.Image;
+  private guestCaption: Phaser.GameObjects.Text;
+  private guestName: Phaser.GameObjects.Text;
+  private guestPower: Phaser.GameObjects.Text;
+  private guestDesc: Phaser.GameObjects.Text;
   private play!: Button;
   private playKey = '';
   private handlers: { play: () => void; back: () => void };
@@ -266,6 +278,12 @@ export class DailyScreen {
       this.msBottom.push(caption().setOrigin(0.5, 0));
     }
     this.runBest = caption();
+    this.guestPlate = scene.add.graphics();
+    this.guestFace = scene.add.image(0, 0, skinTexture('classic')).setScale(0.5);
+    this.guestCaption = caption();
+    this.guestName = t('', { size: 16, spacing: 1 });
+    this.guestPower = t('', { size: 13, spacing: 1 });
+    this.guestDesc = t('', { font: 'mono', size: 11, color: BODY }).setLineSpacing(1);
 
     this.streakPlate = scene.add.graphics();
     this.flame = scene.add.graphics();
@@ -311,6 +329,12 @@ export class DailyScreen {
       ...this.msTop,
       ...this.msBottom,
       this.runBest,
+      this.guestPlate,
+      this.guestFace,
+      this.guestCaption,
+      this.guestName,
+      this.guestPower,
+      this.guestDesc,
       this.streakPlate,
       this.flame,
       this.streakTitle,
@@ -347,6 +371,12 @@ export class DailyScreen {
     this.modName.setPosition(left + pad, y + 34);
     this.modBlurb.setPosition(left + pad, y + 76);
     this.runBest.setPosition(left + pad, y + 156);
+    const gy = y + GUEST_Y;
+    this.guestFace.setPosition(left + pad + 24, gy + GUEST_H / 2);
+    this.guestCaption.setPosition(left + pad + 56, gy + 7);
+    this.guestName.setPosition(left + pad + 56, gy + 21);
+    this.guestPower.setY(gy + 23);
+    this.guestDesc.setPosition(left + pad + 56, gy + 42);
     this.runY = y;
 
     // --- Streak card
@@ -465,7 +495,36 @@ export class DailyScreen {
       setIfChanged(this.msBottom[i], `${ms.m} M`);
     });
 
+    this.drawGuest();
     this.ensureButtons(mod.color);
+  }
+
+  /** TODAY'S GUEST: the skin (and power) the Daily Run is played with today. */
+  private drawGuest() {
+    const W = this.width;
+    const left = -W / 2;
+    const pad = 18;
+    const gy = this.runY + GUEST_Y;
+    const skin = todaysGuest();
+    const rarity = RARITIES[skin.rarity];
+    const g = this.guestPlate.clear();
+    g.fillStyle(skin.glow, 0.07).fillRoundedRect(left + pad - 6, gy, W - pad * 2 + 12, GUEST_H, 14);
+    g.lineStyle(1, skin.glow, 0.45).strokeRoundedRect(left + pad - 6, gy, W - pad * 2 + 12, GUEST_H, 14);
+    this.guestFace.setTexture(skinTexture(skin.id));
+    const owned = save.skins.has(skin.id);
+    setIfChanged(this.guestCaption, `TODAY'S GUEST · ${rarity.label}${owned ? ' · YOURS' : ''}`);
+    this.guestCaption.setColor(rarity.css);
+    setIfChanged(this.guestName, skin.name);
+    const ab = abilityFor(skin.id);
+    setIfChanged(this.guestPower, ab.name);
+    this.guestPower.setColor(hexColor(skin.glow)).setX(this.guestName.x + this.guestName.width + 10);
+    // Two lines at most: a longer description shrinks a little to fit.
+    setIfChanged(this.guestDesc, ab.desc);
+    const room = W - pad * 2 - 56;
+    for (const k of [1, 0.9, 0.8]) {
+      this.guestDesc.setScale(k).setWordWrapWidth(room / k);
+      if (this.guestDesc.getWrappedText().length <= 2) break;
+    }
   }
 
   private drawStreak() {

@@ -59,6 +59,7 @@ Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD
 ### Dagligt: DAILY
 
 - **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +5/+10/+15 ænder, én gang om dagen.
+- **Dagens gæst (TODAY'S GUEST):** hver dag låner du ét skin, du ikke har endnu. Det vælges ud fra datoen blandt dem, du mangler (har du dem alle, kan det være hvilket som helst), og ligger så fast resten af dagen. DAILY-skærmen viser det med navn og super power, og Daily Run spilles med det, evnen inklusive. Dit eget skin bliver ikke skiftet. Efter turen har resultatkortet et lille link, "LIKE FROGGY? SPIN THE DUCK-O-MATIC", der går direkte til spillemaskinen (`src/game/guest.ts`).
 - **3 daglige missioner** (let/medium/svær, +5/+10/+15, +10 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
 - **Streak:** kom igen hver dag for 5, 5, 10, 10, 15, 15 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
 
@@ -185,6 +186,7 @@ src/
 │   ├── missions.ts       ⭐ De daglige missioner
 │   ├── achievements.ts   ⭐ De 33 achievements
 │   ├── daily.ts          ⭐ Daily Run (ugedags-twists) og streak
+│   ├── guest.ts          Dagens gæste-skin til Daily Run
 │   ├── tuning.ts         ⭐ Tallene for SURVIVAL og zonerne
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord, ænder og indstillinger (gemmes i browseren)

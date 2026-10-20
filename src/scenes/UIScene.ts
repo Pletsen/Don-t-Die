@@ -21,6 +21,7 @@ import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { renderCard, type CardInfo } from '../ui/shareCard';
 import { share } from '../native/bridge';
+import { todaysGuest } from '../game/guest';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
@@ -119,6 +120,8 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private flavorText!: Phaser.GameObjects.Text;
+  /** After a Daily Run: "LIKE <GUEST>? SPIN THE DUCK-O-MATIC", opens the shop. */
+  private guestLink!: Phaser.GameObjects.Text;
   private retryPill!: Button;
   private overLevels!: Button;
   private overMenu!: Button;
@@ -359,7 +362,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private drawAbilityPill() {
-    const skin = skinById(save.skin);
+    const skin = skinById(shared.skin);
     const def = abilityFor(skin.id);
     const { state, frac } = this.abilityState;
     const w = 230;
@@ -698,6 +701,13 @@ export class UIScene extends Phaser.Scene {
     this.tipText = this.text(0, 0, '', { size: 13, color: '#8fa3b5', spacing: 0.5 }).setOrigin(0.5).setAlign('center');
     this.tipText.setWordWrapWidth(270);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
+    this.guestLink = this.text(0, 0, '', { size: 13, color: '#ffd21f', spacing: 1.2 }).setOrigin(0.5).setVisible(false);
+    this.guestLink.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (this.mode !== 'dead' || !this.guestLink.visible || this.over.getData('inactive')) return;
+      sfx.unlock();
+      sfx.click();
+      this.showSkins();
+    });
     this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 226, height: 56, onPress: () => this.retry() });
     this.overLevels = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 134, style: 'ghost', onPress: () => this.showSelect() });
     this.overMenu = makeButton(this, { label: 'MENU', icon: 'home', width: 134, style: 'ghost', onPress: () => this.showMenu() });
@@ -725,6 +735,7 @@ export class UIScene extends Phaser.Scene {
       this.bestText,
       this.tipText,
       this.flavorText,
+      this.guestLink,
       this.retryPill,
       this.overLevels,
       this.overMenu,
@@ -963,6 +974,7 @@ export class UIScene extends Phaser.Scene {
       const run = progress.daily.run();
       this.rightLabel.setText(run.modifier.name);
       this.rightValue.setText(`${run.best.toFixed(0)} M`).setTint(run.modifier.color);
+      this.toast(`TODAY'S GUEST: ${skinById(shared.skin).name}`, 1600);
     } else {
       this.rightLabel.setText('BEST');
       this.rightValue.setText(`${save.best.toFixed(1)} M`).clearTint();
@@ -1039,7 +1051,7 @@ export class UIScene extends Phaser.Scene {
    * the skin's face and the move's name, like a fighting-game super.
    */
   private cutIn() {
-    const skin = skinById(save.skin);
+    const skin = skinById(shared.skin);
     const def = abilityFor(skin.id);
     const { w, h } = display.size(this);
     const g = this.cutInBand.clear();
@@ -1152,6 +1164,10 @@ export class UIScene extends Phaser.Scene {
       this.flavorText.setText(earned > 0 ? `+${earned} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
       if (earned > 0) this.maybeShowSpinBanner();
     }
+    // The Daily Run was played with today's guest skin: here's where to get it.
+    const guest = this.runMode === 'daily' ? todaysGuest() : null;
+    const showGuest = !!guest && !save.skins.has(guest.id);
+    this.guestLink.setText(showGuest ? `LIKE ${guest!.name}? SPIN THE DUCK-O-MATIC  ›` : '').setVisible(showGuest);
     this.layoutOver();
 
     this.over.setVisible(true).setAlpha(0).setY(32);
@@ -1170,7 +1186,7 @@ export class UIScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onUpdate: () => this.scoreText.setText(unit === '%' ? `${Math.round(counter.v)}%` : `${counter.v.toFixed(0)} M`),
     });
-    [this.retryPill, this.overShare, this.overLevels, this.overMenu].forEach((b, i) => {
+    [this.retryPill, this.overShare, this.overLevels, this.overMenu, this.guestLink].forEach((b, i) => {
       b.setAlpha(0);
       this.tweens.add({ targets: b, alpha: 1, delay: 220 + i * 60, duration: 240 });
     });
@@ -1204,6 +1220,7 @@ export class UIScene extends Phaser.Scene {
     parts.push([this.timeText, 26], [this.bestText, 26]);
     if (hasTip) parts.push([this.tipText, 50]);
     if (hasFlavor) parts.push([this.flavorText, 28]);
+    if (this.guestLink.visible) parts.push([this.guestLink, 30]);
     parts.push([this.retryPill, 78], [this.overLevels, 56]);
     const total = parts.reduce((a, [, hgt]) => a + hgt, 0) + 36;
     const top = Math.max(display.safeTop() + 60, h * 0.47 - total / 2);

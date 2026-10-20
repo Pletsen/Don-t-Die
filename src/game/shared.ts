@@ -21,6 +21,12 @@ export const shared = {
    * reads it to pick its sky.
    */
   world: 0,
+  /**
+   * The skin the current run is played with: the equipped one, or today's
+   * guest in the Daily Run (see game/guest.ts). Read this, not save.skin,
+   * for anything about the run (the ability pill, the cut-in, sounds).
+   */
+  skin: 'classic',
 };
 
 /** Event names sent over `game.events` between scenes. */
