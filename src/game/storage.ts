@@ -4,7 +4,10 @@ import { read, write } from './persist';
 const KEYS = {
   best: 'dontdie_best_m',
   deaths: 'dontdie_deaths',
+  /** Old single switch for all audio (read once, to migrate to the two below). */
   muted: 'dontdie_muted',
+  music: 'dontdie_music',
+  sound: 'dontdie_sound',
   fxReduced: 'dontdie_fx_reduced',
   stars: 'dontdie_level_stars',
   rainbow: 'dontdie_rainbow',
@@ -25,6 +28,16 @@ function readStars(): Record<number, number> {
   }
 }
 
+/**
+ * Music and sound effects have their own switches ('1' on, '0' off). A save
+ * from before the split had one mute switch for everything: someone who
+ * muted the game wanted silence, so that turns both off until they're set.
+ */
+function readSwitch(key: string): boolean {
+  const v = read(key);
+  return v === null ? read(KEYS.muted) !== '1' : v === '1';
+}
+
 const prefersReducedMotion =
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -33,7 +46,14 @@ const duckListeners: ((n: number, source: string) => void)[] = [];
 export const save = {
   best: parseFloat(read(KEYS.best) ?? '0') || 0,
   deaths: parseInt(read(KEYS.deaths) ?? '0', 10) || 0,
-  muted: read(KEYS.muted) === '1',
+  /** Background music on. */
+  music: readSwitch(KEYS.music),
+  /** Sound effects on (incl. the recorded duck sounds). */
+  sound: readSwitch(KEYS.sound),
+  /** @deprecated There are two switches now: use `sound` (and `music`). */
+  get muted(): boolean {
+    return !this.sound;
+  },
   rainbow: read(KEYS.rainbow) === '1',
   /** Rubber ducks banked from cleared bonus universes: the skin currency. */
   ducks: parseInt(read(KEYS.ducks) ?? '0', 10) || 0,
@@ -113,9 +133,13 @@ export const save = {
     this.deaths++;
     write(KEYS.deaths, String(this.deaths));
   },
-  setMuted(v: boolean) {
-    this.muted = v;
-    write(KEYS.muted, v ? '1' : '0');
+  setMusic(on: boolean) {
+    this.music = on;
+    write(KEYS.music, on ? '1' : '0');
+  },
+  setSound(on: boolean) {
+    this.sound = on;
+    write(KEYS.sound, on ? '1' : '0');
   },
   setRainbow(v: boolean) {
     this.rainbow = v;

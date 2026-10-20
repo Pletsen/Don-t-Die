@@ -8,11 +8,11 @@ Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, 
 
 - **PLAY · LEVEL n** starter direkte det næste level, du ikke har klaret.
 - **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **SKINS** er spillemaskinen DUCK-O-MATIC, og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
-- Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS), lyd og effekter.
+- Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS) og til højre **musik**, **lyd** og **effekter**. Musik og lydeffekter slås fra hver for sig og huskes (`dontdie_music` og `dontdie_sound`). Havde man slået al lyd fra i en ældre version, starter begge slukket.
 
 Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
 
-Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
+Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, musik, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
 
 ### Levels
 
@@ -229,7 +229,7 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 - **Gør SURVIVAL nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
-- **Ny lyd:** `src/audio/Sfx.ts`. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
+- **Ny lyd:** `src/audio/Sfx.ts`. Alle lydeffekter (også de optagede ænder) går gennem `sfx.master`, som LYD-knappen skruer ned til 0; musikken har sin egen kanal i `Music.ts`, som MUSIK-knappen slukker. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
 - **Musikken:** `src/audio/Music.ts`. `SONGS` har én sang pr. verden (A-mol 108 BPM, D-mol 114, E-mol 118, F#-mol 124) med akkorder og to arpeggio-mønstre. Hver sang kører en form på 32 takter (A, A med løftet arpeggio, B med åben hi-hat, breakdown uden trommer), med et clap-fill hver 8. takt. `VOLUME` er lydstyrken; trommer og bas ligger i `playStep`.
 
 Mens `npm run dev` kører, opdateres spillet i browseren, hver gang du gemmer en fil.

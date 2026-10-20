@@ -1,5 +1,6 @@
 import { sfx, midiToFreq } from './Sfx';
 import { shared } from '../game/shared';
+import { save } from '../game/storage';
 
 // Background music, generated live: synthwave, one song per world, each with
 // its own key, chords and tempo (four chords, two bars each).
@@ -94,6 +95,9 @@ const SONGS: Song[] = [
 class MusicEngine {
   private ctx: AudioContext | null = null;
   private bus: GainNode | null = null;
+  /** The MUSIC switch: 1 or 0, after the bus (which fades in and dips on death). */
+  private gate: GainNode | null = null;
+  private enabled = save.music;
   private padFilter: BiquadFilterNode | null = null;
   private echo: GainNode | null = null;
   private nextTime = 0;
@@ -112,13 +116,17 @@ class MusicEngine {
 
   private start() {
     const ctx = sfx.ctx;
-    if (!ctx || !sfx.master || this.ctx) return;
+    if (!ctx || !sfx.out || this.ctx) return;
     this.ctx = ctx;
 
     this.bus = ctx.createGain();
     this.bus.gain.setValueAtTime(0, ctx.currentTime);
     this.bus.gain.linearRampToValueAtTime(VOLUME, ctx.currentTime + 3); // fade in
-    this.bus.connect(sfx.master);
+    // Music goes straight into the final mix, past the sound-effects bus, so
+    // MUSIC and SOUND switch off independently.
+    this.gate = ctx.createGain();
+    this.gate.gain.value = this.enabled ? 1 : 0;
+    this.bus.connect(this.gate).connect(sfx.out);
 
     this.padFilter = ctx.createBiquadFilter();
     this.padFilter.type = 'lowpass';
@@ -148,6 +156,12 @@ class MusicEngine {
     if (this.ctx && this.padFilter) {
       this.padFilter.frequency.setTargetAtTime(800 + e * 900, this.ctx.currentTime, 1);
     }
+  }
+
+  /** The MUSIC switch. While it's off no notes are scheduled at all (no CPU spent). */
+  setEnabled(on: boolean) {
+    this.enabled = on;
+    if (this.ctx && this.gate) this.gate.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.05);
   }
 
   /** Party mode for the warp universe. */
@@ -188,6 +202,8 @@ class MusicEngine {
 
   private playStep(step: number, t: number) {
     const i = this.pickSong(step);
+    // Switched off: keep counting steps (so it comes back in time), play nothing.
+    if (!this.enabled) return;
     const song = this.song;
     const chord = song.chords[Math.floor(i / STEPS_PER_CHORD) % song.chords.length];
     const within = i % STEPS_PER_CHORD;

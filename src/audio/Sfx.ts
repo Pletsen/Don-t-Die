@@ -45,9 +45,18 @@ const QUACKS: DuckSound[] = ['quack1', 'quack2', 'quack3'];
 /** Volume of each recording (the files are all normalised to the same loudness). */
 const LEVEL = { quack: 0.75, red: 0.8, golden: 1, blip: 0.45, squeak: 0.3 };
 
+/** Loudness of the whole mix (sound effects and music) into the compressor. */
+const MIX_GAIN = 0.55;
+
 class SfxEngine {
   ctx: AudioContext | null = null;
+  /**
+   * The sound-effects bus: every effect (and the recorded samples) plays into
+   * it, and the SOUND switch turns it to 0. Music has its own bus into `out`.
+   */
   master: GainNode | null = null;
+  /** The final mix (sound effects + music), into the compressor. */
+  out: GainNode | null = null;
   noise: AudioBuffer | null = null;
   /** Called once when audio first becomes available (used to start the music). */
   onUnlock: (() => void) | null = null;
@@ -63,14 +72,17 @@ class SfxEngine {
     try {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new Ctx();
+      this.out = this.ctx.createGain();
+      this.out.gain.value = MIX_GAIN;
       this.master = this.ctx.createGain();
-      this.master.gain.value = save.muted ? 0 : 0.55;
+      this.master.gain.value = save.sound ? 1 : 0;
+      this.master.connect(this.out);
 
       // A gentle compressor glues overlapping sounds together.
       const comp = this.ctx.createDynamicsCompressor();
       comp.threshold.value = -14;
       comp.ratio.value = 4;
-      this.master.connect(comp);
+      this.out.connect(comp);
       comp.connect(this.ctx.destination);
 
       const len = Math.floor(this.ctx.sampleRate * 0.6);
@@ -92,8 +104,16 @@ class SfxEngine {
     }
   }
 
+  /** The SOUND switch: sound effects on or off (the music has its own, see Music.ts). */
+  setSound(on: boolean) {
+    if (!this.ctx || !this.master) return;
+    // A 15 ms fade instead of a hard cut: no click.
+    this.master.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.015);
+  }
+
+  /** @deprecated Use setSound (sound effects) or music.setEnabled. */
   setMuted(muted: boolean) {
-    if (this.master) this.master.gain.value = muted ? 0 : 0.55;
+    this.setSound(!muted);
   }
 
   private tone(o: ToneOpts) {

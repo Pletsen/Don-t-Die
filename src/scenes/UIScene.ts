@@ -5,6 +5,7 @@ import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { LEVELS, WORLDS, isHardLevel, lastOfSet, levelById, levelName, levelNumber } from '../game/levels';
 import { sfx } from '../audio/Sfx';
+import { music } from '../audio/Music';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
 import { skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
@@ -67,6 +68,7 @@ export class UIScene extends Phaser.Scene {
   private progress!: Phaser.GameObjects.Graphics;
   private comboText!: Phaser.GameObjects.Text;
   private comboBadge!: Phaser.GameObjects.Graphics;
+  private musicBtn!: IconButton;
   private soundBtn!: IconButton;
   private fxBtn!: IconButton;
   private pauseBtn!: IconButton;
@@ -294,7 +296,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refreshButtons() {
-    for (const b of [this.soundBtn, this.pauseSound]) b?.setIcon(save.muted ? 'mute' : 'sound', !save.muted);
+    for (const b of [this.musicBtn, this.pauseMusic]) b?.setIcon(save.music ? 'music' : 'musicOff', save.music);
+    for (const b of [this.soundBtn, this.pauseSound]) b?.setIcon(save.sound ? 'sound' : 'mute', save.sound);
     for (const b of [this.fxBtn, this.pauseFx]) b?.setIcon('sparkle', !save.fxReduced);
   }
 
@@ -430,11 +433,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildToggles() {
-    const toggleSound = () => {
-      save.setMuted(!save.muted);
-      sfx.setMuted(save.muted);
+    // Music and sound effects switch off separately (see Sfx.ts and Music.ts).
+    const toggleMusic = () => {
+      save.setMusic(!save.music);
+      music.setEnabled(save.music);
       this.refreshButtons();
-      this.toast(save.muted ? 'SOUND OFF' : 'SOUND ON', 900);
+      this.toast(save.music ? 'MUSIC ON' : 'MUSIC OFF', 900);
+    };
+    const toggleSound = () => {
+      save.setSound(!save.sound);
+      sfx.setSound(save.sound);
+      this.refreshButtons();
+      this.toast(save.sound ? 'SOUND ON' : 'SOUND OFF', 900);
     };
     const toggleFx = () => {
       save.setFxReduced(!save.fxReduced);
@@ -442,6 +452,8 @@ export class UIScene extends Phaser.Scene {
       this.refreshButtons();
       this.toast(save.fxReduced ? 'REDUCED EFFECTS' : 'FULL EFFECTS', 900);
     };
+    this.musicBtn = makeIconButton(this, 'music', toggleMusic);
+    this.musicBtn.on('toggle', toggleMusic);
     this.soundBtn = makeIconButton(this, 'sound', toggleSound);
     this.soundBtn.on('toggle', toggleSound);
     this.fxBtn = makeIconButton(this, 'sparkle', toggleFx);
@@ -453,6 +465,7 @@ export class UIScene extends Phaser.Scene {
   // --- Pause ----------------------------------------------------------------
 
   private pauseSheet!: Phaser.GameObjects.Container;
+  private pauseMusic!: IconButton;
   private pauseSound!: IconButton;
   private pauseFx!: IconButton;
   private pausePlate!: Phaser.GameObjects.Graphics;
@@ -467,13 +480,15 @@ export class UIScene extends Phaser.Scene {
     retry.setPosition(-63, 60);
     const menu = makeButton(this, { label: 'MENU', icon: 'home', width: 114, style: 'ghost', onPress: () => this.showMenu() });
     menu.setPosition(63, 60);
-    // Sound and effects toggles live inside the sheet while paused.
+    // Music, sound and effects toggles live inside the sheet while paused.
+    this.pauseMusic = makeIconButton(this, 'music', () => this.musicBtn.emit('toggle'));
+    this.pauseMusic.setPosition(-56, 122);
     this.pauseSound = makeIconButton(this, 'sound', () => this.soundBtn.emit('toggle'));
-    this.pauseSound.setPosition(-28, 122);
+    this.pauseSound.setPosition(0, 122);
     this.pauseFx = makeIconButton(this, 'sparkle', () => this.fxBtn.emit('toggle'));
-    this.pauseFx.setPosition(28, 122);
+    this.pauseFx.setPosition(56, 122);
     this.pauseSheet = this.add
-      .container(0, 0, [this.pausePlate, title, resume, retry, menu, this.pauseSound, this.pauseFx])
+      .container(0, 0, [this.pausePlate, title, resume, retry, menu, this.pauseMusic, this.pauseSound, this.pauseFx])
       .setVisible(false);
     this.refreshButtons();
     this.countdown = this.add.bitmapText(0, 0, 'big', '', 96).setOrigin(0.5).setVisible(false);
@@ -725,8 +740,9 @@ export class UIScene extends Phaser.Scene {
     this.subValue.setPosition(side, top + 44);
     this.rightLabel.setPosition(w - side, top);
     this.rightValue.setPosition(w - side, top + 12);
-    // Sound and effects sit top-right in menus; during a run only the pause
-    // button shows (no accidental mutes mid-run).
+    // Music, sound and effects sit top-right in menus; during a run only the
+    // pause button shows (no accidental mutes mid-run).
+    this.musicBtn.setPosition(w - side - 24 - 104, top + 22);
     this.soundBtn.setPosition(w - side - 24 - 52, top + 22);
     this.fxBtn.setPosition(w - side - 24, top + 22);
     this.pauseBtn.setPosition(w / 2, top + 22);
@@ -1366,7 +1382,8 @@ export class UIScene extends Phaser.Scene {
     const t = time / 1000;
     // Which corner buttons show depends on the screen.
     this.pauseBtn.setVisible(this.mode === 'play');
-    // Sound/effects toggles: on the main menu (and inside the pause sheet).
+    // Music/sound/effects toggles: on the main menu (and inside the pause sheet).
+    this.musicBtn.setVisible(this.mode === 'menu');
     this.soundBtn.setVisible(this.mode === 'menu');
     this.fxBtn.setVisible(this.mode === 'menu');
     // After a crash the darkness creeps in from the edges.

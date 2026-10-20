@@ -14,6 +14,8 @@ import { display } from './game/display';
 import { save } from './game/storage';
 import { progress } from './game/progress';
 import { restoreBackup } from './native/bridge';
+import { sfx } from './audio/Sfx';
+import { music } from './audio/Music';
 
 // Phaser has no built-in support for sharp rendering on high-density screens
 // (phones, retina laptops). We make the canvas `devicePixelRatio` times larger
@@ -61,7 +63,7 @@ async function start() {
   });
 
   // Handy for debugging in the browser console and for automated tests.
-  Object.assign(window, { game, glowFx, save, progress });
+  Object.assign(window, { game, glowFx, save, progress, sfx, music });
 
   // Native app: bring the save back if iOS cleared the web view's storage.
   void restoreBackup();
