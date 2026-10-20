@@ -138,7 +138,7 @@ export class HowToPlay {
         title: 'REACH THE FINISH',
         color: palette.cyan,
         body: 'Your ball rolls by itself.\nGet it to the finish line.',
-        note: 'PLAY: 20 LEVELS, UP TO 3 STARS EACH\nSURVIVAL: ENDLESS. HOW FAR CAN YOU GO?',
+        note: 'PLAY: 20 LEVELS (+20 HARD), UP TO 3 STARS\nSURVIVAL: ENDLESS. HOW FAR CAN YOU GO?',
         images: [ball],
         words: [win],
         draw: (g, t) => {

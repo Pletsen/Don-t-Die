@@ -160,9 +160,12 @@ export function levelCourse(level: LevelDef): Course {
       // The party runs for another half level, then the finish.
       course.goalPx = d + goalPx * 0.5;
     },
-    minWindowAt: () => LEVEL_WINDOW[Math.min(level.world, LEVEL_WINDOW.length - 1)] - (level.hard ? 0.02 : 0),
+    minWindowAt: () => LEVEL_WINDOW[Math.min(level.world, LEVEL_WINDOW.length - 1)] - (level.hard ? 0.04 : 0),
     // Ducks from level 4 (their tip comes just before), more in later worlds.
-    duckChanceAt: (d) => (level.world === 0 && level.id < 4) || d * METERS_PER_PX < 40 ? 0 : LEVEL_DUCKS[Math.min(level.world, LEVEL_DUCKS.length - 1)],
+    duckChanceAt: (d) =>
+      (level.world === 0 && level.id < 4) || d * METERS_PER_PX < 40
+        ? 0
+        : LEVEL_DUCKS[Math.min(level.world, LEVEL_DUCKS.length - 1)] * (level.hard ? 1.25 : 1),
     warpDanger: WARP_DANGER[Math.min(level.world, WARP_DANGER.length - 1)],
   };
   return course;

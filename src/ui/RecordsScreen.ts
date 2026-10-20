@@ -260,8 +260,10 @@ export class RecordsScreen {
       [String(s.nearMisses), 'CLOSE CALLS'],
       [String(s.ducksEarned), 'DUCKS EARNED'],
       [`${cleared} / ${LEVELS.length}`, 'LEVELS CLEARED'],
-      [`${progress.totalStars()} / ${LEVELS.length * 3}`, 'STARS'],
-      [`${save.warps.size} / ${LEVELS.length}`, 'WARP STARS'],
+      save.hardStars() > 0
+        ? [`${progress.totalStars()} + ${save.hardStars()}`, 'STARS · HARD']
+        : [`${progress.totalStars()} / ${LEVELS.length * 3}`, 'STARS'],
+      [`${[...save.warps].filter((id) => id <= LEVELS.length).length} / ${LEVELS.length}`, 'WARP STARS'],
       [`${progress.daily.streak().best} ${progress.daily.streak().best === 1 ? 'DAY' : 'DAYS'}`, 'BEST STREAK'],
     ];
     cells.forEach(([v, l], i) => {

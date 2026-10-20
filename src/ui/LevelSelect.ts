@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { LEVELS, WORLDS, type LevelDef } from '../game/levels';
+import { HARD_LEVELS, HARD_OFFSET, LEVELS, WORLDS, isHardLevel, type LevelDef } from '../game/levels';
 import { save } from '../game/storage';
 import { css } from '../game/palette';
 import { sfx } from '../audio/Sfx';
-import { drawStar, hexColor, makeIconButton, makeText, type IconButton } from './widgets';
+import { drawStar, hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton } from './widgets';
+import { palette } from '../game/palette';
 import { drawIcon } from './icons';
 import { TEX } from '../fx/textures';
 
@@ -20,12 +21,25 @@ interface Tile {
   warp: Phaser.GameObjects.Image;
 }
 
-export const isUnlocked = (id: number) => id === 1 || save.starsFor(id - 1) > 0;
+/** HARD MODE opens once level 20 is cleared. */
+export const hardUnlocked = () => save.starsFor(LEVELS[LEVELS.length - 1].id) > 0;
 
-/** The next level to play: the first unlocked one without stars, else the last. */
+export const isUnlocked = (id: number) => {
+  if (isHardLevel(id)) return hardUnlocked() && (id === HARD_OFFSET + 1 || save.starsFor(id - 1) > 0);
+  return id === 1 || save.starsFor(id - 1) > 0;
+};
+
+/**
+ * The next level to play: the first unlocked one without stars; once all 20
+ * are cleared, the first open HARD level without stars; else the last open.
+ */
 export function nextLevelToPlay(): number {
   const open = LEVELS.filter((l) => isUnlocked(l.id));
-  return (open.find((l) => save.starsFor(l.id) === 0) ?? open[open.length - 1]).id;
+  const fresh = open.find((l) => save.starsFor(l.id) === 0);
+  if (fresh) return fresh.id;
+  if (!hardUnlocked()) return open[open.length - 1].id;
+  const hard = HARD_LEVELS.filter((l) => isUnlocked(l.id));
+  return (hard.find((l) => save.starsFor(l.id) === 0) ?? hard[hard.length - 1]).id;
 }
 
 /**
@@ -43,6 +57,10 @@ export class LevelSelect {
   private plate: Phaser.GameObjects.Graphics;
   private worldStars: Phaser.GameObjects.Text[] = [];
   private size = 58;
+  /** Showing the HARD MODE set. */
+  private hard = false;
+  private normalTab: Button;
+  private hardTab: Button;
   private pokes = 0;
   private lastPoke = 0;
 
@@ -67,10 +85,14 @@ export class LevelSelect {
       this.worldStars.push(makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1 }).setOrigin(1, 0));
     });
 
-    for (const level of LEVELS) {
+    // NORMAL / HARD tabs, shown once HARD MODE is open.
+    this.normalTab = makeButton(scene, { label: 'NORMAL', width: 120, height: 34, style: 'ghost', onPress: () => this.setHard(false) });
+    this.hardTab = makeButton(scene, { label: 'HARD', width: 120, height: 34, style: 'ghost', color: palette.crimson, onPress: () => this.setHard(true) });
+
+    for (const level of [...LEVELS, ...HARD_LEVELS]) {
       const glow = scene.add.graphics();
       const bg = scene.add.graphics();
-      const num = makeText(scene, 0, 0, String(level.id), { size: 20 }).setOrigin(0.5);
+      const num = makeText(scene, 0, 0, String(level.id % HARD_OFFSET || HARD_OFFSET), { size: 20 }).setOrigin(0.5);
       const stars = scene.add.graphics();
       const warp = scene.add.image(0, 0, TEX.warpStar).setScale(0.2).setVisible(false);
       const hit = scene.add.zone(0, 0, 10, 10).setInteractive({ useHandCursor: true });
@@ -97,16 +119,39 @@ export class LevelSelect {
       ...this.worldLabels,
       ...this.worldStars,
       ...this.tiles.map((t) => t.root),
+      this.normalTab,
+      this.hardTab,
       this.back,
     ]);
     this.root.setVisible(false);
+  }
+
+  /** Show the NORMAL or the HARD set. */
+  setHard(on: boolean) {
+    if (on && !hardUnlocked()) return;
+    if (on !== this.hard) sfx.click();
+    this.hard = on;
+    this.refresh();
+  }
+
+  /** Open on the set the next level to play is in. */
+  showSetOf(id: number) {
+    this.hard = isHardLevel(id) && hardUnlocked();
+    this.refresh();
   }
 
   /** Redraw every tile from saved progress. */
   refresh() {
     const s = this.size;
     const next = nextLevelToPlay();
+    const tabs = hardUnlocked();
+    if (!tabs) this.hard = false;
+    this.normalTab.setVisible(tabs).setAlpha(this.hard ? 0.45 : 1);
+    this.hardTab.setVisible(tabs).setAlpha(this.hard ? 1 : 0.45);
+    this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS').setColor(this.hard ? '#ff2d55' : '#eaf6ff');
     for (const t of this.tiles) {
+      t.root.setVisible(!!t.level.hard === this.hard);
+      if (!t.root.visible) continue;
       const color = WORLDS[t.level.world].color;
       const open = isUnlocked(t.level.id);
       const stars = save.starsFor(t.level.id);
@@ -141,12 +186,13 @@ export class LevelSelect {
       }
     }
 
-    const total = save.totalStars();
-    this.totalStars.setText(`${total} / ${LEVELS.length * 3}`);
+    const set = this.hard ? HARD_LEVELS : LEVELS;
+    const total = set.reduce((a, l) => a + save.starsFor(l.id), 0);
+    this.totalStars.setText(`${total} / ${set.length * 3}`);
     this.totalIcon.clear();
-    drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7.5, 0xffd21f, true);
+    drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7.5, this.hard ? palette.crimson : 0xffd21f, true);
     WORLDS.forEach((_, wi) => {
-      const levels = LEVELS.filter((l) => l.world === wi);
+      const levels = set.filter((l) => l.world === wi);
       const got = levels.reduce((a, l) => a + save.starsFor(l.id), 0);
       this.worldStars[wi].setText(`${got} / ${levels.length * 3}`);
     });
@@ -164,13 +210,21 @@ export class LevelSelect {
     this.header.setPosition(0, y + 22);
     this.totalStars.setPosition(-left, y + 22);
     y += 64;
+    // NORMAL / HARD tabs (once HARD MODE is open).
+    if (hardUnlocked()) {
+      this.normalTab.setPosition(-66, y + 4);
+      this.hardTab.setPosition(66, y + 4);
+      y += 50;
+    }
     const plateTop = y - 10;
 
     WORLDS.forEach((_, wi) => {
       this.worldLabels[wi].setPosition(left, y);
       this.worldStars[wi].setPosition(-left, y);
       y += 22;
-      const row = this.tiles.filter((t) => t.level.world === wi);
+      const row = this.tiles.filter((t) => t.level.world === wi && !t.level.hard);
+      const hardRow = this.tiles.filter((t) => t.level.world === wi && t.level.hard);
+      hardRow.forEach((t, i) => t.root.setPosition(left + s / 2 + i * (s + GAP), y + s / 2));
       row.forEach((t, i) => t.root.setPosition(left + s / 2 + i * (s + GAP), y + s / 2));
       y += s + 22;
     });
@@ -195,10 +249,10 @@ export class LevelSelect {
     this.scene.tweens.add({ targets: this.header, x: this.header.x + 3, duration: 35, yoyo: true, repeat: 1 });
     if (this.pokes === 5) {
       this.header.setText('STOP POKING ME');
-      this.scene.time.delayedCall(1600, () => this.header.setText('LEVELS'));
+      this.scene.time.delayedCall(1600, () => this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS'));
     } else if (this.pokes === 10) {
       this.pokes = 0;
-      this.header.setText('LEVELS');
+      this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS');
       this.onSecret();
     }
   }

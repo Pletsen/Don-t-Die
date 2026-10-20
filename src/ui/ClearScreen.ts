@@ -1,4 +1,4 @@
-import { LEVELS, WORLDS, levelById } from '../game/levels';
+import { WORLDS, lastOfSet, levelById, levelName } from '../game/levels';
 import type { ClearData } from '../game/shared';
 import { css } from '../game/palette';
 import { save } from '../game/storage';
@@ -187,11 +187,11 @@ export class ClearScreen {
     if (rewards) this.scene.tweens.add({ targets: this.rewards, alpha: 1, delay: 700 + d.stars * 300, duration: 300 });
     const level = levelById(d.level)!;
     const color = WORLDS[level.world].color;
-    const last = d.level === LEVELS[LEVELS.length - 1].id;
+    const last = d.level === lastOfSet(d.level);
 
     this.color = color;
     this.drawPlate();
-    this.label.setText(`LEVEL ${d.level} · ${WORLDS[level.world].name}`).setColor(hexColor(color));
+    this.label.setText(`${levelName(d.level)} · ${WORLDS[level.world].name}`).setColor(hexColor(color));
     this.title.setText(last ? 'ALL CLEAR' : 'CLEAR').setShadow(0, 0, hexColor(color), 22, false, true);
     this.stats.setText(`PERFECT ${d.perfects}/${d.turns}  ·  ${d.seconds.toFixed(1)} SEC`);
     this.next.setLabel(last ? 'LEVELS' : 'NEXT LEVEL');

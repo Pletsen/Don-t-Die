@@ -606,7 +606,7 @@ export class SkinShop {
     if (!res) {
       sfx.nope();
       this.scene.tweens.add({ targets: this.machine, x: MACHINE_DX + 6, duration: 45, yoyo: true, repeat: 3, onComplete: () => this.machine.setX(MACHINE_DX) });
-      this.say(`NEED ${SPIN_COST} DUCKS  ·  YOU HAVE ${save.ducks}  ·  CLEAR WARP LEVELS`);
+      this.say(`NEED ${SPIN_COST} DUCKS  ·  YOU HAVE ${save.ducks}  ·  BONK DUCKS ON THE LEVELS`);
       return;
     }
     this.result = res;

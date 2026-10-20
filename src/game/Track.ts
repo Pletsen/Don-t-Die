@@ -133,8 +133,8 @@ function shrinkAlong(r: Rect, axis: 'x' | 'y', fraction: number): Rect {
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-/** Bombs hit this much further mid-blast; the safe-lane check counts part of it. */
-const BOMB_REACH = 1.35;
+/** Bombs reach about 1.85x mid-blast; the safe lane keeps clear of most of it. */
+const BOMB_REACH = 1.5;
 /** Saws hit a little inside their drawn edge (GameScene's HAZARD_HITBOX). */
 const HITBOX = 0.82;
 

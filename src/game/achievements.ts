@@ -1,6 +1,6 @@
 import type { StatEvent } from './shared';
 import type { ProgressHooks, Stats } from './progress';
-import { LEVELS } from './levels';
+import { HARD_LEVELS, LEVELS } from './levels';
 import { SKINS } from './skins';
 
 // ~30 achievements, each with a duck reward. They are checked after every
@@ -84,6 +84,17 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     big: true,
     check: (c) => LEVELS.every((l) => c.starsFor(l.id) > 0),
     progress: (c) => [LEVELS.filter((l) => c.starsFor(l.id) > 0).length, LEVELS.length],
+  }),
+  a({ id: 'hard1', name: 'HARD BOILED', desc: 'Clear a HARD level.', ducks: 10, glyph: 'flag', check: (c) => HARD_LEVELS.some((l) => c.starsFor(l.id) > 0) }),
+  a({
+    id: 'hard_all',
+    name: 'UNBREAKABLE',
+    desc: 'Clear all 20 HARD levels.',
+    ducks: 50,
+    glyph: 'crown',
+    big: true,
+    check: (c) => HARD_LEVELS.every((l) => c.starsFor(l.id) > 0),
+    progress: (c) => [HARD_LEVELS.filter((l) => c.starsFor(l.id) > 0).length, HARD_LEVELS.length],
   }),
   a({ id: 'three_star', name: 'FLAWLESS', desc: 'Get 3 stars on any level.', ducks: 3, glyph: 'star', check: (c) => LEVELS.some((l) => c.starsFor(l.id) >= 3) }),
   a({

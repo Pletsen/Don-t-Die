@@ -1,7 +1,7 @@
 import { EV, type HudData, type NotifyData, type RunMode, type StatEvent } from './shared';
 import { save } from './storage';
 import { readJSON, writeJSON } from './persist';
-import { LEVELS, levelById } from './levels';
+import { LEVELS, isHardLevel, levelById, levelNumber } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
 import { Daily, DAILY_MILESTONES, newDailyData, todayKey, type DailyData } from './daily';
@@ -24,10 +24,11 @@ const VERSION = 1;
 
 /** Economy (designer's numbers). */
 export const ECONOMY = {
-  /** Ducks per star you didn't have before. */
-  perNewStar: 2,
-  /** First clear of a level: 2 (level 1) up to 6 (level 20). */
-  firstClear: (id: number) => 2 + Math.round(((id - 1) / Math.max(1, LEVELS.length - 1)) * 4),
+  /** Ducks per star you didn't have before (twice that in HARD MODE). */
+  perNewStar: (id: number) => (isHardLevel(id) ? 4 : 2),
+  /** First clear of a level: 2 (level 1) up to 6 (level 20); HARD MODE pays double. */
+  firstClear: (id: number) =>
+    (2 + Math.round(((levelNumber(id) - 1) / Math.max(1, LEVELS.length - 1)) * 4)) * (isHardLevel(id) ? 2 : 1),
   /** Survival: one duck per this many metres. */
   survivalMetersPerDuck: 100,
   /** A free spin each time total stars reach one of these. */
@@ -630,13 +631,16 @@ class Progress {
       sum.firstClear = true;
       rec.first = todayKey();
       sum.rewards.push({ label: 'FIRST CLEAR', ducks: ECONOMY.firstClear(id) });
+      if (id === LEVELS[LEVELS.length - 1].id) {
+        this.notify({ title: 'HARD MODE UNLOCKED', subtitle: '20 REMIXED LEVELS · SEE LEVELS', color: 0xff2d55 });
+      }
     }
     if (rec.time === 0 || ev.seconds < rec.time) rec.time = ev.seconds;
     const newStars = Math.max(0, ev.stars - rec.stars);
     if (newStars > 0) {
       rec.stars = ev.stars;
       sum.newStars = newStars;
-      sum.rewards.push({ label: newStars === 1 ? 'NEW STAR' : `${newStars} NEW STARS`, ducks: newStars * ECONOMY.perNewStar });
+      sum.rewards.push({ label: newStars === 1 ? 'NEW STAR' : `${newStars} NEW STARS`, ducks: newStars * ECONOMY.perNewStar(id) });
       this.checkStarRoad();
     }
   }

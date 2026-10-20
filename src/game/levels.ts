@@ -85,4 +85,37 @@ export const LEVELS: LevelDef[] = [
   { id: 20, world: 3, goal: 2000, speed: [390, 480], width: [57, 51], arm: [170, 245], hazards: { chance: 0.8, kinds: both, placement: 'any', moving: 0.8, perSegment: 2 } },
 ];
 
-export const levelById = (id: number) => LEVELS.find((l) => l.id === id);
+/** HARD MODE level ids are the normal id plus this (HARD 1 = 101). */
+export const HARD_OFFSET = 100;
+
+/**
+ * HARD MODE: every level remixed, unlocked by clearing level 20. A new track
+ * (its own seed), about 14 % faster, 10 % narrower and 10 % longer, with more
+ * and livelier hazards; world 1 gets saws too.
+ */
+export const HARD_LEVELS: LevelDef[] = LEVELS.map((l) => {
+  const h = l.hazards;
+  const hazards: HazardRules = h
+    ? { ...h, chance: Math.min(0.92, h.chance + 0.15), moving: Math.min(0.9, (h.moving ?? 0) + 0.25), perSegment: l.world >= 2 ? 2 : h.perSegment }
+    : { chance: 0.3 + l.id * 0.06, kinds: saw, placement: 'any', moving: l.id >= 3 ? 0.2 : 0 };
+  return {
+    ...l,
+    id: l.id + HARD_OFFSET,
+    goal: Math.round((l.goal * 1.1) / 10) * 10,
+    speed: [Math.round(l.speed[0] * 1.14), Math.round(l.speed[1] * 1.14)],
+    width: [Math.round(l.width[0] * 0.9), Math.round(l.width[1] * 0.9)],
+    hazards,
+    hard: true,
+  };
+});
+
+export const ALL_LEVELS: LevelDef[] = [...LEVELS, ...HARD_LEVELS];
+
+export const levelById = (id: number) => ALL_LEVELS.find((l) => l.id === id);
+export const isHardLevel = (id: number) => id > HARD_OFFSET;
+/** The level's number within its set (HARD 3 -> 3). */
+export const levelNumber = (id: number) => (isHardLevel(id) ? id - HARD_OFFSET : id);
+/** "LEVEL 7" or "HARD 7". */
+export const levelName = (id: number) => (isHardLevel(id) ? `HARD ${id - HARD_OFFSET}` : `LEVEL ${id}`);
+/** The last level of the set this one belongs to. */
+export const lastOfSet = (id: number) => (isHardLevel(id) ? HARD_OFFSET : 0) + LEVELS.length;

@@ -34,6 +34,8 @@ export class NotifyBanner {
   private queue: NotifyData[] = [];
   /** Rewards earned mid-run, shown together when the run ends. */
   private held: NotifyData[] = [];
+  /** The banner on screen right now. */
+  private current: NotifyData | null = null;
   private showing = false;
   private inRun = false;
   private w = W_MAX;
@@ -73,6 +75,16 @@ export class NotifyBanner {
   /** Compact, tap-through banners below the HUD while playing. */
   setInRun(on: boolean) {
     this.inRun = on;
+    if (on) {
+      // Anything still queued from the menu waits for the run to end too.
+      this.held.push(...this.queue.filter((n) => !n.live));
+      this.queue = this.queue.filter((n) => n.live);
+      if (this.showing && this.current && !this.current.live) {
+        // Cut short by the run: show it again afterwards.
+        this.held.unshift(this.current);
+        this.dismiss();
+      }
+    }
     if (!on && this.held.length) {
       const held = this.held;
       this.held = [];
@@ -151,6 +163,7 @@ export class NotifyBanner {
   private next() {
     this.coalesce();
     const n = this.queue.shift();
+    this.current = n ?? null;
     if (!n) {
       this.showing = false;
       this.root.setVisible(false);

@@ -3,7 +3,7 @@ import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyDa
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css } from '../game/palette';
-import { LEVELS, WORLDS, levelById } from '../game/levels';
+import { LEVELS, WORLDS, isHardLevel, lastOfSet, levelById, levelName, levelNumber } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
@@ -809,13 +809,14 @@ export class UIScene extends Phaser.Scene {
     this.dailyDot.setVisible(badge.claim || badge.missionsLeft > 0);
     this.dailyBtn.setLabel(badge.streak > 1 ? `DAILY · ${badge.streak}` : 'DAILY');
     const next = nextLevelToPlay();
-    this.playBtn.setLabel(save.totalStars() > 0 || next > 1 ? `PLAY  ·  LEVEL ${next}` : 'PLAY');
+    this.playBtn.setLabel(save.totalStars() > 0 || next > 1 ? `PLAY  ·  ${levelName(next)}` : 'PLAY');
 
     this.title.setVisible(true).setAlpha(0);
     this.fadeIn(this.title);
     if (!this.logoLit) this.igniteLogo();
     const stars = save.totalStars();
     const parts = [`${stars} / ${LEVELS.length * 3} STARS`, `${save.ducks} DUCKS`];
+    if (save.hardStars() > 0) parts.splice(1, 0, `${save.hardStars()} HARD`);
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
     this.statsLine.setText(parts.join('   ·   '));
   }
@@ -863,7 +864,10 @@ export class UIScene extends Phaser.Scene {
     if (fromRun) this.game.events.emit(EV.menu);
 
     sfx.swoosh();
-    this.select.refresh();
+    // Re-layout: the NORMAL / HARD tabs appear once level 20 is cleared.
+    const { w, h } = display.size(this);
+    this.select.layout(w, h, 16 + display.safeTop() + 52);
+    this.select.showSetOf(this.level ?? nextLevelToPlay());
     this.select.root.setAlpha(0);
     this.fadeIn(this.select.root);
     this.fadeIn(this.scrim);
@@ -910,8 +914,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private nextLevel() {
-    const last = LEVELS[LEVELS.length - 1].id;
-    if (this.level === null || this.level >= last) this.showSelect();
+    if (this.level === null || this.level >= lastOfSet(this.level)) this.showSelect();
     else this.play(this.level + 1);
   }
 
@@ -925,8 +928,8 @@ export class UIScene extends Phaser.Scene {
 
     const level = this.level === null ? null : levelById(this.level);
     if (level) {
-      this.rightLabel.setText('LEVEL');
-      this.rightValue.setText(String(level.id)).setTint(WORLDS[level.world].color);
+      this.rightLabel.setText(isHardLevel(level.id) ? 'HARD' : 'LEVEL');
+      this.rightValue.setText(String(levelNumber(level.id))).setTint(WORLDS[level.world].color);
     } else if (this.runMode === 'daily') {
       // The Daily Run has its own best: today's.
       const run = progress.daily.run();
@@ -1090,7 +1093,7 @@ export class UIScene extends Phaser.Scene {
       target = Math.floor(frac * 100);
       unit = '%';
       this.scoreText.setTint(color);
-      this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M   ·   LEVEL ${d.level} ${WORLDS[level.world].name}`);
+      this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M   ·   ${levelName(d.level)} ${WORLDS[level.world].name}`);
       const run = progress.lastRun;
       const best = run && run.level === d.level ? run.bestBefore || null : this.levelBest(d.level);
       if (run && run.level === d.level && run.newBest && frac > 0.02) {

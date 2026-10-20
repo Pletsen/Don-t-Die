@@ -27,6 +27,8 @@ Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
 
 Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
 
+**HARD MODE** åbner, når level 20 er klaret: alle 20 levels i en ny udgave (egen bane, cirka 14 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Faneblade NORMAL/HARD øverst i LEVELS. Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
+
 Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet flere tusind ture). En gennemsnitlig spiller klarer cirka 97 % af forsøgene på level 6 og 40–60 % i verden 3–4, med lidt luft i starten af hver ny verden:
 
 - Forhindringer kommer først efter 60 m i et level og bliver gradvist tættere.
@@ -64,7 +66,7 @@ Det hele ligger i `src/game/progress.ts`, `missions.ts`, `daily.ts` og `achievem
 
 ### Rekorder og achievements: RECORDS
 
-Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** med små ænde-belønninger. Bannere glider ned fra toppen, når du klarer en mission, låser en achievement op eller får et gratis spin. Under en tur vises kun en ny rekord og daglige milepæle (små, og et tryk drejer stadig kuglen); resten venter, til turen er slut, og flere belønninger på én gang samles i ét banner ("3 REWARDS").
+Livstidsstatistik, top 5 i Survival, bedste % pr. level og **35 achievements** (inklusive HARD BOILED og UNBREAKABLE for HARD MODE) med små ænde-belønninger. Bannere glider ned fra toppen, når du klarer en mission, låser en achievement op eller får et gratis spin. Under en tur vises kun en ny rekord og daglige milepæle (små, og et tryk drejer stadig kuglen); resten venter, til turen er slut, og flere belønninger på én gang samles i ét banner ("3 REWARDS").
 
 ### Warp-stjernen og Universe 2
 
