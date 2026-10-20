@@ -277,7 +277,7 @@ export class HowToPlay {
       this.cards.push({
         title: 'CATCH DUCKS',
         color: 0xffd21f,
-        body: 'Hit the tiny hidden star to reach\nUNIVERSE 2. It’s full of ducks!',
+        body: 'Bonk ducks to keep them (half if you die).\nA star hidden late on: UNIVERSE 2!',
         note: 'RED DUCKS RUN AWAY. CATCH THEM LATER.\nGOLDEN DUCK (VERY RARE): TAP LIKE CRAZY\nFOR UP TO 70 DUCKS!',
         images: [star, yellow, red, gold, glow],
         words: labels,

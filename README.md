@@ -27,11 +27,12 @@ Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
 
 Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
 
-Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil spillede over 1.700 ture):
+Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet flere tusind ture). En gennemsnitlig spiller klarer cirka 97 % af forsøgene på level 6 og 40–60 % i verden 3–4, med lidt luft i starten af hver ny verden:
 
 - Forhindringer kommer først efter 60 m i et level og bliver gradvist tættere.
 - Afstanden fra et sving til første forhindring vokser med farten, så der altid er tid til at reagere.
 - En bevægelig forhindring får aldrig en makker på samme stræk, så banen aldrig lukker helt.
+- **Fairness-regel:** efter et sving kan man ikke styre, så der er altid et stykke af sporet, som ingen forhindring kan nå, uanset hvor de bevægelige save er. Det er mindst 0,24/0,20/0,17/0,15 sekunders tryk-vindue i verden 1/2/3/4. Ellers fjernes den anden forhindring, de bevægelige svinger mindre, eller forhindringen rykkes ind mod væggen.
 - Saws og bomber rammer lidt inden for deres tegnede kant.
 
 **Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til næsten den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.
@@ -67,7 +68,7 @@ Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** m
 
 ### Warp-stjernen og Universe 2
 
-Fra level 3 er der gemt en lillebitte regnbuestjerne et stykke inde på banen, ude ved den ene væg. Rammer du den, bliver du sendt til **Universe 2** resten af turen: banen bliver dobbelt så lang, baggrunden en psykedelisk regnbue-spiral med discokugle, en lille discokugle-måne kredser om din kugle (selve skinnet er urørt), forhindringerne bliver til gummiænder, og musikken skifter toneart. I verden 3 og 4 er der dog stadig en enkelt sav hist og her.
+Fra level 3 er der gemt en lillebitte regnbuestjerne sent på banen (65–80 % af vejen), ude ved den ene væg, så den er en belønning for at nå langt og ikke en genvej forbi det svære. Rammer du den, bliver du sendt til **Universe 2** resten af turen: festen varer en halv bane mere, baggrunden en psykedelisk regnbue-spiral med discokugle, en lille discokugle-måne kredser om din kugle (selve skinnet er urørt), forhindringerne bliver til gummiænder, og musikken skifter toneart. Fra verden 2 er der dog en enkelt sav hist og her (10/22/32 % af strækkene i verden 2/3/4).
 
 ### Tre slags ænder (med rigtige "rap"-lyde)
 
@@ -77,7 +78,9 @@ Fra level 3 er der gemt en lillebitte regnbuestjerne et stykke inde på banen, u
 | Rød (med svedbånd) | 10 % | 5 | Løber frem og tilbage. Misser du den, stikker den af (TOO SLOW!) og venter længere fremme |
 | Gylden med krone | 0,5 %, højst én pr. tur | op til 70 | **DUCK FRENZY**: verden fryser, og hvert tryk i 8 sekunder er én and |
 
-Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`). Dør du i Universe 2 i et level, beholder du halvdelen af ænderne.
+Fra level 4 ligger der også ænder på de almindelige baner, flere jo sværere verdenen er (cirka 6 på level 8, 15–20 på level 18–20). På stræk uden forhindringer ligger de ude i siden, så en and koster dig PERFECT-linjen. På stræk med forhindringer ligger de i det sikre spor. Dør du i et level, beholder du halvdelen af ænderne.
+
+Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`).
 
 ### Skins og DUCK-O-MATIC
 
