@@ -5,6 +5,7 @@ import { skinById, skinTexture, type Skin } from '../game/skins';
 import { TEX } from './textures';
 import { glowFx, type GlowHandle } from './glow';
 import { setParticleColors } from './Effects';
+import { u2Color } from './worldPalette';
 
 /**
  * The player's look: a glossy orb with a halo, a tilted orbiting ring and a
@@ -29,10 +30,15 @@ export class PlayerView {
   /** Baked glow that hugs the orb's outline, in the skin's colour. */
   private glow!: GlowHandle;
   private glowKick = 0;
-  // Bonus-universe costume: googly eyes and a party hat.
-  private party: Phaser.GameObjects.Container;
-  private pupils: Phaser.GameObjects.Graphics;
-  private pupil = { x: 0, y: 0, vx: 0, vy: 0 };
+  // Bonus-universe look: the skin itself stays untouched. A tiny disco-ball
+  // moon orbits it, a second ring spins the other way, and the rings and
+  // trail sweep through the Universe 2 colours.
+  private party = false;
+  private moon: Phaser.GameObjects.Image;
+  private glint: Phaser.GameObjects.Image;
+  private ring2: Phaser.GameObjects.Image;
+  private moonFront = true;
+  private partyIn = 0;
 
   constructor(scene: Phaser.Scene, radius: number) {
     // Trail first so it renders under the orb.
@@ -92,16 +98,9 @@ export class PlayerView {
     this.body = scene.add.container(0, 0, [this.orb]);
     this.glow = glowFx.add(this.orb, palette.cyan, 4.5);
 
-    this.pupils = scene.add.graphics();
-    const eyes = scene.add.graphics();
-    eyes.fillStyle(0xffffff, 1).fillCircle(-5, -2, 5.5).fillCircle(5.5, -2, 5.5);
-    eyes.lineStyle(1, 0x222222, 0.6).strokeCircle(-5, -2, 5.5).strokeCircle(5.5, -2, 5.5);
-    const hat = scene.add.graphics();
-    hat.fillStyle(0xff2f9e, 1).fillTriangle(-8, -9, 8, -9, 0, -30);
-    hat.fillStyle(0xffd21f, 1).fillTriangle(-5.2, -14, 5.2, -14, 0, -23);
-    hat.fillStyle(0xff2f9e, 1).fillTriangle(-2.6, -18, 2.6, -18, 0, -23);
-    hat.fillStyle(0x2be8ff, 1).fillCircle(0, -30, 3.2);
-    this.party = scene.add.container(0, 0, [hat, eyes, this.pupils]).setVisible(false);
+    this.ring2 = scene.add.image(0, 0, TEX.ring).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setVisible(false);
+    this.moon = scene.add.image(0, 0, TEX.disco).setVisible(false);
+    this.glint = scene.add.image(0, 0, TEX.spark).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
 
     // Ability look: a spinning aura ring and (for shields) a bubble.
     this.aura = scene.add.image(0, 0, TEX.ring).setBlendMode(Phaser.BlendModes.ADD).setVisible(false);
@@ -111,7 +110,7 @@ export class PlayerView {
     ]).setVisible(false);
 
     this.root = scene.add
-      .container(0, 0, [this.aura, this.halo, this.ring, this.body, this.party, this.bubble])
+      .container(0, 0, [this.aura, this.halo, this.ring, this.ring2, this.body, this.moon, this.glint, this.bubble])
       .setDepth(6);
     this.trail.startFollow(this.root);
     this.embers.startFollow(this.root);
@@ -126,9 +125,6 @@ export class PlayerView {
   onTurn() {
     this.squash = 0.62;
     this.glowKick = 1;
-    // Googly eyes rattle on every turn.
-    this.pupil.vx += (Math.random() - 0.5) * 60;
-    this.pupil.vy += (Math.random() - 0.5) * 60;
   }
 
   /** Dress the orb in a skin: its texture, glow colour and trail. */
@@ -169,10 +165,16 @@ export class PlayerView {
   }
 
   setParty(on: boolean) {
-    this.party.setVisible(on);
-    if (on) {
-      this.party.setScale(0);
-      this.party.scene.tweens.add({ targets: this.party, scale: 1, duration: 500, ease: 'Back.easeOut' });
+    if (on === this.party) return;
+    this.party = on;
+    this.partyIn = 0;
+    this.moon.setVisible(on);
+    this.glint.setVisible(on);
+    this.ring2.setVisible(on);
+    if (!on) {
+      // Back to the skin's own colours.
+      this.ring.setTint(this.skin.glow);
+      this.sparks.setParticleTint([0xffffff, this.skin.glow]);
     }
   }
 
@@ -202,24 +204,13 @@ export class PlayerView {
     this.trail.frequency = speedNorm > 0.5 ? 5 : 8;
     this.embers.frequency = 26 - speedNorm * 12;
 
-    if (this.party.visible) {
-      // Pupils look where you're going, on a wobbly spring.
-      const tx = Math.cos(heading) * 2.4;
-      const ty = Math.sin(heading) * 2.4;
-      const p = this.pupil;
-      p.vx += ((tx - p.x) * 120 - p.vx * 7) * dt;
-      p.vy += ((ty - p.y) * 120 - p.vy * 7) * dt;
-      p.x = Phaser.Math.Clamp(p.x + p.vx * dt, -3, 3);
-      p.y = Phaser.Math.Clamp(p.y + p.vy * dt, -3, 3);
-      this.pupils.clear().fillStyle(0x111111, 1);
-      this.pupils.fillCircle(-5 + p.x, -2 + p.y, 2.6).fillCircle(5.5 + p.x, -2 + p.y, 2.6);
-      this.party.setRotation(Math.sin(time * 6) * 0.08);
-    }
+    if (this.party) this.updateParty(time, dt, ringR);
 
     // Easter egg: a trail that cycles through the rainbow.
     const trail = this.skin.trail;
-    const color =
-      save.rainbow || trail === 'rainbow'
+    const color = this.party
+      ? u2Color(time * 1.6, 40)
+      : save.rainbow || trail === 'rainbow'
         ? hueColor(time * 240)
         : Array.isArray(trail)
           ? trail[Math.floor(time * 8) % trail.length]
@@ -230,6 +221,43 @@ export class PlayerView {
       this.emberColor = color;
       setParticleColors(this.embers, [0xffffff, color, color]);
     }
+  }
+
+  /** The disco moon's orbit and the Universe 2 colour sweep. */
+  private updateParty(time: number, dt: number, ringR: number) {
+    // Grow in with a little overshoot when you warp.
+    this.partyIn = Math.min(1, this.partyIn + dt * 2.2);
+    const k = this.partyIn;
+    const pop = 1 + Math.sin(k * Math.PI) * 0.35 * (1 - k * 0.5);
+    const ca = u2Color(time);
+    const cb = u2Color(time, 120);
+    this.ring.setTint(ca);
+    const r2 = ringR * 1.8 * pop;
+    this.ring2.setTint(cb).setRotation(-time * 1.3 + 1).setScale(r2 / 116, (r2 / 116) * 0.42).setAlpha(0.45 * k);
+
+    // The moon rides the second ring's tilted ellipse.
+    const a = time * 2.6;
+    const rx = r2 * 0.47;
+    const ry = rx * 0.42;
+    const rot = this.ring2.rotation;
+    const ex = Math.cos(a) * rx;
+    const ey = Math.sin(a) * ry;
+    const x = ex * Math.cos(rot) - ey * Math.sin(rot);
+    const y = ex * Math.sin(rot) + ey * Math.cos(rot);
+    const front = Math.sin(a) > 0;
+    // Nearer = slightly bigger; it passes behind the ball on the far side.
+    const size = (ringR * 0.42 * (front ? 1.1 : 0.85) * k) / 60;
+    this.moon.setPosition(x, y).setScale(size).setRotation(time * 3);
+    if (front !== this.moonFront) {
+      this.moonFront = front;
+      if (front) this.root.moveAbove<Phaser.GameObjects.GameObject>(this.moon, this.body);
+      else this.root.moveBelow<Phaser.GameObjects.GameObject>(this.moon, this.body);
+      this.root.moveAbove(this.glint, this.moon);
+    }
+    // A mirror-ball glint that flashes now and then.
+    const g = Math.max(0, Math.sin(time * 7.3) * Math.sin(time * 2.1));
+    this.glint.setPosition(x - size * 14, y - size * 14).setScale(0.2 + g * 0.5).setAlpha(g * k).setTint(cb).setRotation(time);
+    this.sparks.setParticleTint([0xffffff, ca, cb]);
   }
 
   setEmitting(on: boolean) {
@@ -248,7 +276,7 @@ export class PlayerView {
   }
 
   reset() {
-    this.party.setVisible(false);
+    this.setParty(false);
     this.root.scene.tweens.killTweensOf(this);
     this.auraColor = null;
     this.aura.setVisible(false);

@@ -753,7 +753,6 @@ export class UIScene extends Phaser.Scene {
     this.scrim.setSize(w, h);
     this.vignette.setDisplaySize(w, h);
     this.layoutOver();
-    this.spinBanner?.setPosition(w / 2, top + 88);
 
     this.select.layout(w, h, top + 52);
     this.shop.layout(w, h, top + 48);
@@ -763,6 +762,7 @@ export class UIScene extends Phaser.Scene {
     this.howTo.layout(w, h, top + 40);
     this.frenzy.setPosition(w / 2, h * 0.3);
     this.clearScreen.layout(w, h);
+    this.placeSpinBanner();
     this.drawProgress(this.lastHud);
   }
 
@@ -1233,13 +1233,14 @@ export class UIScene extends Phaser.Scene {
       this.hideSpinBanner();
       this.showSkins();
     });
-    this.spinBanner = this.add.container(0, 0, [bg, icon, title, this.spinBannerText, go, hit]).setVisible(false);
+    this.spinBanner = this.add.container(0, 0, [bg, icon, title, this.spinBannerText, go, hit]).setVisible(false).setDepth(900);
   }
 
   /** Pops up when you've got enough ducks for a pull on the slot machine. */
   private maybeShowSpinBanner(delay = 900) {
     if (save.ducks < SPIN_COST) return;
     this.spinBannerText.setText(`YOU HAVE ${save.ducks} DUCKS`);
+    this.placeSpinBanner();
     const b = this.spinBanner;
     this.tweens.killTweensOf(b);
     b.setVisible(true).setAlpha(0).setScale(0.6);
@@ -1253,6 +1254,15 @@ export class UIScene extends Phaser.Scene {
       onStart: () => sfx.reveal('rare'),
     });
     this.tweens.add({ targets: b, angle: { from: -2, to: 2 }, delay: delay + 420, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  }
+
+  /** Below the clear card (never over its text), clamped above the home bar. */
+  private placeSpinBanner() {
+    if (!this.spinBanner || !this.clearScreen) return;
+    const { w, h } = display.size(this);
+    const below = this.clearScreen.bottom + 18 + 37;
+    const floor = h - display.safeBottom() - 12 - 37;
+    this.spinBanner.setPosition(w / 2, Math.min(below, floor));
   }
 
   private hideSpinBanner() {

@@ -141,8 +141,8 @@ export class Track {
   private nextId = 0;
   private rng: Rng;
   private warpPlaced = false;
-  /** At most one golden duck per run. */
-  private goldenPlaced = false;
+  /** At most one golden duck per run (set up front to allow none, e.g. the menu demo). */
+  goldenPlaced = false;
 
   constructor(
     private course: Course,

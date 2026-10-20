@@ -67,7 +67,7 @@ Livstidsstatistik, top 5 i Survival, bedste % pr. level og **33 achievements** m
 
 ### Warp-stjernen og Universe 2
 
-Fra level 3 er der gemt en lillebitte regnbuestjerne et stykke inde på banen, ude ved den ene væg. Rammer du den, bliver du sendt til **Universe 2** resten af turen: banen bliver dobbelt så lang, baggrunden en psykedelisk regnbue-spiral med discokugle, kuglen får googly eyes og festhat, forhindringerne bliver til gummiænder, og musikken skifter toneart. I verden 3 og 4 er der dog stadig en enkelt sav hist og her.
+Fra level 3 er der gemt en lillebitte regnbuestjerne et stykke inde på banen, ude ved den ene væg. Rammer du den, bliver du sendt til **Universe 2** resten af turen: banen bliver dobbelt så lang, baggrunden en psykedelisk regnbue-spiral med discokugle, en lille discokugle-måne kredser om din kugle (selve skinnet er urørt), forhindringerne bliver til gummiænder, og musikken skifter toneart. I verden 3 og 4 er der dog stadig en enkelt sav hist og her.
 
 ### Tre slags ænder (med rigtige "rap"-lyde)
 

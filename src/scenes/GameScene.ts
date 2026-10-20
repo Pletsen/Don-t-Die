@@ -335,6 +335,8 @@ export class GameScene extends Phaser.Scene {
   /** The menu's attract mode: an endless run that plays itself, silently. */
   private startDemo() {
     this.resetRun(endlessCourse());
+    // No golden duck in the demo: its frenzy wants the player's taps.
+    this.track.goldenPlaced = true;
     this.demo = true;
     silent = true;
     this.effects.quiet = true;
@@ -965,7 +967,7 @@ export class GameScene extends Phaser.Scene {
     view?.knockAway(d.x, d.y);
     const mult = this.ability?.def.duckMult ?? 1;
 
-    if (hz.variant === 'golden') {
+    if (hz.variant === 'golden' && !this.demo) {
       this.stat({ type: 'duck', variant: 'golden', value: 0 });
       this.startFrenzy(hz);
       return;

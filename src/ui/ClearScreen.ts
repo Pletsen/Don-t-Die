@@ -90,7 +90,7 @@ export class ClearScreen {
     const cx = w / 2;
     const oy = h * 0.34;
     const pw = Math.min(w - 24, 340);
-    this.box = { x: cx - pw / 2, y: oy - 92, w: pw, h: 420 };
+    this.box = { x: cx - pw / 2, y: oy - 92, w: pw, h: 436 };
     this.drawPlate();
     this.label.setPosition(cx, oy - 58);
     this.title.setPosition(cx, oy);
@@ -100,10 +100,15 @@ export class ClearScreen {
     this.hint.setPosition(cx, oy + 148);
     this.ducksLine.setPosition(cx, oy + 172);
     this.rewards.setPosition(cx, oy + 194);
-    this.next.setPosition(cx, oy + 228);
-    this.retry.setPosition(cx - 98, oy + 290);
-    this.levels.setPosition(cx, oy + 290);
-    this.menu.setPosition(cx + 98, oy + 290);
+    this.next.setPosition(cx, oy + 244);
+    this.retry.setPosition(cx - 98, oy + 306);
+    this.levels.setPosition(cx, oy + 306);
+    this.menu.setPosition(cx + 98, oy + 306);
+  }
+
+  /** Bottom edge of the card, for things that sit below it. */
+  get bottom() {
+    return this.box.y + this.box.h;
   }
 
   private drawPlate() {
