@@ -16,8 +16,8 @@
 
 /** A shot an ability fires by itself at the hazards ahead. */
 export interface Zap {
-  /** The look: laser, tesla arc, tractor beam, shuriken, fire breath, lightning bolt, cherry pit. */
-  kind: 'laser' | 'arc' | 'beam' | 'star' | 'fire' | 'bolt' | 'pit';
+  /** The look: laser, tesla arc, tractor beam, shuriken, fire breath, lightning bolt, cherry pit, football. */
+  kind: 'laser' | 'arc' | 'beam' | 'star' | 'fire' | 'bolt' | 'pit' | 'ball';
   /** Reach, px. */
   range: number;
   /** Seconds between shots. */
@@ -62,10 +62,12 @@ export interface AbilityDef {
   magnet?: number;
   /** Hazards stop moving and spinning. */
   freeze?: boolean;
-  /** Hazards ahead on your straight slide out of your path. */
+  /** Hazards near you shrink back to less than half their size. */
   shy?: boolean;
-  /** At a wall you turn automatically instead of crashing. */
+  /** At a wall you turn automatically instead of crashing. Never mixed with full hazard immunity (smash, ghost, vacuum): you could stop tapping and be unkillable. */
   bounce?: boolean;
+  /** No tap by the middle of the corner? It turns you there (like autopilot, but your taps still count). Same rule as bounce. */
+  orbit?: boolean;
   /** The game turns for you, on the safe line (taps are ignored). */
   autopilot?: boolean;
   /** Pass straight through hazards. */
@@ -82,7 +84,7 @@ export interface AbilityDef {
   vacuum?: number;
   /** This many hazards (the next ones on screen) turn into rubber ducks. */
   ducksFromHazards?: number;
-  /** Each duck you bonk joins your army: it takes a hit for you (up to 3 at once). */
+  /** Each duck you bonk joins your army: it takes a hit or a crash for you (up to 3 at once). */
   army?: boolean;
   /** Each duck bonked counts this many times. */
   duckMult?: number;
@@ -98,9 +100,9 @@ export const SURVIVAL_RECHARGE_S = 30;
 /** Max time between the four taps, ms (also the wall grace during the spin). */
 export const SPIN_TAP_WINDOW = 280;
 /** `forgive`: how early (s) a tap may come and still wait for the corner. */
-export const FORGIVE_S = 0.22;
+export const FORGIVE_S = 0.3;
 /** A magnet pulls the warp star only from this close (px): it stays a skill shot. */
-export const STAR_PULL = 34;
+export const STAR_PULL = 22;
 /** The army never holds more than this many guards at once. */
 export const ARMY_MAX = 3;
 
@@ -109,98 +111,102 @@ export const ABILITIES: Record<string, AbilityDef> = {
   classic: { name: 'FOCUS', desc: 'Time slows down.', slow: 0.65 },
   mint: { name: 'COOL HEAD', desc: 'No panic: a tap a moment early waits for the corner. Every turn is PERFECT.', forgive: true, perfectAll: true },
   bubblegum: { name: 'BUBBLE', desc: 'A bubble pops instead of you. Once.', shield: 1, word: 'POP' },
-  lemon: { name: 'SQUEEZE', desc: 'Squeezed to half size: slip past hazards.', shrink: 0.5 },
-  grape: { name: 'GRAPEVINE', desc: 'Vines pull in ducks (and the warp star, if you pass close).', magnet: 130 },
+  lemon: { name: 'SQUEEZE', desc: 'Squeezed small: slip past hazards.', shrink: 0.4 },
+  grape: { name: 'GRAPEVINE', desc: 'Vines pull in ducks (and the warp star, if you pass very close).', magnet: 110 },
   tangerine: { name: 'ZEST RUSH', desc: 'So juiced up that saws and bombs crawl at half speed.', hazardSlow: 0.5 },
   frosty: { name: 'DEEP FREEZE', desc: 'Hazards freeze solid. Time chills a little.', freeze: true, slow: 0.85 },
-  blush: { name: 'SO SHY', desc: 'Hazards on your straight get shy and slide out of your path.', shy: true },
-  moon: { name: 'ORBIT', desc: 'Miss a corner and you swing round it anyway.', bounce: true },
-  potato: { name: 'COUCH POTATO', desc: 'The game plays itself. Slowly. Hazards? Not its problem.', autopilot: true, speed: 0.6 },
+  blush: { name: 'SO SHY', desc: 'Hazards blush and shrink back when you come near.', shy: true },
+  moon: { name: 'ORBIT', desc: 'No tap by the middle of a corner? You swing round it anyway.', orbit: true },
+  potato: { name: 'COUCH POTATO', desc: 'The game plays itself. Slowly. Hazards? Not its problem.', autopilot: true, speed: 0.7 },
   melon: { name: 'THICK RIND', desc: 'A tough rind takes two hits for you.', shield: 2, word: 'SPLAT' },
   cookie: { name: 'CRUMBS', desc: 'Every duck counts double.', duckMult: 2 },
   cherry: { name: 'CHERRY PIT', desc: 'Spit pits at the next two hazards in your path.', zap: { kind: 'pit', range: 230, every: 0.4, ammo: 2, lane: true }, word: 'PTOO' },
-  marble: { name: 'SLOW ROLL', desc: 'Time slows right down in every corner.', cornerSlow: 0.45 },
+  marble: { name: 'SLOW ROLL', desc: 'Time slows right down in every corner.', cornerSlow: 0.55 },
   tennis: { name: 'TOPSPIN', desc: 'Bounce clean over the next two hazards.', hop: 2 },
-  eightball: { name: 'OUTLOOK GOOD', desc: 'The 8-ball marks the safe spot to turn in every corner.', guide: true },
-  egg: { name: 'EGGSHELL', desc: 'A hazard only cracks your shell, and you\'re safe for a second.', shield: 1, shieldGrace: 1.2, word: 'CRACK' },
-  pumpkin: { name: 'TRICK OR TREAT', desc: 'The next two hazards turn into ducks.', ducksFromHazards: 2 },
+  eightball: { name: 'OUTLOOK GOOD', desc: 'The 8-ball marks the safe spot to turn in every corner. Time slows a touch.', guide: true, slow: 0.85 },
+  egg: { name: 'EGGSHELL', desc: "A hazard only cracks your shell, and you're safe for a second.", shield: 1, shieldGrace: 1.2, word: 'CRACK' },
+  pumpkin: { name: 'TRICK OR TREAT', desc: 'The next three hazards turn into ducks.', ducksFromHazards: 3 },
 
   // Rare: a strong effect, or two mild ones.
   kitty: { name: 'NINE LIVES', desc: 'Survive one crash. Any crash.', revive: 1 },
-  froggy: { name: 'TONGUE', desc: 'Hop through hazards and snatch ducks from afar.', ghost: true, magnet: 150 },
+  froggy: { name: 'TONGUE', desc: 'Hop through hazards and snatch nearby ducks.', ghost: true, magnet: 80 },
   panda: { name: 'BAMBOO BITE', desc: 'Eat any hazard you touch. Nom.', smash: true, slow: 0.85, word: 'NOM' },
   beachball: { name: 'BOUNCY', desc: 'Bounce off walls round corners, and off two hazards.', bounce: true, shield: 2, word: 'BOING' },
-  donut: { name: 'SUGAR RUSH', desc: 'Hyper! Crash through hazards, every turn PERFECT.', speed: 1.25, smash: true, perfectAll: true, word: 'CRUNCH' },
-  soccer: { name: 'KICKOFF', desc: 'Walls are bumpers, hazards get booted.', bounce: true, smash: true, word: 'BOOT' },
-  eyeball: { name: 'THIRD EYE', desc: 'Slow motion, and every turn is PERFECT.', slow: 0.6, perfectAll: true },
-  bee: { name: 'STING', desc: 'Sting the next three hazards ahead. Pollen pulls in ducks.', zap: { kind: 'star', range: 260, every: 0.35, ammo: 3 }, magnet: 110, word: 'BZZT' },
-  disco: { name: 'DANCE FLOOR', desc: 'Hazards dance out of your path. Every turn is PERFECT.', shy: true, perfectAll: true, slow: 0.85 },
+  donut: { name: 'SUGAR RUSH', desc: 'Crunch through any hazard you touch. Every turn is PERFECT.', smash: true, perfectAll: true, word: 'CRUNCH' },
+  soccer: { name: 'KICKOFF', desc: 'Walls are bumpers, and you boot the next three hazards away.', bounce: true, zap: { kind: 'ball', range: 260, every: 0.35, ammo: 3, lane: true }, word: 'GOAL' },
+  eyeball: { name: 'THIRD EYE', desc: 'Slow motion, and every turn is PERFECT.', slow: 0.55, perfectAll: true },
+  bee: { name: 'STING', desc: 'Sting the next three hazards ahead. Pollen pulls in nearby ducks.', zap: { kind: 'star', range: 260, every: 0.35, ammo: 3 }, magnet: 80, word: 'BZZT' },
+  disco: { name: 'DANCE FLOOR', desc: 'Hazards shrink back from your moves, time grooves slower, every turn PERFECT.', shy: true, slow: 0.85, perfectAll: true },
   ghost: { name: 'SPOOKY', desc: 'Float straight through hazards. Boo!', ghost: true, slow: 0.85 },
-  owl: { name: 'NIGHT VISION', desc: 'See the safe spot in every corner. Time slows a little.', guide: true, slow: 0.8 },
-  penguin: { name: 'BELLY SLIDE', desc: 'Flop down to half size. Hazards freeze in the cold.', shrink: 0.6, freeze: true },
-  robot: { name: 'AUTO-CORRECT', desc: 'Early taps wait for the corner, late ones bounce round it.', forgive: true, bounce: true },
+  owl: { name: 'NIGHT VISION', desc: 'See the safe spot to turn in every corner. Time slows.', guide: true, slow: 0.75 },
+  penguin: { name: 'BELLY SLIDE', desc: 'Flop down small. Hazards freeze in the cold.', shrink: 0.55, freeze: true },
+  robot: { name: 'AUTO-CORRECT', desc: 'Early taps wait for the corner; no tap at all and it turns you in the middle.', forgive: true, orbit: true },
   hamster: { name: 'HAMSTER BALL', desc: 'The ball takes three bumps for you.', shield: 3, word: 'BUMP' },
-  bunny: { name: 'BUNNY HOP', desc: 'Hop over the next three hazards. Ducks hop to you.', hop: 3, magnet: 110 },
-  octopus: { name: 'INK CLOUD', desc: 'Ink the hazards ahead: they stop, shrink and fizzle. Tentacles grab ducks.', ink: 260, magnet: 120 },
+  bunny: { name: 'BUNNY HOP', desc: 'Hop over the next three hazards. Nearby ducks hop to you.', hop: 3, magnet: 80 },
+  octopus: { name: 'INK CLOUD', desc: 'Ink the hazards ahead: they stop, shrink and fizzle. Tentacles grab ducks.', ink: 260, magnet: 80 },
 
   // Epic: strong and flashy, but you can still die.
-  lava: { name: 'MELTDOWN', desc: 'Hazards melt on touch, walls bounce you.', smash: true, bounce: true, speed: 1.15, word: 'MELT' },
-  galaxy: { name: 'HYPERDRIVE', desc: 'Light speed: hazards ahead vaporise, every turn PERFECT.', speed: 1.4, smash: true, perfectAll: true, word: 'ZAP' },
-  cyber: { name: 'TARGET LOCK', desc: 'Lasers delete hazards ahead. Every turn is PERFECT.', zap: { kind: 'laser', range: 300, every: 0.3 }, perfectAll: true, word: 'DELETED' },
-  pizza: { name: 'PIZZA PARTY', desc: 'The next three hazards turn into ducks and fly to you. Walls bounce you.', ducksFromHazards: 3, magnet: 150, bounce: true },
-  plasma: { name: 'TESLA STORM', desc: 'Arcs zap hazards all round you. Static pulls in ducks.', zap: { kind: 'arc', range: 170, every: 0.35, around: true }, magnet: 130, word: 'ZAPPED' },
-  fishbowl: { name: 'TIDAL WAVE', desc: 'A wave washes hazards out of your path. Bubbles take a hit.', shy: true, shield: 1, magnet: 130, word: 'SPLASH' },
-  ufo: { name: 'ABDUCTION', desc: 'A tractor beam abducts hazards ahead, and beams ducks up.', zap: { kind: 'beam', range: 280, every: 0.7 }, magnet: 150, word: 'BEAMED' },
-  ninja: { name: 'SHURIKEN', desc: 'Six shurikens cut down the hazards ahead. Every turn is PERFECT.', zap: { kind: 'star', range: 320, every: 0.25, ammo: 6 }, perfectAll: true, word: 'SLICE' },
+  lava: { name: 'MELTDOWN', desc: 'Hazards melt on touch. Lava flows round corners: early taps wait.', smash: true, forgive: true, speed: 1.1, word: 'MELT' },
+  galaxy: { name: 'HYPERDRIVE', desc: 'Light speed: hazards vaporise on touch, early taps wait, every turn PERFECT.', speed: 1.15, smash: true, forgive: true, perfectAll: true, word: 'ZAP' },
+  cyber: { name: 'TARGET LOCK', desc: 'Lasers delete hazards ahead. Early taps wait, every turn PERFECT.', zap: { kind: 'laser', range: 300, every: 0.3 }, forgive: true, perfectAll: true, word: 'DELETED' },
+  pizza: { name: 'PIZZA PARTY', desc: 'The next three hazards turn into ducks, extra cheese takes a hit, walls bounce you.', ducksFromHazards: 3, shield: 1, bounce: true },
+  plasma: { name: 'TESLA STORM', desc: 'Arcs zap hazards all round you. Static pulls in ducks.', zap: { kind: 'arc', range: 170, every: 0.35, around: true }, magnet: 120, slow: 0.9, word: 'ZAPPED' },
+  fishbowl: { name: 'TIDAL WAVE', desc: 'Hazards you touch wash away. Underwater, time slows. Fish bring ducks.', smash: true, slow: 0.85, magnet: 100, word: 'SPLASH' },
+  ufo: { name: 'ABDUCTION', desc: 'A tractor beam abducts hazards ahead and beams ducks up. A force field takes a hit.', zap: { kind: 'beam', range: 280, every: 0.5 }, magnet: 130, shield: 1, word: 'BEAMED' },
+  ninja: { name: 'SHURIKEN', desc: 'Eight shurikens cut down the hazards ahead. Ninja reflexes: early taps wait.', zap: { kind: 'star', range: 320, every: 0.25, ammo: 8 }, forgive: true, perfectAll: true, word: 'SLICE' },
   dragon: { name: 'FIRE BREATH', desc: 'Breathe fire: hazards in your path burn. Tough scales take a hit.', zap: { kind: 'fire', range: 170, every: 0.12, lane: true }, shield: 1, word: 'TOAST' },
-  storm: { name: 'THUNDER', desc: 'Lightning strikes the hazards ahead. Gusts blow you round corners.', zap: { kind: 'bolt', range: 380, every: 0.55 }, bounce: true, word: 'KZZAK' },
+  storm: { name: 'THUNDER', desc: 'Lightning strikes the hazards ahead. Gusts blow you round corners.', zap: { kind: 'bolt', range: 380, every: 0.45 }, bounce: true, slow: 0.9, word: 'KZZAK' },
 
   // Legendary: spectacular, but you still play.
   crown: {
     name: 'ROYAL DECREE',
-    desc: 'Hazards bow out of your path, the guard takes a hit, every turn PERFECT, ducks count double.',
+    desc: 'Hazards bow and shrink, the guard takes two hits, the carpet rolls you round corners, ducks count double.',
     shy: true,
-    shield: 1,
+    shield: 2,
+    bounce: true,
     perfectAll: true,
     duckMult: 2,
     word: 'BOW',
   },
   blackhole: {
     name: 'EVENT HORIZON',
-    desc: 'Swallow every hazard near you. Time bends, ducks fall in.',
-    vacuum: 240,
-    magnet: 170,
-    slow: 0.8,
+    desc: 'Swallow every hazard near you. Time bends, nearby ducks fall in.',
+    vacuum: 260,
+    magnet: 150,
+    slow: 0.7,
     word: 'GULP',
   },
   duckking: {
     name: 'QUACK ARMY',
-    desc: 'The next four hazards turn into ducks. Every duck you bonk guards you from a hit.',
-    ducksFromHazards: 4,
+    desc: 'The next five hazards turn into ducks. Every duck you bonk guards you from a hit or a crash.',
+    ducksFromHazards: 5,
     army: true,
-    magnet: 170,
+    magnet: 150,
   },
   phoenix: {
     name: 'REBIRTH',
     desc: 'Fly the safe line on autopilot, all PERFECT. Rise again from one crash.',
     autopilot: true,
+    guide: true,
     perfectAll: true,
     speed: 1.2,
     revive: 1,
   },
   unicorn: {
     name: 'RAINBOW ROAD',
-    desc: 'Your horn pierces hazards, early taps wait for the corner, every turn PERFECT.',
+    desc: 'Your horn pierces hazards, rainbows slow every corner, early taps wait, every turn PERFECT.',
     smash: true,
     forgive: true,
+    cornerSlow: 0.6,
     perfectAll: true,
-    magnet: 140,
+    magnet: 120,
     word: 'SPARKLE',
   },
   supernova: {
     name: 'SUPERNOVA',
-    desc: 'Every 1.5 s you explode, wiping out every hazard nearby.',
-    nova: { every: 1.5, radius: 230 },
+    desc: 'Explode every second, wiping out every hazard nearby. Crash, and you go nova and come back.',
+    nova: { every: 1.1, radius: 250 },
+    revive: 1,
     slow: 0.9,
     word: 'NOVA',
   },

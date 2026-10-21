@@ -118,6 +118,9 @@ function newAbilityState(def: AbilityDef, until: number): AbilityState {
   };
 }
 
+/** `shy`: hazards this close (px) shrink to this share of their size. */
+const SHY_RANGE = 210;
+const SHY_SCALE = 0.45;
 /** A bunny hop lasts this long (s). */
 const HOP_SECONDS = 0.45;
 /** How each kind of zap looks (its colour). */
@@ -129,6 +132,7 @@ const ZAP_COLOR: Record<Zap['kind'], number> = {
   fire: 0xff7a1a,
   bolt: 0xfff27a,
   pit: 0xc8102e,
+  ball: 0xffffff,
 };
 
 const NO_HAZARDS: Hazard[] = [];
@@ -217,6 +221,8 @@ export class GameScene extends Phaser.Scene {
   private ability: AbilityState | null = null;
   /** Hazards a shot is flying at: they can't hurt you any more. */
   private doomed = new WeakSet<Hazard>();
+  /** `shy`: the full radius of each hazard that is shrinking back from you. */
+  private shyRadius = new Map<Hazard, number>();
   /** The guide's marker in the next corner (abilities with `guide`). */
   private guideG?: Phaser.GameObjects.Graphics;
   private abilityCharges = 1;
@@ -1275,6 +1281,11 @@ export class GameScene extends Phaser.Scene {
     }
     this.playerView.setAbilityLook(null);
     this.hazardViews.forEach((v) => v.setFrozen(false));
+    this.shyRadius.forEach((r, hz) => {
+      hz.radius = r;
+      this.hazardViews.get(hz)?.setShrink(1);
+    });
+    this.shyRadius.clear();
     if (!silent) {
       this.effects.floater(this.player.x, this.player.y - 28, 'POWER DOWN', css.inkDim, 12);
       sfx.powerDown();
@@ -1417,7 +1428,8 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Autopilot turns for you: on the safe line if it has a `guide`, else
-   * right through the middle (hazards or not). Bounce turns at the last
+   * right through the middle (hazards or not). `orbit` does the same, but
+   * only if you haven't tapped by then. Bounce turns at the last
    * moment before the wall instead of crashing, and a tap that `forgive`
    * held back turns you as you reach the corner.
    */
@@ -1430,7 +1442,7 @@ export class GameScene extends Phaser.Scene {
       this.turn();
       return;
     }
-    if (ab.autopilot && next.perfect && inGate) {
+    if ((ab.autopilot || ab.orbit) && next.perfect && inGate) {
       const spot = (ab.guide && this.safeTurnSpot(next)) || {
         x: (next.perfect.x1 + next.perfect.x2) / 2,
         y: (next.perfect.y1 + next.perfect.y2) / 2,
@@ -1461,7 +1473,6 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     const segs = this.visibleSegments();
     const cur = this.track.get(this.current)!;
-    const d = DIRS[p.dir];
     const pr = this.playerRadius();
     const entries = segs.flatMap((seg) => seg.hazards.filter((h) => h.alive).map((h) => ({ h, seg })));
     const hazards = entries.map((e) => e.h);
@@ -1502,20 +1513,14 @@ export class GameScene extends Phaser.Scene {
         if (dist < 26) this.smashHazard(hz);
       }
 
-      // Shy: hazards ahead on your straight slide away from your line. Your
-      // line can't change until the next corner, so they never slide into you.
-      if (def.shy && danger && seg === cur && p.dir === seg.dir && dist < 260 && -dx * d.x - dy * d.y > -10) {
-        const lateralY = seg.dir % 2 === 0;
-        const away = Math.sign(lateralY ? hz.baseY - p.y : hz.baseX - p.x) || 1;
-        const move = away * 170 * sim;
-        const lim = seg.halfWidth - hz.radius - 4;
-        if (lateralY) {
-          hz.baseY = clamp(hz.baseY + move, seg.start.y - lim, seg.start.y + lim);
-          if (!hz.moving) hz.y = hz.baseY;
-        } else {
-          hz.baseX = clamp(hz.baseX + move, seg.start.x - lim, seg.start.x + lim);
-          if (!hz.moving) hz.x = hz.baseX;
-        }
+      // Shy: hazards near you shrink back, and grow again once you've gone.
+      // (Sliding them aside pushed them into the path after the next corner.)
+      if (def.shy && danger) {
+        const full = this.shyRadius.get(hz) ?? hz.radius;
+        this.shyRadius.set(hz, full);
+        const want = dist < SHY_RANGE ? full * SHY_SCALE : full;
+        hz.radius += (want - hz.radius) * Math.min(1, sim * 12);
+        this.hazardViews.get(hz)?.setShrink(hz.radius / full);
       }
 
       // Hop over a hazard that's about to hit you.
@@ -1633,8 +1638,9 @@ export class GameScene extends Phaser.Scene {
         break;
       case 'star':
       case 'pit':
+      case 'ball':
         sfx.swoosh();
-        this.throwAt(z.kind === 'star' ? FX_TEX.shuriken : FX_TEX.pit, 0xffffff, hz, () => this.smashHazard(hz));
+        this.throwAt(FX_TEX[z.kind === 'star' ? 'shuriken' : z.kind], 0xffffff, hz, () => this.smashHazard(hz));
         break;
     }
   }
@@ -1735,8 +1741,14 @@ export class GameScene extends Phaser.Scene {
   /** Extra life: pop back onto the middle of the track instead of dying. */
   private tryRevive(): boolean {
     const a = this.ability;
-    if (!a || a.revive <= 0) return false;
-    a.revive--;
+    // QUACK ARMY: a duck guard also catches you when you crash into a wall.
+    const guard = !!a?.def.army && a.shield > 0;
+    if (!a || (a.revive <= 0 && !guard)) return false;
+    if (a.revive > 0) a.revive--;
+    else {
+      a.shield--;
+      this.playerView.setBubble(a.shield > 0);
+    }
     const cur = this.track.get(this.current)!;
     const d = DIRS[cur.dir];
     const along = clamp(trackDistance(cur, this.player.x, this.player.y) - cur.travelled, 0, cur.length - cur.halfWidth - 30);
@@ -1747,7 +1759,7 @@ export class GameScene extends Phaser.Scene {
     const kitty = save.skin === 'kitty';
     this.effects.flare(x, y, 0xffffff, 150);
     this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
-    this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18, 3);
+    this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : guard ? 'DUCK GUARD!' : 'EXTRA LIFE', '#ffffff', 18, 3);
     this.hitStop(40);
     this.cameras.main.shake(200, 0.006);
     this.flash(0xffffff, 200, 0.45);

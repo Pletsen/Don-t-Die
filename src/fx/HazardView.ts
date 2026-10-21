@@ -189,6 +189,20 @@ export class HazardView {
     this.scene.tweens.add({ targets: this.root, scale: { from: 1.35, to: 1 }, duration: 260, ease: 'Back.easeOut' });
   }
 
+  private bodyScale = -1;
+  private haloScale = -1;
+
+  /** SO SHY: shrink back (k = share of the full size). Bombs follow their radius by themselves. */
+  setShrink(k: number) {
+    if (this.hazard.kind === 'bomb') return;
+    if (this.bodyScale < 0) {
+      this.bodyScale = this.body.scaleX;
+      this.haloScale = this.halo.scaleX;
+    }
+    this.body.setScale(this.bodyScale * k);
+    this.halo.setScale(this.haloScale * k);
+  }
+
   /** Beamed up by a tractor beam: it floats up, spinning and shrinking, and is gone. */
   abduct() {
     this.warn.setVisible(false);

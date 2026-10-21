@@ -2338,7 +2338,7 @@ const painters: Record<string, (ctx: Ctx) => void> = {
 };
 
 /** Little things the powers throw: NINJA's shuriken, CHERRY's pit, OCTO's ink. */
-export const FX_TEX = { shuriken: 'fx:shuriken', pit: 'fx:pit', ink: 'fx:ink' };
+export const FX_TEX = { shuriken: 'fx:shuriken', pit: 'fx:pit', ink: 'fx:ink', ball: 'fx:ball' };
 
 const fxPainters: Record<string, (ctx: Ctx) => void> = {
   [FX_TEX.shuriken]: (ctx) => {
@@ -2368,6 +2368,23 @@ const fxPainters: Record<string, (ctx: Ctx) => void> = {
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.ellipse(16, 16, 7, 9, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  },
+  [FX_TEX.ball]: (ctx) => {
+    const g = ctx.createRadialGradient(13, 12, 1, 16, 16, 10);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.7, '#e6e6e6');
+    g.addColorStop(1, '#9a9a9a');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(16, 16, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#161616';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+      ctx.lineTo(16 + Math.cos(a) * 3.6, 16 + Math.sin(a) * 3.6);
+    }
     ctx.fill();
   },
   [FX_TEX.ink]: (ctx) => {
