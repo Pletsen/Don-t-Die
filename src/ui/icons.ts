@@ -13,6 +13,8 @@ export type IconName =
   | 'back'
   | 'sound'
   | 'mute'
+  | 'music'
+  | 'musicOff'
   | 'sparkle'
   | 'lock'
   | 'star'
@@ -92,6 +94,16 @@ export function drawIcon(
         line(16, 9, 21, 15);
         line(21, 9, 16, 15);
       }
+      break;
+    case 'music':
+    case 'musicOff':
+      // Two beamed eighth notes (off: struck through).
+      g.fillEllipse(X(7.2), Y(17.2), 6 * k, 4.6 * k);
+      g.fillEllipse(X(16.2), Y(15.2), 6 * k, 4.6 * k);
+      line(9.6, 17, 9.6, 6.2);
+      line(18.6, 15, 18.6, 4.2);
+      poly([9.6, 5.2, 18.6, 3.2, 18.6, 6.4, 9.6, 8.4], true);
+      if (name === 'musicOff') line(3.5, 20.5, 20.5, 3.5);
       break;
     case 'sparkle':
       poly([12, 3, 13.8, 10.2, 21, 12, 13.8, 13.8, 12, 21, 10.2, 13.8, 3, 12, 10.2, 10.2], true);

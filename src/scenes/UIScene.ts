@@ -5,6 +5,7 @@ import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { LEVELS, WORLDS, isHardLevel, lastOfSet, levelById, levelName, levelNumber } from '../game/levels';
 import { sfx } from '../audio/Sfx';
+import { music } from '../audio/Music';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
 import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
 import { skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
@@ -20,6 +21,7 @@ import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { renderCard, type CardInfo } from '../ui/shareCard';
 import { calmMoment, share } from '../native/bridge';
+import { todaysGuest } from '../game/guest';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
@@ -67,6 +69,7 @@ export class UIScene extends Phaser.Scene {
   private progress!: Phaser.GameObjects.Graphics;
   private comboText!: Phaser.GameObjects.Text;
   private comboBadge!: Phaser.GameObjects.Graphics;
+  private musicBtn!: IconButton;
   private soundBtn!: IconButton;
   private fxBtn!: IconButton;
   private pauseBtn!: IconButton;
@@ -117,6 +120,15 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private flavorText!: Phaser.GameObjects.Text;
+  /** After a Daily Run: "LIKE <GUEST>? SPIN THE DUCK-O-MATIC", opens the shop. */
+  private guestLink!: Phaser.GameObjects.Text;
+  // CONTINUE on the death card (levels only: GameScene decides when it's on offer).
+  private continueBtn!: Button;
+  private continueRing!: Phaser.GameObjects.Graphics;
+  private continueDuck!: Phaser.GameObjects.Image;
+  private continueNote!: Phaser.GameObjects.Text;
+  /** The CONTINUE offer on screen: its price, when it started and runs out, when taps start to count. */
+  private offer: { cost: number; from: number; until: number; armAt: number; death: DeathData } | null = null;
   private retryPill!: Button;
   private overLevels!: Button;
   private overMenu!: Button;
@@ -158,6 +170,7 @@ export class UIScene extends Phaser.Scene {
       (level) => this.play(level),
       () => this.toggleRainbow(),
       () => this.showMenu(),
+      (msg) => this.toast(msg, 1800),
     );
     this.daily = new DailyScreen(this, { play: () => this.playDaily(), back: () => this.showMenu() });
     this.records = new RecordsScreen(this, { back: () => this.showMenu() });
@@ -219,6 +232,7 @@ export class UIScene extends Phaser.Scene {
     this.game.events.on(EV.ability, this.onAbility, this);
     this.game.events.on(EV.frenzy, this.onFrenzy, this);
     this.game.events.on(EV.pause, this.onPauseRequest, this);
+    this.game.events.on(EV.respawn, this.onRespawn, this);
     // Leaving the app (home button, a call, the notification shade) pauses the run.
     const onVisibility = () => {
       if (document.hidden) this.game.events.emit(EV.pause);
@@ -254,6 +268,8 @@ export class UIScene extends Phaser.Scene {
 
   private toast(msg: string, hold = 1600) {
     const { w, h } = display.size(this);
+    // Long messages wrap instead of running off a narrow screen.
+    this.toastText.setWordWrapWidth(w - 48).setAlign('center');
     this.toastText.setText(msg).setPosition(w / 2, h - 100 - display.safeBottom());
     this.tweens.killTweensOf(this.toastText);
     this.toastText.setAlpha(1).setScale(1.4);
@@ -294,7 +310,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private refreshButtons() {
-    for (const b of [this.soundBtn, this.pauseSound]) b?.setIcon(save.muted ? 'mute' : 'sound', !save.muted);
+    for (const b of [this.musicBtn, this.pauseMusic]) b?.setIcon(save.music ? 'music' : 'musicOff', save.music);
+    for (const b of [this.soundBtn, this.pauseSound]) b?.setIcon(save.sound ? 'sound' : 'mute', save.sound);
     for (const b of [this.fxBtn, this.pauseFx]) b?.setIcon('sparkle', !save.fxReduced);
   }
 
@@ -353,7 +370,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private drawAbilityPill() {
-    const skin = skinById(save.skin);
+    const skin = skinById(shared.skin);
     const def = abilityFor(skin.id);
     const { state, frac } = this.abilityState;
     const w = 230;
@@ -430,11 +447,18 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildToggles() {
-    const toggleSound = () => {
-      save.setMuted(!save.muted);
-      sfx.setMuted(save.muted);
+    // Music and sound effects switch off separately (see Sfx.ts and Music.ts).
+    const toggleMusic = () => {
+      save.setMusic(!save.music);
+      music.setEnabled(save.music);
       this.refreshButtons();
-      this.toast(save.muted ? 'SOUND OFF' : 'SOUND ON', 900);
+      this.toast(save.music ? 'MUSIC ON' : 'MUSIC OFF', 900);
+    };
+    const toggleSound = () => {
+      save.setSound(!save.sound);
+      sfx.setSound(save.sound);
+      this.refreshButtons();
+      this.toast(save.sound ? 'SOUND ON' : 'SOUND OFF', 900);
     };
     const toggleFx = () => {
       save.setFxReduced(!save.fxReduced);
@@ -442,6 +466,8 @@ export class UIScene extends Phaser.Scene {
       this.refreshButtons();
       this.toast(save.fxReduced ? 'REDUCED EFFECTS' : 'FULL EFFECTS', 900);
     };
+    this.musicBtn = makeIconButton(this, 'music', toggleMusic);
+    this.musicBtn.on('toggle', toggleMusic);
     this.soundBtn = makeIconButton(this, 'sound', toggleSound);
     this.soundBtn.on('toggle', toggleSound);
     this.fxBtn = makeIconButton(this, 'sparkle', toggleFx);
@@ -453,6 +479,7 @@ export class UIScene extends Phaser.Scene {
   // --- Pause ----------------------------------------------------------------
 
   private pauseSheet!: Phaser.GameObjects.Container;
+  private pauseMusic!: IconButton;
   private pauseSound!: IconButton;
   private pauseFx!: IconButton;
   private pausePlate!: Phaser.GameObjects.Graphics;
@@ -467,13 +494,15 @@ export class UIScene extends Phaser.Scene {
     retry.setPosition(-63, 60);
     const menu = makeButton(this, { label: 'MENU', icon: 'home', width: 114, style: 'ghost', onPress: () => this.showMenu() });
     menu.setPosition(63, 60);
-    // Sound and effects toggles live inside the sheet while paused.
+    // Music, sound and effects toggles live inside the sheet while paused.
+    this.pauseMusic = makeIconButton(this, 'music', () => this.musicBtn.emit('toggle'));
+    this.pauseMusic.setPosition(-56, 122);
     this.pauseSound = makeIconButton(this, 'sound', () => this.soundBtn.emit('toggle'));
-    this.pauseSound.setPosition(-28, 122);
+    this.pauseSound.setPosition(0, 122);
     this.pauseFx = makeIconButton(this, 'sparkle', () => this.fxBtn.emit('toggle'));
-    this.pauseFx.setPosition(28, 122);
+    this.pauseFx.setPosition(56, 122);
     this.pauseSheet = this.add
-      .container(0, 0, [this.pausePlate, title, resume, retry, menu, this.pauseSound, this.pauseFx])
+      .container(0, 0, [this.pausePlate, title, resume, retry, menu, this.pauseMusic, this.pauseSound, this.pauseFx])
       .setVisible(false);
     this.refreshButtons();
     this.countdown = this.add.bitmapText(0, 0, 'big', '', 96).setOrigin(0.5).setVisible(false);
@@ -680,10 +709,21 @@ export class UIScene extends Phaser.Scene {
     this.tipText = this.text(0, 0, '', { size: 13, color: '#8fa3b5', spacing: 0.5 }).setOrigin(0.5).setAlign('center');
     this.tipText.setWordWrapWidth(270);
     this.flavorText = this.text(0, 0, '', { size: 14, color: css.magenta, spacing: 1.2 }).setOrigin(0.5);
+    this.guestLink = this.text(0, 0, '', { size: 13, color: '#ffd21f', spacing: 1.2 }).setOrigin(0.5).setVisible(false);
+    this.guestLink.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      if (this.mode !== 'dead' || !this.guestLink.visible || this.over.getData('inactive')) return;
+      sfx.unlock();
+      sfx.click();
+      this.showSkins();
+    });
     this.retryPill = makeButton(this, { label: 'RETRY', icon: 'retry', width: 226, height: 56, onPress: () => this.retry() });
     this.overLevels = makeButton(this, { label: 'LEVELS', icon: 'levels', width: 134, style: 'ghost', onPress: () => this.showSelect() });
     this.overMenu = makeButton(this, { label: 'MENU', icon: 'home', width: 134, style: 'ghost', onPress: () => this.showMenu() });
     this.overShare = makeIconButton(this, 'share', () => this.shareResult(), palette.cyan, true);
+    this.continueBtn = makeButton(this, { label: 'CONTINUE', width: 236, height: 56, color: 0xffd21f, onPress: () => this.continueRun() });
+    this.continueRing = this.add.graphics();
+    this.continueDuck = this.add.image(0, 0, TEX.duck).setScale(0.26 / DUCK_RES);
+    this.continueNote = this.text(0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1.2 }).setOrigin(0.5);
     this.confetti = this.add
       .particles(0, 0, TEX.shard, {
         emitting: false,
@@ -707,6 +747,11 @@ export class UIScene extends Phaser.Scene {
       this.bestText,
       this.tipText,
       this.flavorText,
+      this.guestLink,
+      this.continueBtn,
+      this.continueRing,
+      this.continueDuck,
+      this.continueNote,
       this.retryPill,
       this.overLevels,
       this.overMenu,
@@ -725,8 +770,9 @@ export class UIScene extends Phaser.Scene {
     this.subValue.setPosition(side, top + 44);
     this.rightLabel.setPosition(w - side, top);
     this.rightValue.setPosition(w - side, top + 12);
-    // Sound and effects sit top-right in menus; during a run only the pause
-    // button shows (no accidental mutes mid-run).
+    // Music, sound and effects sit top-right in menus; during a run only the
+    // pause button shows (no accidental mutes mid-run).
+    this.musicBtn.setPosition(w - side - 24 - 104, top + 22);
     this.soundBtn.setPosition(w - side - 24 - 52, top + 22);
     this.fxBtn.setPosition(w - side - 24, top + 22);
     this.pauseBtn.setPosition(w / 2, top + 22);
@@ -880,7 +926,7 @@ export class UIScene extends Phaser.Scene {
     if (fromRun) this.game.events.emit(EV.menu);
 
     sfx.swoosh();
-    // Re-layout: the NORMAL / HARD tabs appear once level 20 is cleared.
+    // Re-layout (the level map may have changed since it was last laid out).
     const { w, h } = display.size(this);
     this.select.layout(w, h, 16 + display.safeTop() + 52);
     this.select.showSetOf(this.level ?? nextLevelToPlay());
@@ -936,6 +982,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onStarted(d: HudData) {
+    this.offer = null;
     this.banner.setInRun(true);
     this.abilityState = { state: 'ready', frac: 0 };
     this.drawAbilityPill();
@@ -952,6 +999,7 @@ export class UIScene extends Phaser.Scene {
       const run = progress.daily.run();
       this.rightLabel.setText(run.modifier.name);
       this.rightValue.setText(`${run.best.toFixed(0)} M`).setTint(run.modifier.color);
+      this.toast(`TODAY'S GUEST: ${skinById(shared.skin).name}`, 1600);
     } else {
       this.rightLabel.setText('BEST');
       this.rightValue.setText(`${save.best.toFixed(1)} M`).clearTint();
@@ -1028,7 +1076,7 @@ export class UIScene extends Phaser.Scene {
    * the skin's face and the move's name, like a fighting-game super.
    */
   private cutIn() {
-    const skin = skinById(save.skin);
+    const skin = skinById(shared.skin);
     const def = abilityFor(skin.id);
     const { w, h } = display.size(this);
     const g = this.cutInBand.clear();
@@ -1112,9 +1160,13 @@ export class UIScene extends Phaser.Scene {
       unit = '%';
       this.scoreText.setTint(color);
       this.timeText.setText(`${d.meters.toFixed(0)} / ${d.goal.toFixed(0)} M   ·   ${levelName(d.level)} ${WORLDS[level.world].name}`);
-      const run = progress.lastRun;
-      const best = run && run.level === d.level ? run.bestBefore || null : this.levelBest(d.level);
-      if (run && run.level === d.level && run.newBest && frac > 0.02) {
+      // While a CONTINUE is on offer the run isn't reported yet: compare with
+      // the level's record as it stands (progress.lastRun is the attempt before).
+      const run = d.continueCost === null ? progress.lastRun : null;
+      const fresh = !!run && run.level === d.level;
+      const best = fresh ? run!.bestBefore || null : this.levelBest(d.level);
+      const newBest = fresh ? run!.newBest : best !== null && frac - best >= 0.01;
+      if (newBest && frac > 0.02) {
         this.bestText.setText('NEW BEST').setColor('#ffd21f').setShadow(0, 0, '#ffd21f', 12, false, true);
       } else this.bestText.setText(best !== null ? `BEST ${Math.floor(best * 100)}%` : '');
       this.drawOverBar(frac, best, color);
@@ -1141,6 +1193,26 @@ export class UIScene extends Phaser.Scene {
       this.flavorText.setText(earned > 0 ? `+${earned} DUCKS  ·  ${save.ducks} IN TOTAL` : '');
       if (earned > 0) this.maybeShowSpinBanner();
     }
+    // The Daily Run was played with today's guest skin: here's where to get it.
+    const guest = this.runMode === 'daily' ? todaysGuest() : null;
+    const showGuest = !!guest && !save.skins.has(guest.id);
+    this.guestLink.setText(showGuest ? `LIKE ${guest!.name}? SPIN THE DUCK-O-MATIC  ›` : '').setVisible(showGuest);
+
+    // CONTINUE: buy the crash back for a few seconds (see GameScene.continueOffer).
+    this.offer = null;
+    const canContinue = d.continueCost !== null && save.ducks >= d.continueCost;
+    for (const o of [this.continueBtn, this.continueRing, this.continueDuck, this.continueNote]) o.setVisible(canContinue).setAlpha(1);
+    if (canContinue) {
+      const now = this.time.now;
+      // Taps only count after a moment: a panicked tap right after the crash mustn't spend ducks.
+      this.offer = { cost: d.continueCost!, from: now, until: now + d.continueSeconds * 1000, armAt: now + 650, death: d };
+      this.continueBtn.setLabel(`CONTINUE · ${d.continueCost} DUCKS`);
+      this.continueNote.setText(`YOU HAVE ${save.ducks} DUCKS`);
+      this.drawContinueRing(1);
+    } else if (d.continueCost !== null) {
+      // (Offered, but the ducks are gone: settle it now.)
+      this.game.events.emit(EV.continueDecline);
+    }
     this.layoutOver();
 
     this.over.setVisible(true).setAlpha(0).setY(32);
@@ -1159,10 +1231,16 @@ export class UIScene extends Phaser.Scene {
       ease: 'Cubic.easeOut',
       onUpdate: () => this.scoreText.setText(unit === '%' ? `${Math.round(counter.v)}%` : `${counter.v.toFixed(0)} M`),
     });
-    [this.retryPill, this.overShare, this.overLevels, this.overMenu].forEach((b, i) => {
+    [this.retryPill, this.overShare, this.overLevels, this.overMenu, this.guestLink].forEach((b, i) => {
       b.setAlpha(0);
       this.tweens.add({ targets: b, alpha: 1, delay: 220 + i * 60, duration: 240 });
     });
+    if (this.offer) {
+      // Fully there by the time it accepts taps.
+      const row = [this.continueBtn, this.continueRing, this.continueDuck, this.continueNote];
+      row.forEach((o) => o.setAlpha(0));
+      this.tweens.add({ targets: row, alpha: 1, delay: 300, duration: 320 });
+    }
   }
 
   /** Progress bar on the death card, with a tick at your best attempt. */
@@ -1193,6 +1271,9 @@ export class UIScene extends Phaser.Scene {
     parts.push([this.timeText, 26], [this.bestText, 26]);
     if (hasTip) parts.push([this.tipText, 50]);
     if (hasFlavor) parts.push([this.flavorText, 28]);
+    if (this.guestLink.visible) parts.push([this.guestLink, 30]);
+    const offer = this.continueBtn.visible;
+    if (offer) parts.push([this.continueBtn, 62], [this.continueNote, 22]);
     parts.push([this.retryPill, 78], [this.overLevels, 56]);
     const total = parts.reduce((a, [, hgt]) => a + hgt, 0) + 36;
     const top = Math.max(display.safeTop() + 60, h * 0.47 - total / 2);
@@ -1213,9 +1294,134 @@ export class UIScene extends Phaser.Scene {
     // RETRY with the share button beside it.
     this.retryPill.setX(cx - 28);
     this.overShare.setPosition(cx + 117, this.retryPill.y);
+    // CONTINUE above it, with its countdown ring (round a duck) where SHARE is.
+    if (offer) {
+      this.continueBtn.setX(cx - 33);
+      this.continueNote.setX(cx - 33);
+      this.continueRing.setPosition(cx + 117, this.continueBtn.y);
+      this.continueDuck.setPosition(cx + 117, this.continueBtn.y);
+    }
+    this.overBox = { x: cx - pw / 2, y: top, w: pw, h: total };
+    this.drawOverPlate(this.overBox);
+  }
+
+  private overBox = { x: 0, y: 0, w: 0, h: 0 };
+
+  private drawOverPlate(b: { x: number; y: number; w: number; h: number }) {
     this.overPlate.clear();
-    this.overPlate.fillStyle(0x0a0f18, 0.92).fillRoundedRect(cx - pw / 2, top, pw, total, 24);
-    this.overPlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(cx - pw / 2, top, pw, total, 24);
+    this.overPlate.fillStyle(0x0a0f18, 0.92).fillRoundedRect(b.x, b.y, b.w, b.h, 24);
+    this.overPlate.lineStyle(1.5, 0x1c2a3a, 1).strokeRoundedRect(b.x, b.y, b.w, b.h, 24);
+  }
+
+  /** Re-lay the death card, sliding everything (and the plate) to its new place. */
+  private reflowOver() {
+    const objs = this.over.list.filter((o) => o !== this.overPlate) as (Phaser.GameObjects.GameObject & { y: number })[];
+    const from = objs.map((o) => o.y);
+    const box0 = { ...this.overBox };
+    this.layoutOver();
+    const to = objs.map((o) => o.y);
+    const box1 = { ...this.overBox };
+    const k = { v: 0 };
+    objs.forEach((o, i) => (o.y = from[i]));
+    this.drawOverPlate(box0);
+    const mix = (a: number, b: number) => a + (b - a) * k.v;
+    this.tweens.add({
+      targets: k,
+      v: 1,
+      duration: 220,
+      ease: 'Cubic.easeOut',
+      onUpdate: () => {
+        objs.forEach((o, i) => (o.y = mix(from[i], to[i])));
+        this.drawOverPlate({ x: box1.x, w: box1.w, y: mix(box0.y, box1.y), h: mix(box0.h, box1.h) });
+      },
+    });
+  }
+
+  // --- CONTINUE ---------------------------------------------------------------
+
+  /** The countdown ring round the duck: `left` is the share of the offer's time left. */
+  private drawContinueRing(left: number) {
+    const g = this.continueRing.clear();
+    g.fillStyle(0x1c1404, 0.95).fillCircle(0, 0, 21);
+    g.lineStyle(3, 0x3a2f10, 1).strokeCircle(0, 0, 19);
+    if (left <= 0) return;
+    g.lineStyle(3, left > 0.3 ? 0xffd21f : 0xff9a2e, 1);
+    g.beginPath();
+    g.arc(0, 0, 19, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left, false);
+    g.strokePath();
+  }
+
+  /** Once a frame while the offer stands: run the ring down; at zero the crash stands. */
+  private tickOffer() {
+    const o = this.offer!;
+    if (this.mode !== 'dead' || this.lastDeath !== o.death) {
+      this.offer = null;
+      return;
+    }
+    const left = Math.max(0, (o.until - this.time.now) / (o.until - o.from));
+    this.drawContinueRing(left);
+    this.continueBtn.setScale(1 + 0.025 * Math.sin(this.time.now / 110));
+    if (left <= 0) this.endOffer();
+  }
+
+  /** The offer ran out: the row goes, the card closes up, and the crash is final. */
+  private endOffer() {
+    this.offer = null;
+    const row = [this.continueBtn, this.continueRing, this.continueDuck, this.continueNote];
+    this.tweens.killTweensOf(row);
+    this.tweens.add({
+      targets: row,
+      alpha: 0,
+      duration: 160,
+      onComplete: () => {
+        row.forEach((o) => o.setVisible(false));
+        this.continueBtn.setScale(1);
+        if (this.mode === 'dead' && this.over.visible) this.reflowOver();
+      },
+    });
+    this.game.events.emit(EV.continueDecline);
+  }
+
+  /** CONTINUE pressed: GameScene puts the ball back (and says so with EV.respawn). */
+  private continueRun() {
+    const o = this.offer;
+    if (!o || this.mode !== 'dead' || this.time.now < o.armAt) return;
+    if (save.ducks < o.cost) {
+      sfx.denied();
+      return;
+    }
+    this.game.events.emit(EV.continueRun);
+  }
+
+  /** Back on the track after a CONTINUE: the HUD returns, then 3, 2, 1, GO. */
+  private onRespawn(r: { count: number }) {
+    if (this.mode === 'dead') {
+      this.offer = null;
+      this.mode = 'play';
+      this.banner.setInRun(true);
+      this.hideSpinBanner();
+      this.fadeOut(this.over);
+      this.tweens.add({ targets: this.scrim, alpha: 0, duration: 200 });
+      this.hud.setVisible(true).setAlpha(0);
+      this.fadeIn(this.hud);
+      this.toast(`-${this.lastDeath?.continueCost ?? 0} DUCKS · ${save.ducks} LEFT`, 1000);
+    }
+    // Paused mid-count: the pause sheet's own 3-2-1 comes first.
+    if (this.mode !== 'play') return;
+    const { w, h } = display.size(this);
+    this.tweens.killTweensOf(this.countdown);
+    this.countdown.setPosition(w / 2, h * 0.42);
+    sfx.click();
+    const go = r.count === 0;
+    this.countdown.setText(go ? 'GO!' : String(r.count)).setVisible(true).setAlpha(1).setScale(go ? 1.2 : 1.5);
+    this.tweens.add({
+      targets: this.countdown,
+      scale: 1,
+      alpha: go ? 0 : 0.2,
+      duration: go ? 520 : 320,
+      ease: 'Cubic.easeOut',
+      onComplete: () => go && this.countdown.setVisible(false),
+    });
   }
 
   private onCleared(d: ClearData) {
@@ -1374,7 +1580,8 @@ export class UIScene extends Phaser.Scene {
     const t = time / 1000;
     // Which corner buttons show depends on the screen.
     this.pauseBtn.setVisible(this.mode === 'play');
-    // Sound/effects toggles: on the main menu (and inside the pause sheet).
+    // Music/sound/effects toggles: on the main menu (and inside the pause sheet).
+    this.musicBtn.setVisible(this.mode === 'menu');
     this.soundBtn.setVisible(this.mode === 'menu');
     this.fxBtn.setVisible(this.mode === 'menu');
     // After a crash the darkness creeps in from the edges.
@@ -1409,7 +1616,8 @@ export class UIScene extends Phaser.Scene {
     }
     this.clearScreen.update(time);
 
-    if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {
+    if (this.offer) this.tickOffer();
+    else if (this.mode === 'dead' && this.over.visible && this.retryPill.alpha >= 1) {
       this.retryPill.setScale(1 + 0.02 * Math.sin(t * 4));
     }
   }

@@ -204,7 +204,9 @@ export class ClearScreen {
     this.ducksLine.setText('');
     if (d.ducks > 0) this.flyDucks(d.ducks, save.ducks, 500 + d.stars * 300);
 
-    if (d.warped) this.hint.setText('WARP STAR FOUND').setColor(css.orange);
+    // A clear saved by a CONTINUE gets 1 star at most (GameScene.clear).
+    if (d.continued) this.hint.setText('CONTINUED: 1 STAR MAX').setColor('#ffd21f');
+    else if (d.warped) this.hint.setText('WARP STAR FOUND').setColor(css.orange);
     else if (d.stars < 2) this.hint.setText('2 STARS: 60% OF TURNS PERFECT').setColor(css.inkDim);
     else if (d.stars < 3) this.hint.setText('3 STARS: 80% OF TURNS PERFECT').setColor(css.inkDim);
     else this.hint.setText(d.previousStars < 3 ? 'FLAWLESS' : '').setColor('#ffd21f');

@@ -8,11 +8,11 @@ Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, 
 
 - **PLAY · LEVEL n** starter direkte det næste level, du ikke har klaret.
 - **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **SKINS** er spillemaskinen DUCK-O-MATIC, og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
-- Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS), lyd og effekter.
+- Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS) og til højre **musik**, **lyd** og **effekter**. Musik og lydeffekter slås fra hver for sig og huskes (`dontdie_music` og `dontdie_sound`). Havde man slået al lyd fra i en ældre version, starter begge slukket.
 
 Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
 
-Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
+Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, musik, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
 
 ### Levels
 
@@ -25,9 +25,9 @@ Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
 | 3 · Bombs | Violet | Bomber, der lader op og eksploderer, og en smallere korridor |
 | 4 · Chaos | Karmin | Alt, hurtigt og i bevægelse |
 
-Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 %. Levels låses op ét ad gangen.
+Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 % (højst 1 med CONTINUE, se nedenfor). Levels låses op ét ad gangen.
 
-**HARD MODE** åbner, når level 20 er klaret: alle 20 levels i en ny udgave (egen bane, cirka 14 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Faneblade NORMAL/HARD øverst i LEVELS. Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
+**HARD MODE** åbner, når level 20 er klaret: alle 20 levels i en ny udgave (egen bane, cirka 14 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Faneblade NORMAL/HARD øverst i LEVELS. Indtil level 20 er klaret, står HARD-fanen gråt med en lås som en smagsprøve: et tryk får den til at ryste, og en besked siger CLEAR LEVEL 20 TO UNLOCK HARD MODE. Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
 
 Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet flere tusind ture). En gennemsnitlig spiller klarer cirka 97 % af forsøgene på level 6 og 40–60 % i verden 3–4, med lidt luft i starten af hver ny verden:
 
@@ -40,6 +40,10 @@ Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "g
 **Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til næsten den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.
 
 Dør du, fortæller resultatkortet hvor langt du nåede (i procent), om du drejede **for tidligt** eller **for sent**, og hvad din bedste tur på levelet var. De første dødsfald har et lille tip.
+
+**CONTINUE · 30 DUCKS:** dør du i et level (også HARD) efter mindst 20 % af vejen, kan du købe dig tilbage for 30 ænder, én gang pr. forsøg. Knappen står på resultatkortet i 4,5 sekunder med en lille ring om en and, der tæller ned; har du ikke ænderne, vises den slet ikke (en pris, man ikke kan betale, ved hver død gør bare ondt værre). Kuglen kommer tilbage i starten af det stræk, du døde på, midt i banen og med retning langs den. Så tæller det 3-2-1 (tryk tæller ikke, og man kan pause), og ved GO! er der lidt slowmotion og 1,3 sekund, hvor kuglen blinker og forhindringer ikke kan ramme. Distance, ænder og PERFECT-sving fortsætter, kun combo'en brydes. En gennemførsel med CONTINUE åbner næste level og giver førstegangs-belønningen, men højst **1 stjerne** og ingen ny bedste tid: stjerner er for rene ture og kan ikke købes. Survival og Daily Run har ingen CONTINUE, så deres rekorder heller ikke kan købes. Så længe tilbuddet står, er turen ikke afgjort (ingen statistik og ingen halve ænder endnu); det sker, når tilbuddet løber ud, eller du trykker RETRY eller MENU. `src/native/bridge.ts` har en krog til en senere "se en reklame for at fortsætte" (den svarer altid nej på nettet).
+
+**Spøgelset af din bedste tur:** hvert level husker dit bedste forsøg, det der nåede længst, og når levelet er klaret, den hurtigste gennemførsel. Næste gang kører en svag, gennemsigtig kugle med et kort spor (og "BEST" over sig det første sekund) den tur igen, under din egen kugle og uden at kunne ramme noget. Hvor den bedste tur sluttede, forsvinder den med et lille glimt: der døde du sidst. Spøgelset afspilles efter turens egen tid, så slowmotion, hit-stop og evner, der ændrer farten, kun påvirker dig; over level 20 (41 s) ligger det højst 2-3 px fra den optagede tur. Det gemmes som de punkter, hvor kuglen drejede eller skiftede tempo (x, y, distance og tid), pakket til et par hundrede bytes pr. level (`dontdie_ghost_<id>`, ca. 640 bytes for level 20). Ture, der warper til Universe 2, gemmes kun frem til warp-stjernen, og ture med CONTINUE kun frem til første crash. Ingen spøgelser i Survival og Daily Run.
 
 ### Survival
 
@@ -59,6 +63,7 @@ Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD
 ### Dagligt: DAILY
 
 - **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +5/+10/+15 ænder, én gang om dagen.
+- **Dagens gæst (TODAY'S GUEST):** hver dag låner du ét skin, du ikke har endnu. Det vælges ud fra datoen blandt dem, du mangler (har du dem alle, kan det være hvilket som helst), og ligger så fast resten af dagen. DAILY-skærmen viser det med navn og super power, og Daily Run spilles med det, evnen inklusive. Dit eget skin bliver ikke skiftet. Efter turen har resultatkortet et lille link, "LIKE FROGGY? SPIN THE DUCK-O-MATIC", der går direkte til spillemaskinen (`src/game/guest.ts`).
 - **3 daglige missioner** (let/medium/svær, +5/+10/+15, +10 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
 - **Streak:** kom igen hver dag for 5, 5, 10, 10, 15, 15 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
 
@@ -185,6 +190,8 @@ src/
 │   ├── missions.ts       ⭐ De daglige missioner
 │   ├── achievements.ts   ⭐ De 33 achievements
 │   ├── daily.ts          ⭐ Daily Run (ugedags-twists) og streak
+│   ├── guest.ts          Dagens gæste-skin til Daily Run
+│   ├── ghost.ts          Spøgelset: optag, pak, gem og afspil din bedste tur pr. level
 │   ├── tuning.ts         ⭐ Tallene for SURVIVAL og zonerne
 │   ├── palette.ts        ⭐ Farver og skrifttyper
 │   ├── storage.ts        Rekord, ænder og indstillinger (gemmes i browseren)
@@ -202,6 +209,7 @@ src/
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
 │   ├── Ambient.ts        Svage lysprikker, der driver i baggrunden
 │   ├── WarpStarView.ts   Den gemte warp-stjerne
+│   ├── GhostView.ts      Spøgelseskuglen med sit spor
 │   ├── skinTextures.ts   Tegner alle 32 skins
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
@@ -229,7 +237,7 @@ Et tryk sendes fra `UIScene` til `GameScene` som en besked (`EV.tap`), som `Game
 - **Gør SURVIVAL nemmere eller sværere:** Åbn `src/game/tuning.ts`. `speedAt` styrer farten, `corridorHalfWidthAt` bredden og `hazardChanceAt` hvor mange forhindringer der kommer.
 - **Skift farver:** `src/game/palette.ts`. Sektor-farverne (cyan, orange, magenta, rød) ligger i `tuning.ts`.
 - **Mere eller mindre glød:** I `GameScene.setupCamera()` styrer `threshold` hvor lyst noget skal være for at gløde, og `blendAmount` hvor kraftigt det gløder.
-- **Ny lyd:** `src/audio/Sfx.ts`. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
+- **Ny lyd:** `src/audio/Sfx.ts`. Alle lydeffekter (også de optagede ænder) går gennem `sfx.master`, som LYD-knappen skruer ned til 0; musikken har sin egen kanal i `Music.ts`, som MUSIK-knappen slukker. Hvert sving spiller en tone fra en skala, der passer til musikken, så en række sving bliver til en lille melodi.
 - **Musikken:** `src/audio/Music.ts`. `SONGS` har én sang pr. verden (A-mol 108 BPM, D-mol 114, E-mol 118, F#-mol 124) med akkorder og to arpeggio-mønstre. Hver sang kører en form på 32 takter (A, A med løftet arpeggio, B med åben hi-hat, breakdown uden trommer), med et clap-fill hver 8. takt. `VOLUME` er lydstyrken; trommer og bas ligger i `playStep`.
 
 Mens `npm run dev` kører, opdateres spillet i browseren, hver gang du gemmer en fil.
@@ -248,6 +256,6 @@ game.scene.getScene('Game').debugState()   // spillerens position, meter, combo 
 - **Game Center:** leaderboards (også for Daily Run) og achievements.
 - **"Din linje":** når turen slutter, zoomer kameraet ud og viser hele turen som en neon-spiral, som man kan dele.
 - **Level-kortet som en spiral**, hvor kuglen kører hen til det næste level.
-- **Et spøgelse af din bedste tur** i levels og Daily Run.
+- **Et spøgelse i Daily Run** (levels har det nu), måske med dagens bedste tur fra en ven.
 - **Flere forhindrings-typer**, fx laserbarrierer der tænder og slukker, og en verden 5 (spejlvendt).
-- **Indtjening senere:** valgfrie reklamer ("se en reklame for dobbelt ænder") eller et "Supporter"-køb. Krogene findes allerede i `progress.ts`.
+- **Indtjening senere:** valgfrie reklamer ("se en reklame for dobbelt ænder" eller "for at fortsætte") eller et "Supporter"-køb. Krogene findes allerede i `progress.ts` og `native/bridge.ts`.

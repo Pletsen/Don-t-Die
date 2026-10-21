@@ -18,11 +18,14 @@ import { Effects } from '../fx/Effects';
 import { Backdrop } from '../fx/Backdrop';
 import { BackgroundEvents } from '../fx/BackgroundEvents';
 import { WarpStarView } from '../fx/WarpStarView';
+import { GhostView } from '../fx/GhostView';
+import { GhostRecorder, loadGhost, offerGhost, type GhostEnd } from '../game/ghost';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { glowFx } from '../fx/glow';
 import { Ambient } from '../fx/Ambient';
 import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, SURVIVAL_RECHARGE_S, type AbilityDef } from '../game/abilities';
 import { skinById } from '../game/skins';
+import { todaysGuest } from '../game/guest';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
 
@@ -83,6 +86,20 @@ function bombCharge(clock: number, phase: number): number {
 /** Share of PERFECT turns for the 2nd and 3rd star. */
 const STAR_RATIOS = [0.6, 0.8];
 
+/**
+ * CONTINUE: buy back a crash in a level (normal or HARD), once per attempt.
+ * Not in Survival or the Daily Run: their records must not be buyable. Not
+ * before 20 % of the level either: that early a RETRY costs nothing.
+ */
+const CONTINUE_COST = 30;
+const CONTINUE_FROM = 0.2;
+/** How long the death card offers it, seconds. */
+const CONTINUE_SECONDS = 4.5;
+/** Back on the track: the ball waits this long (3, 2, 1) before GO. */
+const RESPAWN_HOLD = 1.05;
+/** After GO, hazards can't hurt you for this long (the ball blinks). */
+const CONTINUE_GRACE = 1.3;
+
 const clamp = Phaser.Math.Clamp;
 const lerp = Phaser.Math.Linear;
 /** Frame-rate independent smoothing: `rate` is how much is left after 1 s. */
@@ -120,6 +137,8 @@ export class GameScene extends Phaser.Scene {
   private bestCombo = 0;
   private abilityUsed = false;
   private mode: RunMode = 'survival';
+  /** The skin this run is played with: the equipped one, or today's guest in the Daily Run. */
+  private skinId = save.skin;
   /** The last tap that wasn't a corner turn, to explain a wall crash (TOO EARLY / TOO LATE). */
   private lastWildTurn: { t: number; early: boolean } | null = null;
   /** First-ever play of level 1: the first corners slow down with a TAP! hint. */
@@ -143,6 +162,9 @@ export class GameScene extends Phaser.Scene {
   private visScratch: Segment[] = [];
   private nearLists: Hazard[][] = [NO_HAZARDS, NO_HAZARDS];
   private starView: WarpStarView | null = null;
+  /** The ghost of your best attempt on this level, and the recording of this one (levels only). */
+  private ghostView!: GhostView;
+  private ghostRec: GhostRecorder | null = null;
   private starSparkled = false;
   private ducks = 0;
 
@@ -175,6 +197,17 @@ export class GameScene extends Phaser.Scene {
   /** Hazards can't hurt you until this run time (right after a frenzy). */
   private safeUntil = 0;
 
+  // CONTINUE (see die()).
+  /** A crash that can still be bought back: the run isn't settled yet. */
+  private pendingDeath: { cause: DeathData['cause'] } | null = null;
+  /** This attempt already used its CONTINUE. */
+  private continued = false;
+  /** Seconds left of the 3-2-1 after a CONTINUE (the ball waits, taps are ignored). */
+  respawnHold = 0;
+  private respawnCount = 0;
+  /** The ball blinks until this run time (the grace after a CONTINUE). */
+  private blinkUntil = 0;
+
   private bloom?: Phaser.Types.Actions.AddEffectBloomReturn;
   private grade?: Phaser.Filters.ColorMatrix;
 
@@ -188,6 +221,7 @@ export class GameScene extends Phaser.Scene {
     this.ambient = new Ambient(this);
     this.corridor = new CorridorView(this);
     this.playerView = new PlayerView(this, tuning.playerRadius);
+    this.ghostView = new GhostView(this, tuning.playerRadius);
     this.effects = new Effects(this);
 
     this.setupCamera();
@@ -198,9 +232,12 @@ export class GameScene extends Phaser.Scene {
       [EV.menu, this.onMenu],
       [EV.tap, this.onTap],
       [EV.fxChanged, this.applyFxSetting],
-      [EV.skin, () => this.playerView.setSkin(save.skin)],
+      // A newly equipped skin shows at once, except over a Daily Run's guest.
+      [EV.skin, () => (this.demo || this.mode !== 'daily') && this.useSkin(save.skin)],
       [EV.pause, this.onPause],
       [EV.resume, this.onResume],
+      [EV.continueRun, this.onContinue],
+      [EV.continueDecline, this.onContinueDeclined],
     ];
     listeners.forEach(([ev, fn]) => this.game.events.on(ev, fn, this));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -255,7 +292,14 @@ export class GameScene extends Phaser.Scene {
 
   // --- Run lifecycle --------------------------------------------------------
 
-  private resetRun(course: Course) {
+  /** Dress the ball (and the HUD, through shared.skin) in a skin for this run. */
+  private useSkin(id: string) {
+    this.skinId = id;
+    shared.skin = id;
+    this.playerView.setSkin(id);
+  }
+
+  private resetRun(course: Course, skinId = save.skin) {
     this.runId++;
     this.hazardViews.forEach((v) => v.destroy());
     this.hazardViews.clear();
@@ -264,6 +308,8 @@ export class GameScene extends Phaser.Scene {
     this.starView = null;
     this.starSparkled = false;
     this.ducks = 0;
+    this.ghostRec = null;
+    this.ghostView.stop();
     this.setUniverse(false);
     this.ability = null;
     this.abilityCharges = 1;
@@ -275,6 +321,11 @@ export class GameScene extends Phaser.Scene {
     this.hazardClock = 0;
     this.frenzy = null;
     this.safeUntil = 0;
+    this.pendingDeath = null;
+    this.continued = false;
+    this.respawnHold = 0;
+    this.respawnCount = 0;
+    this.blinkUntil = 0;
 
     this.state = 'ready';
     this.demo = false;
@@ -304,7 +355,7 @@ export class GameScene extends Phaser.Scene {
     this.nearHazardFlags = new WeakSet();
 
     this.playerView.reset();
-    this.playerView.setSkin(save.skin);
+    this.useSkin(skinId);
     this.playerView.setPosition(0, 0);
     this.playerView.setEmitting(false);
 
@@ -317,7 +368,8 @@ export class GameScene extends Phaser.Scene {
     this.resetPerfWindow();
     this.quitRun();
     const level = req.level === null ? undefined : levelById(req.level);
-    this.resetRun(req.daily ? dailyCourse() : level ? levelCourse(level) : endlessCourse());
+    // The Daily Run is played with today's guest skin (power included).
+    this.resetRun(req.daily ? dailyCourse() : level ? levelCourse(level) : endlessCourse(), req.daily ? todaysGuest().id : save.skin);
     this.mode = this.course.mode;
     // The UNIVERSE 2 daily starts in the bonus universe.
     if (this.course.warped) this.setUniverse(true);
@@ -325,9 +377,14 @@ export class GameScene extends Phaser.Scene {
     this.guidedGates = level && level.id === 1 && save.starsFor(1) === 0 ? 3 : 0;
     this.abilityLocked = !!level && level.id < ABILITY_FROM_LEVEL;
     if (this.abilityLocked) this.abilityCharges = 0;
+    // Levels: race the ghost of your best attempt, and record this one.
+    if (level && !req.daily) {
+      this.ghostView.start(loadGhost(level.id));
+      this.ghostRec = new GhostRecorder();
+    }
     sfx.unlock();
     sfx.start();
-    skinVoices.runStart(save.skin);
+    skinVoices.runStart(this.skinId);
     this.state = 'play';
     music.setEnergy(1);
     this.playerView.setEmitting(true);
@@ -409,6 +466,11 @@ export class GameScene extends Phaser.Scene {
    * for stats and missions.
    */
   private quitRun() {
+    // Leaving the death card while it still offered a CONTINUE: the crash stands.
+    if (this.pendingDeath) {
+      this.onContinueDeclined();
+      return;
+    }
     if (this.state !== 'play' || this.demo) return;
     this.state = 'ready';
     this.stat({
@@ -427,6 +489,7 @@ export class GameScene extends Phaser.Scene {
       warped: this.course.warped,
       cause: null,
       abilityUsed: this.abilityUsed,
+      continued: this.continued,
     });
   }
 
@@ -452,7 +515,8 @@ export class GameScene extends Phaser.Scene {
    * skin's ability.
    */
   private onTap() {
-    if (this.state !== 'play') return;
+    // (During the 3-2-1 after a CONTINUE the ball waits: taps don't count.)
+    if (this.state !== 'play' || this.respawnHold > 0) return;
     if (this.frenzy) {
       this.frenzyTap();
       return;
@@ -519,6 +583,7 @@ export class GameScene extends Phaser.Scene {
       inGate && (!!this.ability?.def.perfectAll || (!!next?.perfect && pointInRect(this.player.x, this.player.y, next.perfect)));
 
     const oldHeading = Math.atan2(DIRS[this.player.dir].y, DIRS[this.player.dir].x);
+    this.ghostRec?.mark(this.player.x, this.player.y, this.distance, this.elapsed);
     this.player.dir = ((this.player.dir + 1) % 4) as Dir;
     this.playerView.onTurn();
     this.effects.turn(this.player.x, this.player.y, oldHeading, palette.cyan, save.fxReduced);
@@ -567,7 +632,7 @@ export class GameScene extends Phaser.Scene {
 
     const { x, y } = this.player;
     const fx = save.fxReduced;
-    this.effects.deathBlast(x, y, color, skinById(save.skin).glow, fx);
+    this.effects.deathBlast(x, y, color, skinById(this.skinId).glow, fx);
     this.effects.debris(x, y, color, fx ? 8 : 22);
     this.playerView.fadeOut(this);
 
@@ -582,21 +647,9 @@ export class GameScene extends Phaser.Scene {
     else sfx.hazard();
     haptic([30, 20, 50]);
 
-    // The best-distance record belongs to survival mode only.
-    const meters = this.distance * METERS_PER_PX;
-    const endless = this.mode !== 'level';
-    // The best-distance record belongs to Survival; the Daily Run has its own.
-    const isNewBest = this.mode === 'survival' && meters > save.best;
-    if (isNewBest) save.setBest(meters);
+    // This attempt's ghost ends at its first crash (what follows a CONTINUE isn't recorded).
+    this.endGhost('dead');
     save.addDeath();
-    // Survival never finishes, so its ducks are kept when the run ends. In a
-    // level you keep half of what you bonked in Universe 2: something to show
-    // for a great run that ended badly.
-    let keptDucks = 0;
-    if (this.ducks > 0) {
-      keptDucks = endless ? this.ducks : Math.floor(this.ducks / 2);
-      if (keptDucks > 0) save.addDucks(keptDucks, endless ? this.mode : 'level');
-    }
     // Why the wall? A recent turn outside the corner says early or late;
     // no turn at all means the corner was missed: late.
     let hint: DeathData['hint'] = null;
@@ -604,6 +657,55 @@ export class GameScene extends Phaser.Scene {
       const w = this.lastWildTurn;
       hint = w && this.elapsed - w.t < 1.2 ? (w.early ? 'early' : 'late') : 'late';
     }
+    // In a level the crash may be bought back (CONTINUE): then the run isn't
+    // over yet, and paying out and reporting it waits until the offer is
+    // turned down or runs out (onContinueDeclined).
+    const offer = this.continueOffer();
+    let settled = { isNewBest: false, keptDucks: this.keptDucks() };
+    if (offer === null) settled = this.settleDeath(cause);
+    else this.pendingDeath = { cause };
+
+    const meters = this.distance * METERS_PER_PX;
+    const data: DeathData = {
+      meters,
+      seconds: this.elapsed,
+      goal: this.goalMeters(),
+      level: this.course.level?.id ?? null,
+      warped: this.course.warped,
+      ducks: this.ducks,
+      best: save.best,
+      isNewBest: settled.isNewBest,
+      cause,
+      hint,
+      keptDucks: settled.keptDucks,
+      deaths: save.deaths,
+      continueCost: offer,
+      continueSeconds: CONTINUE_SECONDS,
+    };
+    const run = this.runId;
+    this.time.delayedCall(380, () => {
+      if (run !== this.runId) return;
+      if (data.isNewBest && meters > 1) sfx.newBest();
+      this.game.events.emit(EV.died, data);
+    });
+  }
+
+  /** Ducks you keep when a run ends in a crash. */
+  private keptDucks() {
+    // Survival never finishes, so its ducks are kept when the run ends. In a
+    // level you keep half of what you bonked: something to show for a great
+    // run that ended badly.
+    return this.mode !== 'level' ? this.ducks : Math.floor(this.ducks / 2);
+  }
+
+  /** The crash stands: pay out the ducks you keep, set records, report the run. */
+  private settleDeath(cause: DeathData['cause']): { isNewBest: boolean; keptDucks: number } {
+    const meters = this.distance * METERS_PER_PX;
+    // The best-distance record belongs to Survival; the Daily Run has its own.
+    const isNewBest = this.mode === 'survival' && meters > save.best;
+    if (isNewBest) save.setBest(meters);
+    const keptDucks = this.keptDucks();
+    if (keptDucks > 0) save.addDucks(keptDucks, this.mode);
     this.stat({
       type: 'runEnd',
       mode: this.mode,
@@ -621,41 +723,114 @@ export class GameScene extends Phaser.Scene {
       warped: this.course.warped,
       cause,
       abilityUsed: this.abilityUsed,
+      continued: this.continued,
     });
+    return { isNewBest, keptDucks };
+  }
 
-    const data: DeathData = {
-      meters,
-      seconds: this.elapsed,
-      goal: this.goalMeters(),
-      level: this.course.level?.id ?? null,
-      warped: this.course.warped,
-      ducks: this.ducks,
-      best: save.best,
-      isNewBest,
-      cause,
-      hint,
-      keptDucks,
-      deaths: save.deaths,
-    };
-    const run = this.runId;
-    this.time.delayedCall(380, () => {
-      if (run !== this.runId) return;
-      if (isNewBest && meters > 1) sfx.newBest();
-      this.game.events.emit(EV.died, data);
-    });
+  // --- CONTINUE -------------------------------------------------------------
+
+  /**
+   * What buying back this crash costs, or null if it can't be: only in a
+   * level, once per attempt, from 20 % of the way, and only if you have the
+   * ducks. (Without them the button isn't shown at all: a price you can't
+   * pay on every death only rubs it in. A rewarded ad could stand in for the
+   * ducks here later: see rewardedAdReady in native/bridge.ts.)
+   */
+  private continueOffer(): number | null {
+    if (this.mode !== 'level' || this.demo || this.continued) return null;
+    if (this.levelProgress() < CONTINUE_FROM) return null;
+    return save.ducks >= CONTINUE_COST ? CONTINUE_COST : null;
+  }
+
+  /** The player bought the crash back (UI: EV.continueRun). */
+  private onContinue(via: 'ducks' | 'ad' = 'ducks') {
+    const pending = this.pendingDeath;
+    if (!pending || this.state !== 'dead') return;
+    const cost = via === 'ad' ? 0 : CONTINUE_COST;
+    if (save.ducks < cost) return;
+    if (cost > 0) save.addDucks(-cost, 'continue');
+    this.pendingDeath = null;
+    this.continued = true;
+    this.stat({ type: 'continue', level: this.course.level?.id ?? null, cause: pending.cause, cost, via });
+    this.respawn();
+  }
+
+  /** The offer ran out or was turned down (UI: EV.continueDecline, or a new run): the crash stands. */
+  private onContinueDeclined() {
+    const pending = this.pendingDeath;
+    if (!pending) return;
+    this.pendingDeath = null;
+    this.settleDeath(pending.cause);
+  }
+
+  /**
+   * Back on the track at a fair spot: the start of the straight you crashed
+   * on, centred in the lane and heading along it. Distance, ducks, PERFECTs
+   * and the run time carry on (the combo is broken). The ball waits through
+   * a quick 3-2-1, then GO with a moment of slow motion and a short grace.
+   */
+  private respawn() {
+    const cur = this.track.get(this.current)!;
+    this.player = { x: cur.start.x, y: cur.start.y, dir: cur.dir };
+    this.state = 'play';
+    this.combo = 0;
+    this.slowMo = 0;
+    this.recentTaps = [];
+    this.spinGuardUntil = 0;
+    this.lastWildTurn = null;
+    this.respawnHold = RESPAWN_HOLD;
+    this.respawnCount = 3;
+    this.blinkUntil = Infinity;
+    this.playerView.revive();
+    this.playerView.setPosition(this.player.x, this.player.y);
+    const { x, y } = this.player;
+    const glow = skinById(this.skinId).glow;
+    this.effects.flare(x, y, 0xffffff, 120);
+    this.effects.shockwave(x, y, glow, 170, 600);
+    this.cam.punch = 0.08;
+    music.setEnergy(1);
+    sfx.revive();
+    haptic([20, 30, 20]);
+    this.game.events.emit(EV.respawn, { count: 3 });
+    this.emitAbility();
+  }
+
+  /** The 3-2-1 after a CONTINUE. The run clock (and so the ghost) waits too. */
+  private stepRespawn(dt: number) {
+    this.respawnHold = Math.max(0, this.respawnHold - dt);
+    const count = Math.ceil((this.respawnHold / RESPAWN_HOLD) * 3);
+    const { x, y } = this.player;
+    if (count > 0 && count < this.respawnCount) {
+      this.respawnCount = count;
+      this.effects.shockwave(x, y, 0xffffff, 90, 350);
+      this.game.events.emit(EV.respawn, { count });
+    }
+    if (this.respawnHold > 0) return;
+    // GO!
+    this.respawnCount = 0;
+    this.slowMo = 0.45;
+    this.safeUntil = this.elapsed + CONTINUE_GRACE;
+    this.blinkUntil = this.elapsed + CONTINUE_GRACE;
+    this.playerView.setEmitting(true);
+    this.effects.shockwave(x, y, skinById(this.skinId).glow, 140, 450);
+    this.game.events.emit(EV.respawn, { count: 0 });
   }
 
   /** Crossed the finish line. */
   private clear() {
     const level = this.course.level!;
     this.state = 'clear';
+    this.endGhost('clear');
     this.coast = this.course.speedAt(this.distance);
     this.combo = 0;
     this.playerView.setEmitting(false);
 
-    // Stars: 1 for finishing, 2 for half the turns PERFECT, 3 for 90 %.
+    // Stars: 1 for finishing, 2 for 60 % of the turns PERFECT, 3 for 80 %.
+    // A clear saved by a CONTINUE counts (the next level opens) but gets 1
+    // star at most: stars are for clean runs, and can't be bought.
     const ratio = this.gateTurns > 0 ? this.perfects / this.gateTurns : 0;
-    const stars = 1 + (ratio >= STAR_RATIOS[0] ? 1 : 0) + (ratio >= STAR_RATIOS[1] ? 1 : 0);
+    const stars = this.continued ? 1 : 1 + (ratio >= STAR_RATIOS[0] ? 1 : 0) + (ratio >= STAR_RATIOS[1] ? 1 : 0);
     const previousStars = save.starsFor(level.id);
     save.recordStars(level.id, stars);
     if (this.course.warped) save.recordWarp(level.id);
@@ -678,6 +853,7 @@ export class GameScene extends Phaser.Scene {
       warped: this.course.warped,
       cause: null,
       abilityUsed: this.abilityUsed,
+      continued: this.continued,
     });
 
     const { x, y } = this.player;
@@ -704,6 +880,7 @@ export class GameScene extends Phaser.Scene {
       turns: this.gateTurns,
       warped: this.course.warped,
       ducks: this.ducks,
+      continued: this.continued,
     };
     const run = this.runId;
     this.time.delayedCall(560, () => {
@@ -718,7 +895,8 @@ export class GameScene extends Phaser.Scene {
     const t = this.time.now / 1000;
 
     if (this.state === 'play') {
-      if (this.frenzy) this.stepFrenzy(dt);
+      if (this.respawnHold > 0) this.stepRespawn(dt);
+      else if (this.frenzy) this.stepFrenzy(dt);
       else this.step(dt);
       if (!this.demo) this.watchPerformance();
       // The demo starts over before it gets too fast to look calm.
@@ -726,6 +904,17 @@ export class GameScene extends Phaser.Scene {
     }
     else if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
     if (this.state === 'clear') this.coastToStop(dt);
+    this.updateGhost();
+    // After a CONTINUE the ball blinks while it can't be hurt.
+    if (this.blinkUntil > 0) {
+      if (this.state === 'play' && this.elapsed < this.blinkUntil) {
+        this.playerView.root.setAlpha(Math.floor(t * 12) % 2 === 0 ? 0.4 : 1);
+      } else {
+        this.blinkUntil = 0;
+        // (A crash fades the ball out by itself.)
+        if (this.state !== 'dead') this.playerView.root.setAlpha(1);
+      }
+    }
 
     const speed = this.course.speedAt(this.distance);
     const speedNorm = clamp((speed - 230) / 390, 0, 1);
@@ -923,6 +1112,34 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- The ghost of your best run ----------------------------------------------
+
+  /** Record this attempt and move the ghost along (by run time, see game/ghost.ts). */
+  private updateGhost() {
+    if (this.state !== 'play') {
+      this.ghostView.hide();
+      return;
+    }
+    const p = this.player;
+    this.ghostRec?.sample(p.x, p.y, this.distance, this.elapsed, this.course.speedAt(this.distance));
+    const gone = this.ghostView.update(this.elapsed);
+    if (!gone || save.fxReduced) return;
+    // Where the best run ended: a small puff ("that's where you died last time").
+    const color = 0xcfefff;
+    if (gone.end === 'warp') this.effects.burst(gone.x, gone.y, [0xff2f9e, 0xffd21f, 0x2be8ff, 0x7cff6b], 10);
+    else this.effects.burst(gone.x, gone.y, [color, 0xffffff], gone.end === 'dead' ? 10 : 6);
+    this.effects.shockwave(gone.x, gone.y, color, gone.end === 'dead' ? 46 : 34, 380);
+  }
+
+  /** This attempt's recording is over: keep it as the level's ghost if it's the best yet. */
+  private endGhost(end: GhostEnd) {
+    const rec = this.ghostRec;
+    const level = this.course.level;
+    this.ghostRec = null;
+    if (!rec || !level || this.demo) return;
+    offerGhost(level.id, rec.finish(this.player.x, this.player.y, this.distance, this.elapsed, end));
+  }
+
   // --- The warp star and the bonus universe ---------------------------------
 
   /** Show the star while its segment is on screen. */
@@ -949,6 +1166,8 @@ export class GameScene extends Phaser.Scene {
   /** You hit the star: off to the bonus universe for the rest of the run. */
   private warp(star: WarpStar) {
     star.taken = true;
+    // The ghost only follows the normal track: this attempt's ghost ends here.
+    this.endGhost('warp');
     this.stat({ type: 'warp', level: this.course.level?.id ?? null });
     this.starView?.destroy();
     this.starView = null;
@@ -1184,7 +1403,7 @@ export class GameScene extends Phaser.Scene {
       this.snapToTrack();
       return;
     }
-    const skin = skinById(save.skin);
+    const skin = skinById(this.skinId);
     const def = abilityFor(skin.id);
     this.abilityCharges--;
     this.abilityUsed = true;
@@ -1385,9 +1604,9 @@ export class GameScene extends Phaser.Scene {
     a.graceUntil = this.elapsed + 1.2;
     this.slowMo = 0.5;
     const { x, y } = this.player;
-    const kitty = save.skin === 'kitty';
+    const kitty = this.skinId === 'kitty';
     this.effects.flare(x, y, 0xffffff, 150);
-    this.effects.shockwave(x, y, skinById(save.skin).glow, 180, 600);
+    this.effects.shockwave(x, y, skinById(this.skinId).glow, 180, 600);
     this.effects.floater(x, y - 34, kitty ? '8 LIVES LEFT' : 'EXTRA LIFE', '#ffffff', 18, 3);
     this.hitStop(40);
     this.cameras.main.shake(200, 0.006);

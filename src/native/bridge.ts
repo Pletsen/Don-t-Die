@@ -10,6 +10,7 @@
 //   LocalNotifications  @capacitor/local-notifications  (Daily Run and streak reminders)
 //   InAppReview         @capacitor-community/in-app-review (the App Store rating prompt)
 //   App                 @capacitor/app                  (the app's version)
+//   RewardedAds         (later) a rewarded-video plugin  (isReady / show)
 // store/ios-plan.md has the versions and the iOS setup.
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -19,7 +20,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 // none of the plugin packages: the native app ships their native halves. Only
 // plugins the app really has are registered, so a missing one stays undefined.
 // (On the web nothing is registered and every call below is a no-op.)
-const PLUGIN_NAMES = ['Haptics', 'Preferences', 'Share', 'GameCenter', 'LocalNotifications', 'InAppReview', 'App'];
+const PLUGIN_NAMES = ['Haptics', 'Preferences', 'Share', 'GameCenter', 'LocalNotifications', 'InAppReview', 'App', 'RewardedAds'];
 if (Capacitor.isNativePlatform()) {
   for (const name of PLUGIN_NAMES) if (Capacitor.isPluginAvailable(name)) registerPlugin(name);
 }
@@ -54,6 +55,10 @@ interface CapPlugins {
   };
   InAppReview?: { requestReview(): Promise<void> };
   App?: { getInfo(): Promise<{ version: string; build: string }> };
+  RewardedAds?: {
+    isReady(o: { placement: string }): Promise<{ ready: boolean }>;
+    show(o: { placement: string }): Promise<{ rewarded: boolean }>;
+  };
 }
 
 function plugins(): CapPlugins | null {
@@ -349,4 +354,31 @@ export function syncReminders() {
       });
     })
     .catch(() => {});
+}
+
+// --- Rewarded ads (a hook for later) ---------------------------------------------
+//
+// Nothing shows ads yet. When a rewarded-video plugin is added, the death
+// card could offer "WATCH AN AD TO CONTINUE" next to the duck price: call
+// showRewardedAd('continue') and, if it resolves true, emit EV.continueRun
+// with 'ad' (GameScene then skips the duck price).
+
+export type AdPlacement = 'continue';
+
+/** True when a rewarded ad could be shown right now. Always false on the web. */
+export async function rewardedAdReady(placement: AdPlacement): Promise<boolean> {
+  try {
+    return !!(await plugins()?.RewardedAds?.isReady({ placement }))?.ready;
+  } catch {
+    return false;
+  }
+}
+
+/** Show a rewarded ad. Resolves true only if it was watched to the end; on the web, false. */
+export async function showRewardedAd(placement: AdPlacement): Promise<boolean> {
+  try {
+    return !!(await plugins()?.RewardedAds?.show({ placement }))?.rewarded;
+  } catch {
+    return false;
+  }
 }

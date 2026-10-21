@@ -21,6 +21,12 @@ export const shared = {
    * reads it to pick its sky.
    */
   world: 0,
+  /**
+   * The skin the current run is played with: the equipped one, or today's
+   * guest in the Daily Run (see game/guest.ts). Read this, not save.skin,
+   * for anything about the run (the ability pill, the cut-in, sounds).
+   */
+  skin: 'classic',
 };
 
 /** Event names sent over `game.events` between scenes. */
@@ -56,6 +62,12 @@ export const EV = {
   /** UI/platform -> Game: pause or resume the run (app backgrounded, pause button). */
   pause: 'dd-pause',
   resume: 'dd-resume',
+  /** UI -> Game: buy the crash back (CONTINUE). Payload: 'ducks' (default) or 'ad'. */
+  continueRun: 'dd-continue',
+  /** UI -> Game: the CONTINUE offer ran out: the crash stands. */
+  continueDecline: 'dd-continue-decline',
+  /** Game -> UI: back on the track after a CONTINUE: { count } 3, 2, 1, then 0 = GO. */
+  respawn: 'dd-respawn',
 } as const;
 
 /** Which kind of run is being played. */
@@ -82,7 +94,11 @@ export type StatEvent =
       warped: boolean;
       cause: 'wall' | 'saw' | 'bomb' | null;
       abilityUsed: boolean;
+      /** The attempt was saved by a CONTINUE (a clear gets 1 star at most). */
+      continued: boolean;
     }
+  /** A crash in a level was bought back. `via` 'ad' is for a future rewarded ad (cost 0). */
+  | { type: 'continue'; level: number | null; cause: 'wall' | 'saw' | 'bomb'; cost: number; via: 'ducks' | 'ad' }
   | { type: 'perfect'; combo: number }
   | { type: 'nearMiss'; kind: 'wall' | 'hazard' }
   | { type: 'duck'; variant: 'normal' | 'red' | 'golden'; value: number }
@@ -128,6 +144,14 @@ export interface DeathData extends HudData {
   /** Ducks kept anyway (all in survival, half of the Universe-2 ducks in a level). */
   keptDucks: number;
   deaths: number;
+  /**
+   * The crash can be bought back for this many ducks (CONTINUE), or null.
+   * While it's offered the run isn't over: nothing is paid out or recorded
+   * until the offer is taken or runs out.
+   */
+  continueCost: number | null;
+  /** How long the CONTINUE offer stands, seconds. */
+  continueSeconds: number;
 }
 
 export interface ClearData extends HudData {
@@ -139,6 +163,8 @@ export interface ClearData extends HudData {
   turns: number;
   warped: boolean;
   ducks: number;
+  /** Saved by a CONTINUE: stars are capped at 1. */
+  continued: boolean;
 }
 
 export interface FrenzyData {

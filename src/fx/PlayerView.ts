@@ -275,6 +275,18 @@ export class PlayerView {
     scene.tweens.add({ targets: this.root, alpha: 0, scale: 1.8, duration: 180, ease: 'Quad.easeOut' });
   }
 
+  /** Back on the track after a CONTINUE: undo fadeOut. Skin, party look and size stay. */
+  revive() {
+    this.root.scene.tweens.killTweensOf(this.root);
+    this.root.setAlpha(1).setScale(this.sizeMult).setVisible(true);
+    this.squash = 1;
+    // No streak of trail from the crash site to the new spot.
+    this.trail.killAll();
+    this.embers.killAll();
+    this.sparks.killAll();
+    this.setEmitting(false);
+  }
+
   reset() {
     this.setParty(false);
     this.root.scene.tweens.killTweensOf(this);

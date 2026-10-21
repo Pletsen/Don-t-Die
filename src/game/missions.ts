@@ -150,7 +150,7 @@ export const MISSIONS: MissionDef[] = [
     goal: 1,
     kind: 'sum',
     text: 'CLEAR WORLD 2+ WITHOUT ABILITY',
-    count: (ev) => (end(ev)?.cleared && !end(ev)!.abilityUsed && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
+    count: (ev) => (end(ev)?.cleared && !end(ev)!.abilityUsed && !end(ev)!.continued && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
     requires: (c) => c.unlocked >= 6,
   }),
   m({
