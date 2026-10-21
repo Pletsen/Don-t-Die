@@ -62,6 +62,10 @@ export interface Stats {
   frenzies: number;
   bestFrenzy: number;
   abilities: number;
+  /** Crashes bought back with a CONTINUE. */
+  continues: number;
+  /** Ducks spent on them. */
+  continueDucks: number;
   warps: number;
   spins: number;
   newSkins: number;
@@ -164,6 +168,8 @@ const newStats = (): Stats => ({
   frenzies: 0,
   bestFrenzy: 0,
   abilities: 0,
+  continues: 0,
+  continueDucks: 0,
   warps: 0,
   spins: 0,
   newSkins: 0,
@@ -547,6 +553,14 @@ class Progress {
       case 'ability':
         s.abilities++;
         break;
+      case 'continue':
+        // A crash that was bought back is still a crash. (The run's end,
+        // clear or crash, is reported once, by its runEnd.)
+        s.continues++;
+        s.continueDucks += ev.cost;
+        s.deaths++;
+        s.deathsBy[ev.cause]++;
+        break;
       case 'warp':
         s.warps++;
         break;
@@ -641,7 +655,8 @@ class Progress {
         this.notify({ title: 'HARD MODE UNLOCKED', subtitle: '20 REMIXED LEVELS · SEE LEVELS', color: 0xff2d55 });
       }
     }
-    if (rec.time === 0 || ev.seconds < rec.time) rec.time = ev.seconds;
+    // The fastest clear is a clean one: a CONTINUE doesn't set the record.
+    if (!ev.continued && (rec.time === 0 || ev.seconds < rec.time)) rec.time = ev.seconds;
     const newStars = Math.max(0, ev.stars - rec.stars);
     if (newStars > 0) {
       rec.stars = ev.stars;

@@ -7,6 +7,7 @@
 //   Preferences  @capacitor/preferences    (iOS can wipe a web view's localStorage)
 //   Share        @capacitor/share          (web views have no navigator.share)
 //   GameCenter   a Game Center plugin exposing submitScore / showLeaderboard
+//   RewardedAds  (later) a rewarded-video plugin exposing isReady / show
 
 interface CapPlugins {
   Haptics?: {
@@ -22,6 +23,10 @@ interface CapPlugins {
   GameCenter?: {
     submitScore(o: { leaderboardId: string; score: number }): Promise<void>;
     showLeaderboard(o: { leaderboardId: string }): Promise<void>;
+  };
+  RewardedAds?: {
+    isReady(o: { placement: string }): Promise<{ ready: boolean }>;
+    show(o: { placement: string }): Promise<{ rewarded: boolean }>;
   };
 }
 
@@ -134,4 +139,31 @@ export function submitScore(board: Board, score: number) {
 
 export function showLeaderboard(board: Board) {
   quiet(plugins()?.GameCenter?.showLeaderboard({ leaderboardId: BOARD_IDS[board] }));
+}
+
+// --- Rewarded ads (a hook for later) ---------------------------------------------
+//
+// Nothing shows ads yet. When a rewarded-video plugin is added, the death
+// card could offer "WATCH AN AD TO CONTINUE" next to the duck price: call
+// showRewardedAd('continue') and, if it resolves true, emit EV.continueRun
+// with 'ad' (GameScene then skips the duck price).
+
+export type AdPlacement = 'continue';
+
+/** True when a rewarded ad could be shown right now. Always false on the web. */
+export async function rewardedAdReady(placement: AdPlacement): Promise<boolean> {
+  try {
+    return !!(await plugins()?.RewardedAds?.isReady({ placement }))?.ready;
+  } catch {
+    return false;
+  }
+}
+
+/** Show a rewarded ad. Resolves true only if it was watched to the end; on the web, false. */
+export async function showRewardedAd(placement: AdPlacement): Promise<boolean> {
+  try {
+    return !!(await plugins()?.RewardedAds?.show({ placement }))?.rewarded;
+  } catch {
+    return false;
+  }
 }
