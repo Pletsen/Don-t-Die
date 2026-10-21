@@ -179,6 +179,50 @@ export class Effects {
     this.flare(x2, y2, color, 50);
   }
 
+  /** A jagged bolt from a to b (tesla arcs, lightning) that flickers out. */
+  zigzag(x1: number, y1: number, x2: number, y2: number, color: number, width = 3) {
+    const g = this.scene.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const nx = -(y2 - y1) / len;
+    const ny = (x2 - x1) / len;
+    const n = Math.max(3, Math.round(len / 26));
+    const pts: [number, number][] = [[x1, y1]];
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const off = (Math.random() - 0.5) * Math.min(34, len * 0.18);
+      pts.push([x1 + (x2 - x1) * t + nx * off, y1 + (y2 - y1) * t + ny * off]);
+    }
+    pts.push([x2, y2]);
+    for (const [w, c, a] of [[width * 3, color, 0.3], [width, 0xffffff, 1]] as const) {
+      g.lineStyle(w, c, a).beginPath();
+      g.moveTo(pts[0][0], pts[0][1]);
+      for (const [x, y] of pts.slice(1)) g.lineTo(x, y);
+      g.strokePath();
+    }
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 200, ease: 'Quad.easeIn', onComplete: () => g.destroy() });
+    this.flare(x2, y2, color, 55);
+  }
+
+  /** A tractor beam: a wide soft cone of light from a to b. */
+  beam(x1: number, y1: number, x2: number, y2: number, color: number) {
+    const g = this.scene.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const nx = -(y2 - y1) / len;
+    const ny = (x2 - x1) / len;
+    for (const [w0, w1, a] of [[8, 30, 0.18], [4, 16, 0.3]] as const) {
+      g.fillStyle(color, a).beginPath();
+      g.moveTo(x1 + nx * w0, y1 + ny * w0);
+      g.lineTo(x2 + nx * w1, y2 + ny * w1);
+      g.lineTo(x2 - nx * w1, y2 - ny * w1);
+      g.lineTo(x1 - nx * w0, y1 - ny * w0);
+      g.closePath();
+      g.fillPath();
+    }
+    g.lineStyle(1.5, 0xffffff, 0.8).lineBetween(x1, y1, x2, y2);
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 420, ease: 'Quad.easeIn', onComplete: () => g.destroy() });
+    this.flare(x2, y2, color, 70);
+  }
+
   shockwave(x: number, y: number, color: number, size = 120, duration = 450) {
     const ring = this.take(TEX.ring, x, y, 7).setTint(color).setScale(0.05);
     this.scene.tweens.add({

@@ -170,9 +170,38 @@ export class HazardView {
   setFrozen(on: boolean) {
     if (on === this.frozen) return;
     this.frozen = on;
-    if (on) this.body.setTint(0xbfefff);
+    if (on) this.body.setTint(this.inked ? 0x7a4aa8 : 0xbfefff);
     else this.body.clearTint();
-    this.halo.setTint(on ? 0x9fe8ff : this.color);
+    this.halo.setTint(on ? (this.inked ? 0x9a4af0 : 0x9fe8ff) : this.color);
+  }
+
+  private inked = false;
+
+  /** OCTO's ink: splatted purple, shrunk, and still for good. */
+  setInked() {
+    this.inked = true;
+    this.frozen = false;
+    this.setFrozen(true);
+    this.body.setScale(this.body.scaleX * 0.62);
+    this.halo.setScale(this.halo.scaleX * 0.62).setAlpha(0.3);
+    this.warn.setVisible(false);
+    this.fuse?.setVisible(false);
+    this.scene.tweens.add({ targets: this.root, scale: { from: 1.35, to: 1 }, duration: 260, ease: 'Back.easeOut' });
+  }
+
+  /** Beamed up by a tractor beam: it floats up, spinning and shrinking, and is gone. */
+  abduct() {
+    this.warn.setVisible(false);
+    this.scene.tweens.add({
+      targets: this.root,
+      y: this.root.y - 70,
+      scale: 0.1,
+      angle: 540,
+      alpha: 0,
+      duration: 480,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.destroy(),
+    });
   }
 
   /** Duck got bonked: it spins off into space and is gone. */

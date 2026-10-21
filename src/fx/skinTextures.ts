@@ -2337,6 +2337,52 @@ const painters: Record<string, (ctx: Ctx) => void> = {
   },
 };
 
+/** Little things the powers throw: NINJA's shuriken, CHERRY's pit, OCTO's ink. */
+export const FX_TEX = { shuriken: 'fx:shuriken', pit: 'fx:pit', ink: 'fx:ink' };
+
+const fxPainters: Record<string, (ctx: Ctx) => void> = {
+  [FX_TEX.shuriken]: (ctx) => {
+    const g = ctx.createLinearGradient(4, 4, 28, 28);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.5, '#b8c2d0');
+    g.addColorStop(1, '#5a6676');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const r = i % 2 === 0 ? 15 : 4.5;
+      ctx.lineTo(16 + Math.cos(a) * r, 16 + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#20242c';
+    ctx.beginPath();
+    ctx.arc(16, 16, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+  },
+  [FX_TEX.pit]: (ctx) => {
+    const g = ctx.createRadialGradient(13, 12, 1, 16, 16, 9);
+    g.addColorStop(0, '#fff0d0');
+    g.addColorStop(0.35, '#d8a070');
+    g.addColorStop(1, '#7a4020');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(16, 16, 7, 9, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  },
+  [FX_TEX.ink]: (ctx) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      const r = i % 2 === 0 ? 12 : 8;
+      ctx.lineTo(16 + Math.cos(a) * r, 16 + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+  },
+};
+
 export function createSkinTextures(scene: Phaser.Scene) {
   for (const skin of SKINS) {
     const key = skinTexture(skin.id);
@@ -2344,6 +2390,13 @@ export function createSkinTextures(scene: Phaser.Scene) {
     const tex = scene.textures.createCanvas(key, S, S);
     if (!tex) continue;
     (painters[skin.id] ?? painters.classic)(tex.getContext());
+    tex.refresh();
+  }
+  for (const [key, paint] of Object.entries(fxPainters)) {
+    if (scene.textures.exists(key)) continue;
+    const tex = scene.textures.createCanvas(key, 32, 32);
+    if (!tex) continue;
+    paint(tex.getContext());
     tex.refresh();
   }
 }

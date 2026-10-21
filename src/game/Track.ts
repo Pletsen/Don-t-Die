@@ -51,6 +51,8 @@ export interface Hazard {
    * to -1 during the short blast, when the bomb hits twice as far.
    */
   charge?: number;
+  /** Splatted by OCTO's ink: it stays put, smaller, and a bomb's fuse is out. */
+  inked?: boolean;
   /**
    * Ducks come in three kinds: normal (+1), red (runs about, +5, never
    * leaves: if you miss it, it runs further up the track) and golden (big,

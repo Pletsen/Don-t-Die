@@ -20,7 +20,19 @@ import { WarpStarView } from '../fx/WarpStarView';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { glowFx } from '../fx/glow';
 import { Ambient } from '../fx/Ambient';
-import { abilityFor, ABILITY_SECONDS, SPIN_TAP_WINDOW, SURVIVAL_RECHARGE_M, SURVIVAL_RECHARGE_S, type AbilityDef } from '../game/abilities';
+import {
+  abilityFor,
+  ABILITY_SECONDS,
+  ARMY_MAX,
+  FORGIVE_S,
+  SPIN_TAP_WINDOW,
+  STAR_PULL,
+  SURVIVAL_RECHARGE_M,
+  SURVIVAL_RECHARGE_S,
+  type AbilityDef,
+  type Zap,
+} from '../game/abilities';
+import { FX_TEX } from '../fx/skinTextures';
 import { skinById } from '../game/skins';
 
 type State = 'ready' | 'play' | 'dead' | 'clear';
@@ -62,6 +74,62 @@ const haptic = (pattern: number | number[]) => {
 
 /** The demo run behind the main menu: drives itself and can't crash. */
 const DEMO_ABILITY: AbilityDef = { name: '', desc: '', autopilot: true, ghost: true };
+
+/** A running skin ability: its recipe plus what's left of it. */
+interface AbilityState {
+  def: AbilityDef;
+  until: number;
+  shield: number;
+  revive: number;
+  hops: number;
+  /** Zap shots left. */
+  ammo: number;
+  /** Hazards still to turn into ducks. */
+  converts: number;
+  /** Hazards can't hurt you until this time (after a revive or a cracked shell). */
+  graceUntil: number;
+  /** In the air (a hop) until this time. */
+  hopUntil: number;
+  nextZap: number;
+  nextInk: number;
+  nextPulse: number;
+  nextImplode: number;
+  /** `forgive`: an early tap waiting for the corner. */
+  heldTap: boolean;
+}
+
+function newAbilityState(def: AbilityDef, until: number): AbilityState {
+  return {
+    def,
+    until,
+    shield: def.shield ?? 0,
+    revive: def.revive ?? 0,
+    hops: def.hop ?? 0,
+    ammo: def.zap?.ammo ?? Infinity,
+    converts: def.ducksFromHazards ?? 0,
+    graceUntil: 0,
+    hopUntil: 0,
+    nextZap: 0,
+    nextInk: 0,
+    // The first nova goes off a moment after the power starts.
+    nextPulse: 0,
+    nextImplode: 0,
+    heldTap: false,
+  };
+}
+
+/** A bunny hop lasts this long (s). */
+const HOP_SECONDS = 0.45;
+/** How each kind of zap looks (its colour). */
+const ZAP_COLOR: Record<Zap['kind'], number> = {
+  laser: 0xff2240,
+  arc: 0xff6af5,
+  beam: 0x9cff2e,
+  star: 0xe8ecf4,
+  fire: 0xff7a1a,
+  bolt: 0xfff27a,
+  pit: 0xc8102e,
+};
 
 const NO_HAZARDS: Hazard[] = [];
 /** Saws and bombs collide at this fraction of their drawn radius. */
@@ -146,15 +214,11 @@ export class GameScene extends Phaser.Scene {
   private ducks = 0;
 
   // Skin ability state.
-  private ability: {
-    def: AbilityDef;
-    until: number;
-    shield: number;
-    revive: number;
-    graceUntil: number;
-    nextLaser: number;
-    nextImplode: number;
-  } | null = null;
+  private ability: AbilityState | null = null;
+  /** Hazards a shot is flying at: they can't hurt you any more. */
+  private doomed = new WeakSet<Hazard>();
+  /** The guide's marker in the next corner (abilities with `guide`). */
+  private guideG?: Phaser.GameObjects.Graphics;
   private abilityCharges = 1;
   /** Levels 1-2 teach the basics: no skin power yet (the tip comes before level 3). */
   private abilityLocked = false;
@@ -352,7 +416,7 @@ export class GameScene extends Phaser.Scene {
     this.effects.quiet = true;
     this.state = 'play';
     this.playerView.setEmitting(true);
-    this.ability = { def: DEMO_ABILITY, until: Infinity, shield: 0, revive: 0, graceUntil: 0, nextLaser: 0, nextImplode: 0 };
+    this.ability = newAbilityState(DEMO_ABILITY, Infinity);
   }
 
   /** Undo a pause or a hit-stop: the scene must be running for a new run. */
@@ -456,6 +520,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.ability?.def.autopilot) return; // hands off: the ability is driving
+    if (this.ability && this.holdEarlyTap()) return;
     // The guided first corners forgive an early tap: new players tap the
     // moment the run starts, and dying 3 seconds in teaches nothing.
     if (this.guidedGates > 0 && this.tooEarlyForGuide()) {
@@ -747,7 +812,7 @@ export class GameScene extends Phaser.Scene {
           this.hazardViews.set(hz, view);
         }
         view.shownAt = frame;
-        view.setFrozen(!!this.ability?.def.freeze);
+        view.setFrozen(!!this.ability?.def.freeze || !!hz.inked);
         view.update(t, dt);
       }
     }
@@ -795,8 +860,8 @@ export class GameScene extends Phaser.Scene {
     if (this.ability && this.elapsed >= this.ability.until) this.endAbility();
     const ab = this.ability?.def;
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
-    const sim = dt * (this.slowMo > 0 ? 0.35 : 1) * (ab?.slow ?? 1);
-    if (!ab?.freeze) this.hazardClock += sim;
+    const sim = dt * (this.slowMo > 0 ? 0.35 : 1) * (ab ? this.abilityTimeScale(ab) : 1);
+    if (!ab?.freeze) this.hazardClock += sim * (ab?.hazardSlow ?? 1);
 
     const speed = this.course.speedAt(this.distance) * (ab?.speed ?? 1);
     const d = DIRS[this.player.dir];
@@ -868,7 +933,7 @@ export class GameScene extends Phaser.Scene {
     for (const seg of this.visibleSegments()) {
       for (const hz of seg.hazards) {
         // (Frozen bombs don't go off.)
-        if (hz.alive && hz.kind === 'bomb') hz.charge = ab?.freeze ? 0 : bombCharge(this.hazardClock, hz.movePhase);
+        if (hz.alive && hz.kind === 'bomb') hz.charge = ab?.freeze || hz.inked ? 0 : bombCharge(this.hazardClock, hz.movePhase);
         if (!hz.alive || !hz.moving) continue;
         const osc = Math.sin(this.hazardClock * (hz.moveSpeed ?? 1.6) + hz.movePhase) * hz.moveRange;
         if (hz.moveAxis === 'y') hz.y = hz.baseY + osc;
@@ -893,19 +958,7 @@ export class GameScene extends Phaser.Scene {
       const reach = hz.kind === 'bomb' && hz.charge === -1 ? BOMB_BLAST : HAZARD_HITBOX;
       if (dist < hz.radius * reach + radius) {
         if (this.elapsed < this.safeUntil) continue;
-        const a = this.ability;
-        if (a && (this.elapsed < a.graceUntil || a.def.ghost)) continue;
-        if (a && (a.def.smash || a.def.vacuum || a.def.laser)) {
-          this.smashHazard(hz);
-          continue;
-        }
-        if (a && a.shield > 0) {
-          a.shield--;
-          this.playerView.setBubble(a.shield > 0);
-          sfx.pop();
-          this.smashHazard(hz);
-          continue;
-        }
+        if (this.ability && this.abilitySaves(hz)) continue;
         // The hazard stays on screen: you should see what got you.
         this.die(hz.kind === 'saw' ? 'saw' : 'bomb', hz.kind === 'saw' ? palette.magenta : palette.orange);
         return;
@@ -994,6 +1047,7 @@ export class GameScene extends Phaser.Scene {
     const d = DIRS[this.player.dir];
     view?.knockAway(d.x, d.y);
     const mult = this.ability?.def.duckMult ?? 1;
+    if (this.ability?.def.army && !this.demo) this.joinArmy(hz);
 
     if (hz.variant === 'golden' && !this.demo) {
       this.stat({ type: 'duck', variant: 'golden', value: 0 });
@@ -1148,6 +1202,8 @@ export class GameScene extends Phaser.Scene {
 
   private emitAbility() {
     const a = this.ability;
+    // No stale guide marker from an earlier run.
+    if (!a && this.guideG?.visible) this.guideG.clear().setVisible(false);
     const state = a ? 'active' : this.abilityLocked ? 'locked' : this.abilityCharges > 0 ? 'ready' : this.course.level ? 'used' : 'recharging';
     this.game.events.emit(EV.ability, { state, frac: a ? Math.max(0, (a.until - this.elapsed) / ABILITY_SECONDS) : 0 });
   }
@@ -1194,15 +1250,7 @@ export class GameScene extends Phaser.Scene {
     this.rechargeAtM = Infinity;
     this.rechargeAtT = Infinity;
     this.snapToTrack();
-    this.ability = {
-      def,
-      until: this.elapsed + ABILITY_SECONDS,
-      shield: def.shield ?? 0,
-      revive: def.revive ?? 0,
-      graceUntil: 0,
-      nextLaser: 0,
-      nextImplode: 0,
-    };
+    this.ability = newAbilityState(def, this.elapsed + ABILITY_SECONDS);
 
     const { x, y } = this.player;
     this.playerView.setAbilityLook(skin.glow, { bubble: (def.shield ?? 0) > 0, size: def.shrink });
@@ -1234,16 +1282,160 @@ export class GameScene extends Phaser.Scene {
     this.emitAbility();
   }
 
+  /** How fast time runs for the ability: slow motion, slower still in a corner square (`cornerSlow`). */
+  private abilityTimeScale(ab: AbilityDef) {
+    let k = ab.slow ?? 1;
+    if (ab.cornerSlow) {
+      const next = this.track.get(this.current + 1);
+      if (next?.gate && pointInRect(this.player.x, this.player.y, next.gate)) k *= ab.cornerSlow;
+    }
+    return k;
+  }
+
   /**
-   * Autopilot makes a perfect turn in the middle of the next gate; bounce
-   * turns at the last moment before the wall instead of crashing.
+   * `forgive`: a tap a moment before the corner square doesn't turn you into
+   * the wall. It waits, and turns you as you reach the square (autoTurn).
+   * True if the tap was held (or one is already waiting).
+   */
+  private holdEarlyTap(): boolean {
+    const a = this.ability!;
+    if (!a.def.forgive) return false;
+    if (a.heldTap) return true;
+    const cur = this.track.get(this.current);
+    const next = this.track.get(this.current + 1);
+    if (!cur || !next?.gate || this.player.dir !== cur.dir) return false;
+    if (pointInRect(this.player.x, this.player.y, next.gate)) return false;
+    // The corner square starts this far along the straight.
+    const early = cur.length - next.halfWidth - (trackDistance(cur, this.player.x, this.player.y) - cur.travelled);
+    const speed = this.course.speedAt(this.distance) * (a.def.speed ?? 1) * (a.def.slow ?? 1);
+    if (early <= 0 || early > speed * FORGIVE_S) return false;
+    a.heldTap = true;
+    this.effects.floater(this.player.x, this.player.y - 26, 'WAIT…', css.ink, 13, 0);
+    return true;
+  }
+
+  /** A saw or bomb touches you while an ability runs: true if the ability saves you. */
+  private abilitySaves(hz: Hazard): boolean {
+    const a = this.ability!;
+    if (a.def.ghost || this.doomed.has(hz) || this.elapsed < a.graceUntil || this.elapsed < a.hopUntil) return true;
+    if (a.def.smash || a.def.vacuum) {
+      this.smashHazard(hz);
+      return true;
+    }
+    if (a.hops > 0) {
+      this.startHop();
+      return true;
+    }
+    if (a.shield > 0) {
+      a.shield--;
+      this.playerView.setBubble(a.shield > 0);
+      if (a.def.shieldGrace) a.graceUntil = this.elapsed + a.def.shieldGrace;
+      sfx.pop();
+      this.smashHazard(hz);
+      return true;
+    }
+    return false;
+  }
+
+  /** QUACK ARMY: a duck you bonk joins up and guards you from the next hit. */
+  private joinArmy(hz: Hazard) {
+    const a = this.ability!;
+    if (a.shield >= ARMY_MAX) return;
+    a.shield++;
+    this.playerView.setBubble(true);
+    this.effects.floater(hz.x, hz.y - 38, 'ARMY +1', '#ffd21f', 13);
+  }
+
+  /** Bunny hop: up in the air for a moment, clean over whatever is there. */
+  private startHop() {
+    const a = this.ability!;
+    a.hops--;
+    a.hopUntil = this.elapsed + HOP_SECONDS;
+    this.playerView.hop(HOP_SECONDS * 1000);
+    this.effects.shockwave(this.player.x, this.player.y, 0xffffff, 70, 300);
+    this.effects.floater(this.player.x, this.player.y - 30, 'HOP!', '#ffffff', 13);
+    sfx.boing();
+  }
+
+  /**
+   * The safest place to turn into `next`: the middle of the widest stretch
+   * of its lane that no hazard on it can reach (however the moving ones
+   * swing), as close to the PERFECT centre as that allows. It's a point on
+   * your line, or null when the next straight has no hazards.
+   */
+  private safeTurnSpot(next: Segment): { x: number; y: number } | null {
+    const gate = next.gate;
+    if (!gate) return null;
+    const pr = this.playerRadius();
+    const horizontal = next.dir % 2 === 0;
+    // Across next's lane is along the axis you travel on now.
+    const base = horizontal ? next.start.y : next.start.x;
+    const lo = (horizontal ? gate.y1 : gate.x1) - base + pr + 2;
+    const hi = (horizontal ? gate.y2 : gate.x2) - base - pr - 2;
+    const blocked = next.hazards
+      .filter((h) => h.alive && h.kind !== 'duck' && !this.doomed.has(h))
+      .map((h) => {
+        const lat = (horizontal ? h.baseY : h.baseX) - base;
+        const reach = h.radius * (h.kind === 'bomb' && !h.inked ? BOMB_BLAST : HAZARD_HITBOX) + pr + (h.moving ? h.moveRange : 0) + 3;
+        return [lat - reach, lat + reach];
+      })
+      .sort((p, q) => p[0] - q[0]);
+    if (!blocked.length) return null;
+    // The widest free gap between the blocked spans.
+    let gapA = 0;
+    let gapB = -1;
+    let at = lo;
+    for (const [a, b] of [...blocked, [hi, hi]]) {
+      const end = Math.min(a, hi);
+      if (end - at > gapB - gapA) [gapA, gapB] = [at, end];
+      at = Math.max(at, b);
+    }
+    if (gapB <= gapA) return null;
+    const pad = Math.min(8, (gapB - gapA) / 2);
+    const lat = clamp(0, gapA + pad, gapB - pad);
+    const p = this.player;
+    return horizontal ? { x: p.x, y: base + lat } : { x: base + lat, y: p.y };
+  }
+
+  /** `guide`: a pulsing marker on your line where it's safe to turn, and the lane it leads to. */
+  private drawGuide(cur: Segment, next: Segment | undefined, t: number) {
+    const g = (this.guideG ??= this.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD));
+    g.clear().setVisible(true);
+    if (!next?.perfect || this.player.dir !== cur.dir) return;
+    const p = this.player;
+    const centre = { x: (next.perfect.x1 + next.perfect.x2) / 2, y: (next.perfect.y1 + next.perfect.y2) / 2 };
+    const spot = this.safeTurnSpot(next) ?? (cur.dir % 2 === 0 ? { x: centre.x, y: p.y } : { x: p.x, y: centre.y });
+    const color = skinById(save.skin).glow;
+    const k = 0.5 + 0.5 * Math.sin(t * 9);
+    const d = DIRS[next.dir];
+    const len = Math.min(next.length, 220);
+    g.lineStyle(6, color, 0.12).lineBetween(spot.x, spot.y, spot.x + d.x * len, spot.y + d.y * len);
+    g.lineStyle(2, color, 0.45).lineBetween(spot.x, spot.y, spot.x + d.x * len, spot.y + d.y * len);
+    g.lineStyle(3, color, 0.95).strokeCircle(spot.x, spot.y, 9 + k * 4);
+    g.fillStyle(0xffffff, 0.55 + 0.35 * k).fillCircle(spot.x, spot.y, 3.5);
+  }
+
+  /**
+   * Autopilot turns for you: on the safe line if it has a `guide`, else
+   * right through the middle (hazards or not). Bounce turns at the last
+   * moment before the wall instead of crashing, and a tap that `forgive`
+   * held back turns you as you reach the corner.
    */
   private autoTurn(ab: AbilityDef, cur: Segment, next: Segment) {
+    const a = this.ability!;
     const d = DIRS[cur.dir];
-    if (ab.autopilot && next.perfect && pointInRect(this.player.x, this.player.y, next.gate!)) {
-      const cx = (next.perfect.x1 + next.perfect.x2) / 2;
-      const cy = (next.perfect.y1 + next.perfect.y2) / 2;
-      const passed = [this.player.x >= cx, this.player.y >= cy, this.player.x <= cx, this.player.y <= cy][cur.dir];
+    const inGate = !!next.gate && pointInRect(this.player.x, this.player.y, next.gate);
+    if (a.heldTap && inGate) {
+      a.heldTap = false;
+      this.turn();
+      return;
+    }
+    if (ab.autopilot && next.perfect && inGate) {
+      const spot = (ab.guide && this.safeTurnSpot(next)) || {
+        x: (next.perfect.x1 + next.perfect.x2) / 2,
+        y: (next.perfect.y1 + next.perfect.y2) / 2,
+      };
+      const passed = [this.player.x >= spot.x, this.player.y >= spot.y, this.player.x <= spot.x, this.player.y <= spot.y][cur.dir];
       if (passed) {
         this.turn();
         return;
@@ -1268,6 +1460,9 @@ export class GameScene extends Phaser.Scene {
     const def = a.def;
     const p = this.player;
     const segs = this.visibleSegments();
+    const cur = this.track.get(this.current)!;
+    const d = DIRS[p.dir];
+    const pr = this.playerRadius();
     const entries = segs.flatMap((seg) => seg.hazards.filter((h) => h.alive).map((h) => ({ h, seg })));
     const hazards = entries.map((e) => e.h);
 
@@ -1275,15 +1470,21 @@ export class GameScene extends Phaser.Scene {
       const dx = p.x - hz.x;
       const dy = p.y - hz.y;
       const dist = Math.hypot(dx, dy) || 1;
+      const danger = hz.kind !== 'duck';
 
-      // Turn saws and bombs into rubber ducks.
-      if (def.ducksFromHazards && hz.kind !== 'duck') {
+      // The next few saws and bombs ahead turn into rubber ducks.
+      if (danger && a.converts > 0 && !this.doomed.has(hz) && trackDistance(seg, hz.x, hz.y) > this.distance) {
+        a.converts--;
         hz.kind = 'duck';
         hz.radius = 13;
         hz.moving = false;
+        hz.inked = false;
         this.hazardViews.get(hz)?.destroy();
         this.hazardViews.delete(hz);
-        this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff], 8);
+        this.effects.burst(hz.x, hz.y, [0xffd21f, 0xffffff], save.fxReduced ? 6 : 14);
+        this.effects.shockwave(hz.x, hz.y, 0xffd21f, 60, 300);
+        this.effects.floater(hz.x, hz.y - 20, 'POOF', '#ffd21f', 13);
+        continue;
       }
 
       const pull = (speed: number) => {
@@ -1294,17 +1495,18 @@ export class GameScene extends Phaser.Scene {
         hz.baseY = hz.y;
         hz.moving = false;
       };
-      if (hz.kind === 'duck' && def.magnet && dist < def.magnet) pull(480);
-      if (hz.kind !== 'duck' && def.vacuum && dist < def.vacuum) {
+      // Golden ducks are too proud to be pulled: catching one stays a skill.
+      if (!danger && def.magnet && dist < def.magnet && hz.variant !== 'golden') pull(480);
+      if (danger && def.vacuum && dist < def.vacuum) {
         pull(520);
         if (dist < 26) this.smashHazard(hz);
       }
 
-      // Shy hazards slide sideways, away from your line.
-      if (def.shy && hz.kind !== 'duck' && dist < 230) {
-        // Sideways = across the hazard's own segment.
+      // Shy: hazards ahead on your straight slide away from your line. Your
+      // line can't change until the next corner, so they never slide into you.
+      if (def.shy && danger && seg === cur && p.dir === seg.dir && dist < 260 && -dx * d.x - dy * d.y > -10) {
         const lateralY = seg.dir % 2 === 0;
-        const away = Math.sign(lateralY ? hz.y - p.y : hz.x - p.x) || 1;
+        const away = Math.sign(lateralY ? hz.baseY - p.y : hz.baseX - p.x) || 1;
         const move = away * 170 * sim;
         const lim = seg.halfWidth - hz.radius - 4;
         if (lateralY) {
@@ -1315,22 +1517,38 @@ export class GameScene extends Phaser.Scene {
           if (!hz.moving) hz.x = hz.baseX;
         }
       }
+
+      // Hop over a hazard that's about to hit you.
+      if (danger && a.hops > 0 && this.elapsed >= a.hopUntil && !this.doomed.has(hz)) {
+        const reach = hz.kind === 'bomb' && hz.charge === -1 ? BOMB_BLAST : HAZARD_HITBOX;
+        if (dist < hz.radius * reach + pr + 14) this.startHop();
+      }
     }
 
-    // Lasers pick off the nearest hazard ahead.
-    if (def.laser && this.elapsed >= a.nextLaser) {
-      const d = DIRS[p.dir];
-      const target = hazards
-        .filter((h) => h.kind !== 'duck' && (h.x - p.x) * d.x + (h.y - p.y) * d.y > -20)
-        .map((h) => ({ h, dist: Math.hypot(h.x - p.x, h.y - p.y) }))
-        .filter((o) => o.dist < def.laser!)
-        .sort((a1, b1) => a1.dist - b1.dist)[0];
+    // Zaps pick off the nearest hazard they can reach.
+    const z = def.zap;
+    if (z && a.ammo > 0 && this.elapsed >= a.nextZap) {
+      const target = this.zapTarget(z, hazards, (h) => !h.inked || z.kind !== 'pit');
       if (target) {
-        this.effects.laser(p.x, p.y, target.h.x, target.h.y, 0xff2240);
-        sfx.laser();
-        this.smashHazard(target.h);
-        a.nextLaser = this.elapsed + 0.22;
+        this.fireZap(z, target);
+        a.nextZap = this.elapsed + z.every;
       }
+    }
+    if (z?.kind === 'fire' && this.frameNo % 2 === 0) this.breatheFire(z.range);
+
+    // Octo: ink the hazards ahead, one after another.
+    if (def.ink && this.elapsed >= a.nextInk) {
+      const target = this.zapTarget({ kind: 'pit', range: def.ink, every: 0 }, hazards, (h) => !h.inked);
+      if (target) {
+        this.throwAt(FX_TEX.ink, 0x9a4af0, target, () => this.inkHazard(target));
+        a.nextInk = this.elapsed + 0.3;
+      }
+    }
+
+    // Supernova: blow up every so often.
+    if (def.nova && this.elapsed >= a.nextPulse) {
+      this.novaBlast(def.nova.radius, hazards);
+      a.nextPulse = this.elapsed + def.nova.every;
     }
 
     // Black hole: rings keep collapsing into you.
@@ -1339,13 +1557,16 @@ export class GameScene extends Phaser.Scene {
       a.nextImplode = this.elapsed + 0.3;
     }
 
-    // Magnet also reels in the warp star.
+    if (def.guide) this.drawGuide(cur, this.track.get(this.current + 1), this.time.now / 1000);
+    else if (this.guideG?.visible) this.guideG.clear().setVisible(false);
+
+    // A magnet reels in the warp star too, but only from close by: hitting it stays a skill shot.
     if (def.magnet) {
       for (const seg of segs) {
         const star = seg.warpStar;
         if (!star || star.taken) continue;
         const dist = Math.hypot(p.x - star.x, p.y - star.y) || 1;
-        if (dist > def.magnet) continue;
+        if (dist > STAR_PULL) continue;
         const k = Math.min(dist, 380 * sim) / dist;
         star.x += (p.x - star.x) * k;
         star.y += (p.y - star.y) * k;
@@ -1354,16 +1575,157 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** A hazard destroyed by an ability: it shatters instead of killing you. */
-  private smashHazard(hz: Hazard) {
+  /**
+   * The nearest saw or bomb a zap can reach: ahead of you (or anywhere for
+   * `around`), and for `lane` only what's in your path.
+   */
+  private zapTarget(z: Zap, hazards: Hazard[], ok: (h: Hazard) => boolean): Hazard | null {
+    const p = this.player;
+    const d = DIRS[p.dir];
+    const pr = this.playerRadius();
+    let best: Hazard | null = null;
+    let bestDist = z.range;
+    for (const h of hazards) {
+      if (h.kind === 'duck' || !h.alive || this.doomed.has(h) || !ok(h)) continue;
+      const rx = h.x - p.x;
+      const ry = h.y - p.y;
+      const dist = Math.hypot(rx, ry);
+      if (dist >= bestDist) continue;
+      const ahead = rx * d.x + ry * d.y;
+      if (!z.around && ahead < -20) continue;
+      if (z.lane && (ahead < 0 || Math.abs(ry * d.x - rx * d.y) > h.radius + pr + 10)) continue;
+      best = h;
+      bestDist = dist;
+    }
+    return best;
+  }
+
+  private fireZap(z: Zap, hz: Hazard) {
+    const a = this.ability!;
+    const p = this.player;
+    const color = ZAP_COLOR[z.kind];
+    a.ammo--;
+    switch (z.kind) {
+      case 'laser':
+        this.effects.laser(p.x, p.y, hz.x, hz.y, color);
+        sfx.laser();
+        this.smashHazard(hz);
+        break;
+      case 'arc':
+        this.effects.zigzag(p.x, p.y, hz.x, hz.y, color, 2.5);
+        sfx.laser();
+        this.smashHazard(hz);
+        break;
+      case 'bolt':
+        // Straight down out of the sky.
+        this.effects.zigzag(hz.x + 40, hz.y - 340, hz.x, hz.y, color, 4);
+        this.effects.flare(hz.x, hz.y, 0xffffff, 80);
+        this.flash(0xc8d4ff, 90, 0.12);
+        this.smashHazard(hz);
+        break;
+      case 'beam':
+        this.effects.beam(p.x, p.y, hz.x, hz.y, color);
+        sfx.ufo();
+        this.smashHazard(hz, 'abduct');
+        break;
+      case 'fire':
+        this.smashHazard(hz);
+        break;
+      case 'star':
+      case 'pit':
+        sfx.swoosh();
+        this.throwAt(z.kind === 'star' ? FX_TEX.shuriken : FX_TEX.pit, 0xffffff, hz, () => this.smashHazard(hz));
+        break;
+    }
+  }
+
+  /**
+   * Throw something at a hazard (a shuriken, a cherry pit, a blob of ink):
+   * it can't hurt you any more while the shot is in the air, and `hit` runs
+   * when it lands.
+   */
+  private throwAt(tex: string, tint: number, hz: Hazard, hit: () => void) {
+    const run = this.runId;
+    const { x, y } = this.player;
+    this.doomed.add(hz);
+    const shot = this.add.image(x, y, tex).setDepth(7).setTint(tint).setScale(0.6);
+    this.tweens.add({
+      targets: shot,
+      x: hz.x,
+      y: hz.y,
+      angle: 720,
+      scale: 0.9,
+      duration: 110,
+      onComplete: () => {
+        shot.destroy();
+        this.doomed.delete(hz);
+        if (run === this.runId && hz.alive) hit();
+      },
+    });
+  }
+
+  /** Dragon: flames in a cone in front of you. */
+  private breatheFire(range: number) {
+    const p = this.player;
+    const d = DIRS[p.dir];
+    const k = 18 + Math.random() * (range - 18);
+    const side = (Math.random() - 0.5) * k * 0.4;
+    this.effects.burst(p.x + d.x * k - d.y * side, p.y + d.y * k + d.x * side, [0xfff3a0, 0xff9a1f, 0xff3a1a], save.fxReduced ? 1 : 3);
+  }
+
+  /** Octo's ink: the hazard stops for good, shrinks, and a bomb's fuse goes out. */
+  private inkHazard(hz: Hazard) {
+    if (hz.inked || hz.kind === 'duck') return;
+    hz.inked = true;
+    hz.moving = false;
+    hz.baseX = hz.x;
+    hz.baseY = hz.y;
+    hz.radius *= 0.6;
+    hz.charge = 0;
+    this.hazardViews.get(hz)?.setInked();
+    this.effects.burst(hz.x, hz.y, [0x2a0a40, 0x9a4af0, 0xd8a0ff], save.fxReduced ? 6 : 14);
+    this.effects.floater(hz.x, hz.y - 18, 'INKED', '#d8a0ff', 12);
+    sfx.pop();
+  }
+
+  /** Supernova: a blast that wipes out every hazard within `radius`. */
+  private novaBlast(radius: number, hazards: Hazard[]) {
+    const { x, y } = this.player;
+    this.effects.shockwave(x, y, 0xffffff, radius * 2, 450);
+    this.effects.shockwave(x, y, 0xff9a2e, radius * 1.6, 650);
+    this.effects.shockwave(x, y, 0xff4af0, radius * 1.2, 800);
+    this.effects.flare(x, y, 0xfff6d0, radius * 0.7);
+    this.flash(0xfff6d0, 140, 0.18);
+    this.cameras.main.shake(140, 0.005);
+    this.cam.punch = Math.max(this.cam.punch, 0.1);
+    for (const h of hazards) {
+      if (h.alive && h.kind !== 'duck' && Math.hypot(h.x - x, h.y - y) < radius) this.smashHazard(h, 'quiet');
+    }
+    sfx.smash();
+    haptic(15);
+  }
+
+  /**
+   * A hazard destroyed by an ability: it shatters instead of killing you.
+   * 'abduct' floats it away in the tractor beam; 'quiet' skips the hit-stop
+   * and sound (the nova makes one bang for all of them).
+   */
+  private smashHazard(hz: Hazard, style: 'shatter' | 'abduct' | 'quiet' = 'shatter') {
     if (!hz.alive) return;
     hz.alive = false;
-    this.hazardViews.get(hz)?.destroy();
+    this.doomed.delete(hz);
+    const view = this.hazardViews.get(hz);
     this.hazardViews.delete(hz);
+    this.effects.floater(hz.x, hz.y - 18, this.ability?.def.word ?? 'SMASH', '#ffffff', 13);
+    if (style === 'abduct') {
+      if (view) view.abduct();
+      return;
+    }
+    view?.destroy();
     const color = hz.kind === 'saw' ? palette.magenta : palette.orange;
     this.effects.debris(hz.x, hz.y, color, save.fxReduced ? 5 : 14);
     this.effects.burst(hz.x, hz.y, [color, 0xffffff], save.fxReduced ? 6 : 16);
-    this.effects.floater(hz.x, hz.y - 18, this.ability?.def.word ?? 'SMASH', '#ffffff', 13);
+    if (style === 'quiet') return;
     this.hitStop(25);
     this.cameras.main.shake(90, 0.004);
     this.cam.punch = Math.max(this.cam.punch, 0.06);

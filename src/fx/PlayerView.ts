@@ -26,6 +26,9 @@ export class PlayerView {
   private bubble: Phaser.GameObjects.Container;
   private auraColor: number | null = null;
   private sizeMult = 1;
+  /** A hop (bunny, tennis): 0 on the ground, 1 at the top. */
+  private lift = 0;
+  private hopTween?: Phaser.Tweens.Tween;
   private orb!: Phaser.GameObjects.Image;
   /** Baked glow that hugs the orb's outline, in the skin's colour. */
   private glow!: GlowHandle;
@@ -148,6 +151,13 @@ export class PlayerView {
     this.root.scene.tweens.add({ targets: this, sizeMult: opts.size ?? 1, duration: 250, ease: 'Back.easeOut' });
   }
 
+  /** Jump up and land again (over a hazard): the orb grows, as if it came closer. */
+  hop(ms: number) {
+    this.hopTween?.remove();
+    this.lift = 0;
+    this.hopTween = this.root.scene.tweens.add({ targets: this, lift: 1, duration: ms / 2, yoyo: true, ease: 'Sine.easeOut' });
+  }
+
   setBubble(on: boolean) {
     if (on === this.bubble.visible) return;
     if (on) {
@@ -182,7 +192,8 @@ export class PlayerView {
     this.squash += (1 - this.squash) * Math.min(1, dt * 16);
     // Faces and hats stay upright; plain balls turn with the direction.
     this.body.setRotation(this.skin.upright ? 0 : heading).setScale(2 - this.squash, this.squash);
-    this.root.setScale(this.sizeMult);
+    this.root.setScale(this.sizeMult * (1 + this.lift * 0.55));
+    this.body.setY(-this.lift * 10);
     if (this.auraColor !== null) {
       const k = 0.5 + 0.5 * Math.sin(time * 10);
       this.aura.setTint(this.auraColor).setRotation(time * 4).setScale((radius * (2.6 + k * 0.5)) / 116).setAlpha(0.5 + k * 0.4);
@@ -282,6 +293,8 @@ export class PlayerView {
     this.aura.setVisible(false);
     this.bubble.setVisible(false);
     this.sizeMult = 1;
+    this.lift = 0;
+    this.body.setY(0);
     this.root.setAlpha(1).setScale(1).setVisible(true);
     this.squash = 1;
     this.trail.killAll();
