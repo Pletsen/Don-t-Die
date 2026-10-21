@@ -96,6 +96,8 @@ interface AbilityState {
   nextImplode: number;
   /** `forgive`: an early tap waiting for the corner. */
   heldTap: boolean;
+  /** `orbit`: corners left that it turns you round. */
+  orbits: number;
 }
 
 function newAbilityState(def: AbilityDef, until: number): AbilityState {
@@ -115,6 +117,7 @@ function newAbilityState(def: AbilityDef, until: number): AbilityState {
     nextPulse: 0,
     nextImplode: 0,
     heldTap: false,
+    orbits: def.orbit ?? 0,
   };
 }
 
@@ -223,8 +226,8 @@ export class GameScene extends Phaser.Scene {
   private doomed = new WeakSet<Hazard>();
   /** `shy`: the full radius of each hazard that is shrinking back from you. */
   private shyRadius = new Map<Hazard, number>();
-  /** The guide's marker in the next corner (abilities with `guide`). */
-  private guideG?: Phaser.GameObjects.Graphics;
+  /** Drawn fresh every frame by some powers: the guide's marker, the dragon's flames. */
+  private abilityG?: Phaser.GameObjects.Graphics;
   private abilityCharges = 1;
   /** Levels 1-2 teach the basics: no skin power yet (the tip comes before level 3). */
   private abilityLocked = false;
@@ -867,7 +870,7 @@ export class GameScene extends Phaser.Scene {
     const ab = this.ability?.def;
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
     const sim = dt * (this.slowMo > 0 ? 0.35 : 1) * (ab ? this.abilityTimeScale(ab) : 1);
-    if (!ab?.freeze) this.hazardClock += sim * (ab?.hazardSlow ?? 1);
+    if (!ab?.freeze) this.hazardClock += sim;
 
     const speed = this.course.speedAt(this.distance) * (ab?.speed ?? 1);
     const d = DIRS[this.player.dir];
@@ -1209,7 +1212,7 @@ export class GameScene extends Phaser.Scene {
   private emitAbility() {
     const a = this.ability;
     // No stale guide marker from an earlier run.
-    if (!a && this.guideG?.visible) this.guideG.clear().setVisible(false);
+    if (!a && this.abilityG?.visible) this.abilityG.clear().setVisible(false);
     const state = a ? 'active' : this.abilityLocked ? 'locked' : this.abilityCharges > 0 ? 'ready' : this.course.level ? 'used' : 'recharging';
     this.game.events.emit(EV.ability, { state, frac: a ? Math.max(0, (a.until - this.elapsed) / ABILITY_SECONDS) : 0 });
   }
@@ -1410,8 +1413,7 @@ export class GameScene extends Phaser.Scene {
 
   /** `guide`: a pulsing marker on your line where it's safe to turn, and the lane it leads to. */
   private drawGuide(cur: Segment, next: Segment | undefined, t: number) {
-    const g = (this.guideG ??= this.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD));
-    g.clear().setVisible(true);
+    const g = this.abilityGraphics();
     if (!next?.perfect || this.player.dir !== cur.dir) return;
     const p = this.player;
     const centre = { x: (next.perfect.x1 + next.perfect.x2) / 2, y: (next.perfect.y1 + next.perfect.y2) / 2 };
@@ -1442,13 +1444,18 @@ export class GameScene extends Phaser.Scene {
       this.turn();
       return;
     }
-    if ((ab.autopilot || ab.orbit) && next.perfect && inGate) {
+    if ((ab.autopilot || a.orbits > 0) && next.perfect && inGate) {
       const spot = (ab.guide && this.safeTurnSpot(next)) || {
         x: (next.perfect.x1 + next.perfect.x2) / 2,
         y: (next.perfect.y1 + next.perfect.y2) / 2,
       };
       const passed = [this.player.x >= spot.x, this.player.y >= spot.y, this.player.x <= spot.x, this.player.y <= spot.y][cur.dir];
       if (passed) {
+        if (!ab.autopilot) {
+          a.orbits--;
+          this.effects.shockwave(this.player.x, this.player.y, skinById(save.skin).glow, 70, 300);
+          this.effects.floater(this.player.x, this.player.y - 24, a.orbits > 0 ? 'SWING' : 'LAST SWING', '#ffffff', 12);
+        }
         this.turn();
         return;
       }
@@ -1539,13 +1546,15 @@ export class GameScene extends Phaser.Scene {
         a.nextZap = this.elapsed + z.every;
       }
     }
-    if (z?.kind === 'fire' && this.frameNo % 2 === 0) this.breatheFire(z.range);
 
     // Octo: ink the hazards ahead, one after another.
-    if (def.ink && this.elapsed >= a.nextInk) {
-      const target = this.zapTarget({ kind: 'pit', range: def.ink, every: 0 }, hazards, (h) => !h.inked);
+    // (Tangerine squirts juice the same way: they stop, but don't shrink.)
+    const inkRange = def.ink ?? def.squirt;
+    if (inkRange && this.elapsed >= a.nextInk) {
+      const target = this.zapTarget({ kind: 'pit', range: inkRange, every: 0 }, hazards, (h) => !h.inked);
       if (target) {
-        this.throwAt(FX_TEX.ink, 0x9a4af0, target, () => this.inkHazard(target));
+        const juice = !def.ink;
+        this.throwAt(FX_TEX.ink, juice ? 0xffa53a : 0x9a4af0, target, () => this.inkHazard(target, juice));
         a.nextInk = this.elapsed + 0.3;
       }
     }
@@ -1563,7 +1572,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (def.guide) this.drawGuide(cur, this.track.get(this.current + 1), this.time.now / 1000);
-    else if (this.guideG?.visible) this.guideG.clear().setVisible(false);
+    else if (z?.kind === 'fire') this.breatheFire(z.range, this.time.now / 1000);
+    else if (this.abilityG?.visible) this.abilityG.clear().setVisible(false);
 
     // A magnet reels in the warp star too, but only from close by: hitting it stays a skill shot.
     if (def.magnet) {
@@ -1670,27 +1680,59 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  /** Dragon: flames in a cone in front of you. */
-  private breatheFire(range: number) {
-    const p = this.player;
-    const d = DIRS[p.dir];
-    const k = 18 + Math.random() * (range - 18);
-    const side = (Math.random() - 0.5) * k * 0.4;
-    this.effects.burst(p.x + d.x * k - d.y * side, p.y + d.y * k + d.x * side, [0xfff3a0, 0xff9a1f, 0xff3a1a], save.fxReduced ? 1 : 3);
+  /** The shared graphics for per-frame power drawings, cleared and shown. */
+  private abilityGraphics() {
+    const g = (this.abilityG ??= this.add.graphics().setDepth(5).setBlendMode(Phaser.BlendModes.ADD));
+    return g.clear().setVisible(true);
   }
 
-  /** Octo's ink: the hazard stops for good, shrinks, and a bomb's fuse goes out. */
-  private inkHazard(hz: Hazard) {
+  /** Dragon: a flickering cone of fire in front of you, with sparks at its tip. */
+  private breatheFire(range: number, t: number) {
+    const g = this.abilityGraphics();
+    const p = this.player;
+    const d = DIRS[p.dir];
+    const flick = 0.85 + 0.15 * Math.sin(t * 37) * Math.sin(t * 23);
+    const flames: [number, number, number, number][] = [
+      [1, 0.42, 0xff3a1a, 0.28],
+      [0.8, 0.3, 0xff9a1f, 0.38],
+      [0.55, 0.17, 0xfff3a0, 0.5],
+    ];
+    for (const [len, width, color, alpha] of flames) {
+      const l = range * len * flick;
+      const w = range * width * flick;
+      const x0 = p.x + d.x * 10;
+      const y0 = p.y + d.y * 10;
+      g.fillStyle(color, alpha).beginPath();
+      g.moveTo(x0 - d.y * 5, y0 + d.x * 5);
+      g.lineTo(p.x + d.x * l - d.y * w * 0.5, p.y + d.y * l + d.x * w * 0.5);
+      g.lineTo(p.x + d.x * l * 1.08, p.y + d.y * l * 1.08);
+      g.lineTo(p.x + d.x * l + d.y * w * 0.5, p.y + d.y * l - d.x * w * 0.5);
+      g.lineTo(x0 + d.y * 5, y0 - d.x * 5);
+      g.closePath();
+      g.fillPath();
+    }
+    if (this.frameNo % 3 === 0 && !save.fxReduced) {
+      const k = range * (0.6 + Math.random() * 0.4);
+      this.effects.burst(p.x + d.x * k, p.y + d.y * k, [0xfff3a0, 0xff9a1f, 0xff3a1a], 2);
+    }
+  }
+
+  /**
+   * OCTO's ink: the hazard stops for good, shrinks, and a bomb's fuse goes
+   * out. Tangerine's juice (`juice`) stops it the same way, without shrinking.
+   */
+  private inkHazard(hz: Hazard, juice = false) {
     if (hz.inked || hz.kind === 'duck') return;
     hz.inked = true;
     hz.moving = false;
     hz.baseX = hz.x;
     hz.baseY = hz.y;
-    hz.radius *= 0.6;
+    if (!juice) hz.radius *= 0.6;
     hz.charge = 0;
-    this.hazardViews.get(hz)?.setInked();
-    this.effects.burst(hz.x, hz.y, [0x2a0a40, 0x9a4af0, 0xd8a0ff], save.fxReduced ? 6 : 14);
-    this.effects.floater(hz.x, hz.y - 18, 'INKED', '#d8a0ff', 12);
+    this.hazardViews.get(hz)?.setInked(juice ? 0xffa53a : 0x7a4aa8, juice ? 1 : 0.62);
+    const colors = juice ? [0xff8a1f, 0xffd08a, 0xffffff] : [0x2a0a40, 0x9a4af0, 0xd8a0ff];
+    this.effects.burst(hz.x, hz.y, colors, save.fxReduced ? 6 : 14);
+    this.effects.floater(hz.x, hz.y - 18, juice ? 'SQUIRT' : 'INKED', juice ? '#ffc070' : '#d8a0ff', 12);
     sfx.pop();
   }
 
