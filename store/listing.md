@@ -6,7 +6,8 @@ language) and Danish. Character counts are checked against Apple's limits
 
 Before submitting, check the facts against the build you upload: the skin
 count (written as **50** here; the game has 32 until the new skins are merged),
-Game Center leaderboards (only if the Game Center plugin ships in 1.0), and any
+Game Center leaderboards (only if the plugin ships in 1.0 and a screen opens
+them; today scores are sent but no button shows them), and any
 features added since (CONTINUE, ghost run, guest skin). Words in the listing
 must match the app, or review rejects it (guideline 2.3).
 
