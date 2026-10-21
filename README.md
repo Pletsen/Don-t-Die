@@ -90,13 +90,16 @@ Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`).
 
 - Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 10/20/40/70 ænder tilbage.
 - Pity: mindst epic inden for 15 spin, legendary inden for 60. Tælleren står på maskinen.
+- Dit allerførste træk er mindst rare, så den første smagsprøve er en figur med en rigtig evne.
+
+Der er 50 skins: 18 common, 16 rare, 10 epic og 6 legendary. Samlingen under maskinen er et gitter på 10 × 5.
 
 | Sjældenhed | Chance | Skins |
 |---|---|---|
-| Common | 65 % | Classic, Mint Chip, Bubblegum, Lemon, Grape, Tangerine, Frosty, Blush, Moon, Potato, Watermelon, Cookie |
-| Rare | 25 % | Kitty, Froggy, Panda, Beach Ball, Donut, Soccer, Eyeball, Busy Bee, Disco Ball, Boo |
-| Epic | 8 % | Lava, Galaxy, Cyber Eye, Pizza Pal, Plasma, Fishbowl |
-| Legendary | 2 % | Golden Crown, Black Hole, Duck King, Phoenix |
+| Common | 65 % | Classic, Mint Chip, Bubblegum, Lemon, Grape, Tangerine, Frosty, Blush, Moon, Potato, Watermelon, Cookie, Cherry, Marble, Tennis, 8-Ball, Eggy, Pumpkin |
+| Rare | 25 % | Kitty, Froggy, Panda, Beach Ball, Donut, Soccer, Eyeball, Busy Bee, Disco Ball, Boo, Night Owl, Penguin, Robo, Hamster, Bunny, Octo |
+| Epic | 8 % | Lava, Galaxy, Cyber Eye, Pizza Pal, Plasma, Fishbowl, UFO, Ninja, Dragon, Storm Cloud |
+| Legendary | 2 % | Golden Crown, Black Hole, Duck King, Phoenix, Unicorn, Supernova |
 
 Skins er data i `src/game/skins.ts`, og hvert skin tegnes i `src/fx/skinTextures.ts`. Spillemaskinen ligger i `src/ui/SkinShop.ts` og reglerne i `src/game/gacha.ts`.
 
@@ -104,12 +107,73 @@ Skins er data i `src/game/skins.ts`, og hvert skin tegnes i `src/fx/skinTextures
 
 **Tryk 4 gange hurtigt.** Hvert tryk drejer 90°, så du laver et lille loop, og så tænder skinnets evne i 10 sekunder: et skråt bånd med skinnets ansigt og evnens navn fejer over skærmen. Du kommer altid ud af loopet med retning langs banen, også hvis det startede i et sving. Den kan bruges én gang pr. level og låses op fra level 3 (level 1–2 lærer det basale). I Survival lades den op 500 m og 30 sekunder efter, at den sluttede.
 
-- **Common:** FOCUS, COOL HEAD, BUBBLE, SQUEEZE, GRAPEVINE, ZEST RUSH, DEEP FREEZE, SO SHY, ORBIT, COUCH POTATO, THICK RIND, CRUMBS
-- **Rare:** NINE LIVES, TONGUE, BAMBOO BITE, BOUNCY, SUGAR RUSH, KICKOFF, THIRD EYE, HONEY RUSH, DANCE FLOOR, SPOOKY
-- **Epic:** MELTDOWN, HYPERDRIVE, TARGET LOCK, PIZZA PARTY, TESLA STORM, TIDAL WAVE
-- **Legendary:** ROYAL DECREE, EVENT HORIZON, QUACK ARMY, REBIRTH
+Evnerne er afbalanceret efter sjældenhed og målt med test-botten (evnen tændt 58 % inde i level 10, 15, 20 og HARD 10, 15, 20; novice- og average-spillere; samme baner og samme "hænder" med og uden evne):
 
-Evnerne er opskrifter af små byggeklodser i `src/game/abilities.ts`.
+- **Common:** én mild effekt. Højst +10 procentpoint flere gennemførte levels fra det punkt.
+- **Rare:** én stærk eller to milde. Højst +20.
+- **Epic:** stærk og flot, men du kan stadig dø. Højst +30.
+- **Legendary:** den bedste og mest spektakulære, men du spiller stadig selv. Kun én (Phoenix) har autopilot, og ingen evne gør dig udødelig. Højst +40.
+- Ingen evne bliver udødelig af, at du holder op med at trykke: "bounce" og "orbit" (der drejer for dig) blandes aldrig med fuld beskyttelse mod forhindringer.
+- Ænder: højst ca. 2×/2×/3×/4× de ænder, du ville have fået på samme stræk uden evne, også i Universe 2 og i DUCK POND. Magneter trækker aldrig den gyldne and, og warp-stjernen kun hvis du kommer helt tæt på (22 px).
+
+| Skin | Evne | Hvad den gør |
+|---|---|---|
+| **Common** | | |
+| Classic | FOCUS | Tiden går langsommere. |
+| Mint Chip | COOL HEAD | Et tryk lidt for tidligt venter på svinget. Alle sving er PERFECT. |
+| Bubblegum | BUBBLE | En boble tager ét slag for dig. |
+| Lemon | SQUEEZE | Du bliver presset lille og smutter forbi forhindringer. |
+| Grape | GRAPEVINE | Ranker trækker ænder til dig (og warp-stjernen, hvis du kommer helt tæt på). |
+| Tangerine | JUICE SQUIRT | Sprøjter juice på forhindringerne forude: de står bomstille, og bomber går ud. |
+| Frosty | DEEP FREEZE | Forhindringerne fryser. Tiden køler lidt ned. |
+| Blush | SO SHY | Forhindringer tæt på rødmer og skrumper ind. |
+| Moon | ORBIT | Har du ikke trykket midt i svinget, svinger du rundt alligevel. Fire gange. |
+| Potato | COUCH POTATO | Spillet styrer selv, langsomt og lige gennem midten. Forhindringer er ikke dens problem. |
+| Watermelon | THICK RIND | Skrællen tager to slag. |
+| Cookie | CRUMBS | Hver and tæller dobbelt. |
+| Cherry | CHERRY PIT | Spytter kerner efter de næste to forhindringer på din linje. |
+| Marble | SLOW ROLL | Tiden går ned i fart i hvert sving. |
+| Tennis | TOPSPIN | Hopper rent over de næste to forhindringer. |
+| 8-Ball | OUTLOOK GOOD | Viser det sikre sted at dreje i hvert sving. Tiden går en anelse langsommere. |
+| Eggy | EGGSHELL | En forhindring knækker kun skallen, og så er du sikker et sekund. |
+| Pumpkin | TRICK OR TREAT | De næste tre forhindringer bliver til ænder. |
+| **Rare** | | |
+| Kitty | NINE LIVES | Overlev ét styrt, hvilket som helst. |
+| Froggy | TONGUE | Hop gennem forhindringer og snup ænder tæt på. |
+| Panda | BAMBOO BITE | Spis alle forhindringer, du rammer. Tiden lidt langsommere. |
+| Beach Ball | BOUNCY | Hop af væggene rundt i svingene og af to forhindringer. |
+| Donut | SUGAR RUSH | Knas dig gennem alt, du rammer. Alle sving PERFECT. |
+| Soccer | KICKOFF | Væggene er bander, og du sparker de næste tre forhindringer væk med en bold. |
+| Eyeball | THIRD EYE | Slowmotion, og alle sving er PERFECT. |
+| Busy Bee | STING | Stikker de næste tre forhindringer forude. Pollen trækker ænder tæt på. |
+| Disco Ball | DANCE FLOOR | Forhindringer skrumper for dine moves, tiden groover langsommere, alt PERFECT. |
+| Boo | SPOOKY | Svæv lige gennem forhindringer. Tiden lidt langsommere. |
+| Night Owl | NIGHT VISION | Ser det sikre sted at dreje i hvert sving. Tiden går langsommere. |
+| Penguin | ICE SKATE | Skøjter rent over de næste to forhindringer, og forhindringerne fryser. |
+| Robo | AUTO-CORRECT | For tidlige tryk venter på svinget, og trykker du slet ikke, drejer den dig midt i svinget. |
+| Hamster | HAMSTER BALL | Kuglen tager tre slag. |
+| Bunny | BUNNY HOP | Hop over de næste tre forhindringer. Ænder tæt på hopper til dig. |
+| Octo | INK CLOUD | Blæk på forhindringerne forude: de står stille, skrumper, og bomber går ud. Tentaklerne tager ænder. |
+| **Epic** | | |
+| Lava | MELTDOWN | Forhindringer smelter, når du rammer dem. For tidlige tryk venter. Lidt hurtigere. |
+| Galaxy | HYPERDRIVE | Lidt hurtigere, forhindringer fordamper ved berøring, for tidlige tryk venter, alt PERFECT. |
+| Cyber Eye | TARGET LOCK | Lasere sletter forhindringerne forude. For tidlige tryk venter, alt PERFECT. |
+| Pizza Pal | PIZZA PARTY | De næste tre forhindringer bliver til ænder, ekstra ost tager ét slag, væggene sender dig rundt. |
+| Plasma | TESLA STORM | Lyn springer til forhindringer hele vejen rundt om dig. Statisk el trækker ænder. |
+| Fishbowl | TIDAL WAVE | Forhindringer skylles væk ved berøring. Under vand går tiden langsommere, og fisk henter ænder. |
+| UFO | ABDUCTION | En traktorstråle bortfører forhindringer forude og ænder. Et kraftfelt tager ét slag. |
+| Ninja | SHURIKEN | Otte shuriken skærer forhindringerne ned. Ninja-reflekser: for tidlige tryk venter. Alt PERFECT. |
+| Dragon | FIRE BREATH | Ild brænder forhindringerne på din linje. Hårde skæl tager ét slag. |
+| Storm Cloud | THUNDER | Lynet slår ned i forhindringerne forude, og vindstød blæser dig rundt i svingene. |
+| **Legendary** | | |
+| Golden Crown | ROYAL DECREE | Forhindringer bukker og skrumper, garden tager to slag, den røde løber klarer alle sving, ænder tæller dobbelt. |
+| Black Hole | EVENT HORIZON | Sluger alle forhindringer tæt på. Tiden bøjer i svingene, og ænder falder ind. |
+| Duck King | QUACK ARMY | De næste seks forhindringer bliver til ænder, og hver and, du rammer, bliver en vagt mod et slag eller et styrt (højst fire). |
+| Phoenix | REBIRTH | Den eneste legendary med autopilot: flyver den sikre linje, alt PERFECT, og rejser sig fra ét styrt. |
+| Unicorn | RAINBOW ROAD | Hornet gennemborer forhindringer, regnbuer sænker tiden i svingene, for tidlige tryk venter, alt PERFECT. |
+| Supernova | SUPERNOVA | Eksploderer hvert sekund og udsletter alt i nærheden. For tidlige tryk venter, og styrter du, går du nova og kommer igen. |
+
+Evnerne er opskrifter af små byggeklodser i `src/game/abilities.ts` (fx `slow`, `shield`, `hop`, `zap`, `ink`, `nova`, `guide`, `forgive`, `orbit`, `army`). Selve virkningen ligger i `src/scenes/GameScene.ts` under "Skin abilities".
 
 ### Hemmeligheder (spoiler)
 
@@ -178,7 +242,7 @@ src/
 │   ├── course.ts         Reglerne for én runde (level, SURVIVAL med zoner, Daily Run)
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
-│   ├── skins.ts          ⭐ Alle 32 skins og chancerne for hver sjældenhed
+│   ├── skins.ts          ⭐ Alle 50 skins og chancerne for hver sjældenhed
 │   ├── gacha.ts          Fair spillemaskine: ingen dubletter for tidligt, pity
 │   ├── abilities.ts      ⭐ Hvert skins særlige evne
 │   ├── progress.ts       Statistik, rekorder, belønninger og bannere
@@ -202,7 +266,7 @@ src/
 │   ├── BackgroundEvents.ts  Stjerneskud, planet, UFO, astronaut, hval (og festen i Universe 2)
 │   ├── Ambient.ts        Svage lysprikker, der driver i baggrunden
 │   ├── WarpStarView.ts   Den gemte warp-stjerne
-│   ├── skinTextures.ts   Tegner alle 32 skins
+│   ├── skinTextures.ts   Tegner alle 50 skins (og småting som shuriken og blæk)
 │   └── Effects.ts        Eksplosioner, chokbølger og svævende tekst
 └── audio/
     ├── Sfx.ts            Lydeffekter, syntetiseret live + rigtige andelyde
