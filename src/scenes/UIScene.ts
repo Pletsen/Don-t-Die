@@ -19,7 +19,7 @@ import { NotifyBanner } from '../ui/NotifyBanner';
 import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { renderCard, type CardInfo } from '../ui/shareCard';
-import { share } from '../native/bridge';
+import { calmMoment, share } from '../native/bridge';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
@@ -828,6 +828,13 @@ export class UIScene extends Phaser.Scene {
     if (save.hardStars() > 0) parts.splice(1, 0, `${save.hardStars()} HARD`);
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
     this.statsLine.setText(parts.join('   ·   '));
+    this.calmSoon();
+  }
+
+  /** Native app: a waiting system prompt (rating, reminders) may show if the player stays here. */
+  private calmSoon() {
+    const mode = this.mode;
+    this.time.delayedCall(1200, () => this.mode === mode && calmMoment());
   }
 
   /** HOW TO PLAY: animated cards explaining the game. */
@@ -880,6 +887,7 @@ export class UIScene extends Phaser.Scene {
     this.select.root.setAlpha(0);
     this.fadeIn(this.select.root);
     this.fadeIn(this.scrim);
+    this.calmSoon();
   }
 
   private play(level: number | null) {

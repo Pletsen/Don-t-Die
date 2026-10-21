@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DON'T DIE: One Tap</title>
+    <meta name="description" content="A one-tap neon arcade game. Tap to turn. Touch a wall, a saw or a bomb and it's over." />
+    <meta name="theme-color" content="#05070a" />
+    <link rel="icon" type="image/png" href="icon-180.png" />
+    <link rel="apple-touch-icon" href="icon-180.png" />
+    <style>
+      :root {
+        --bg: #05070a;
+        --panel: #0b121b;
+        --ink: #eaf6ff;
+        --dim: #8fa3b5;
+        --cyan: #2be8ff;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: radial-gradient(ellipse at 50% -10%, rgba(43, 232, 255, 0.18), transparent 60%), var(--bg);
+        color: var(--ink);
+        font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        min-height: 100vh;
+      }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 16px 64px; }
+      .hero { text-align: center; }
+      .hero img { width: 128px; height: 128px; border-radius: 29px; box-shadow: 0 0 48px rgba(43, 232, 255, 0.35); }
+      h1 { font-size: 44px; letter-spacing: 0.06em; margin: 20px 0 0; text-shadow: 0 0 18px rgba(43, 232, 255, 0.7); }
+      .tag { color: var(--dim); letter-spacing: 0.35em; font-size: 13px; margin: 6px 0 28px; }
+      h2 { font-size: 19px; color: var(--cyan); letter-spacing: 0.03em; margin: 0 0 8px; }
+      section { background: var(--panel); border-radius: 16px; padding: 20px; margin-top: 20px; }
+      a { color: var(--cyan); }
+      ul { padding-left: 20px; margin: 0; }
+      li { margin: 6px 0; }
+      footer { color: var(--dim); text-align: center; margin-top: 32px; font-size: 15px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="hero">
+        <img src="icon-180.png" alt="DON'T DIE app icon" />
+        <h1>DON'T DIE</h1>
+        <p class="tag">ONE TAP. ONE RULE.</p>
+        <p>A ball of light races down a neon corridor. Every tap turns it 90°. Touch a wall, a saw or a bomb and it's over.</p>
+        <!-- App Store badge goes here after release. -->
+      </div>
+
+      <section>
+        <h2>The game</h2>
+        <ul>
+          <li>20 levels in 4 worlds, and HARD MODE after level 20</li>
+          <li>Endless Survival that keeps speeding up</li>
+          <li>A new Daily Run every day, the same track for everyone</li>
+          <li>Skins with super powers: tap 4 times fast</li>
+          <li>No ads, no in-app purchases, no tracking, works offline</li>
+        </ul>
+      </section>
+
+      <section id="support">
+        <h2>Support</h2>
+        <p>Found a bug, an idea, or a level you love to hate? Write to <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a>. Please say which iPhone and iOS version you have.</p>
+        <p><strong>Lost progress?</strong> Progress is saved on your iPhone only. It survives updates, but deleting the app deletes it.</p>
+        <p><strong>No sound?</strong> Check the sound button at the top of the menu, and your iPhone's volume and silent switch.</p>
+        <p><strong>Reminders</strong> can be turned on or off in Settings &gt; Notifications &gt; DON'T DIE.</p>
+      </section>
+
+      <footer>
+        <a href="privacy.html">Privacy Policy</a> · <a href="privacy.html#da">Privatlivspolitik</a>
+      </footer>
+    </main>
+  </body>
+</html>
