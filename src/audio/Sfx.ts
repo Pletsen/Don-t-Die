@@ -57,7 +57,8 @@ class SfxEngine {
   /** Browsers only allow audio after a user gesture, so call this on the first tap. */
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      // iOS leaves the context 'interrupted' after a phone call or Siri, not 'suspended'.
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') void this.ctx.resume();
       return;
     }
     try {
