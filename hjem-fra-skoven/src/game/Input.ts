@@ -10,6 +10,12 @@ export class Input {
   wheel = 0;
   locked = false;
   onLockChange: (locked: boolean) => void = () => {};
+  /** Esc or P while playing. */
+  onPauseKey: () => void = () => {};
+  /** A click on the game while the mouse is not captured: re-capture instead of firing. */
+  onClickUnlocked: () => void = () => {};
+  /** True while the game is in play (set by Game); decides whether clicks capture the mouse. */
+  playing = false;
 
   constructor(private el: HTMLElement) {
     addEventListener('keydown', (e) => {
@@ -17,6 +23,7 @@ export class Input {
       this.down.add(e.code);
       this.pressed.add(e.code);
       if (e.code === 'Space' || e.code === 'Tab') e.preventDefault();
+      if (e.code === 'Escape' || e.code === 'KeyP') this.onPauseKey();
     });
     addEventListener('keyup', (e) => this.down.delete(e.code));
     addEventListener('blur', () => {
@@ -24,6 +31,10 @@ export class Input {
       this.left = this.right = false;
     });
     el.addEventListener('mousedown', (e) => {
+      if (this.playing && !this.locked) {
+        this.onClickUnlocked();
+        return;
+      }
       if (e.button === 0) {
         this.left = true;
         this.leftPressed = true;

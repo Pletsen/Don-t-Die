@@ -35,12 +35,19 @@ const RULES: Rule[] = [
   { species: 'hare', from: 1, base: 5, every: 99, max: 5 },
   { species: 'fasan', from: 1, base: 4, every: 99, max: 4 },
   { species: 'raadyr', from: 1, base: 4, every: 99, max: 4 },
-  { species: 'raev', from: 3, base: 1, every: 6, max: 4 },
-  { species: 'vildsvin', from: 5, base: 1, every: 5, max: 5 },
+  { species: 'raev', from: 2, base: 1, every: 6, max: 4 },
+  { species: 'vildsvin', from: 4, base: 1, every: 5, max: 5 },
   { species: 'elg', from: 8, base: 1, every: 8, max: 3 },
   { species: 'kronhjort', from: 11, base: 1, every: 7, max: 3 },
-  { species: 'ulv', from: 13, base: 1, every: 4, max: 5 },
-  { species: 'bjorn', from: 20, base: 1, every: 5, max: 3 },
+  { species: 'ulv', from: 11, base: 1, every: 4, max: 4 },
+  { species: 'bjorn', from: 21, base: 1, every: 5, max: 2 },
+];
+
+/** Wind direction per level in degrees: 0 = headwind (scent blows back to the start), ±90 = crosswind, 180 = tailwind. */
+const WIND_PLAN = [
+  0, 20, -40, 60, -70, 90, // 1-6: head or cross
+  -90, 180, 70, -110, 40, -60, 150, 90, -80, // 7-15: mostly cross, one tailwind lesson (8) and a hard one (13)
+  165, -30, 120, -150, 180, 45, -135, 100, 170, -100, 140, -170, 60, 175, 10, // 16-30: mixed, tailwind on hard levels
 ];
 
 function generate(n: number): LevelDef {
@@ -50,9 +57,10 @@ function generate(n: number): LevelDef {
     if (n < r.from) continue;
     animals[r.species] = Math.min(r.max, r.base + Math.floor((n - r.from) / r.every));
   }
-  // pseudo random but stable wind per level
-  const a = Math.sin(n * 12.9898) * 43758.5453;
-  const frac = a - Math.floor(a);
+  // Authored wind (QA review): the route runs towards -z, so a wind blowing towards +z (angle 0) carries your scent
+  // back where you came from. Early levels teach with headwind/crosswind; tailwind (angle π) is saved for hard levels.
+  const rel = WIND_PLAN[n - 1];
+  const windAngle = (rel * Math.PI) / 180;
   return {
     n,
     seed: 1000 + n * 7919,
@@ -60,10 +68,10 @@ function generate(n: number): LevelDef {
     width: 72,
     tod: Math.pow(t, 0.85),
     treeDensity: 0.016 + 0.014 * t,
-    windAngle: frac * Math.PI * 2,
+    windAngle,
     windStrength: 0.65 + ((n * 37) % 10) * 0.07,
     animals,
-    whiteDeer: n % 4 === 3,
+    whiteDeer: n >= 3 && n % 3 === 0,
   };
 }
 

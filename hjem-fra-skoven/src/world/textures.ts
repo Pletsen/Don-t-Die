@@ -174,3 +174,154 @@ export function grainTexture(seed: number, contrast = 0.35): THREE.CanvasTexture
   g.putImageData(img, 0, 0);
   return tex(c, 2, 2);
 }
+
+/**
+ * Leaf atlas for the crown cards: left half a broadleaf cluster, right half a needle spray. Grey values, tinted
+ * by the per-tree instance colour. Alpha-cut.
+ */
+export function leafAtlas(): THREE.CanvasTexture {
+  const rng = new Rng(41);
+  const [c, g] = canvas(256, 128);
+  // broadleaf cluster: overlapping ellipses with a midrib
+  for (let i = 0; i < 90; i++) {
+    const a = rng.range(0, Math.PI * 2);
+    const r = Math.sqrt(rng.next()) * 50;
+    const x = 64 + Math.cos(a) * r;
+    const y = 64 + Math.sin(a) * r;
+    const v = Math.floor(rng.range(120, 235));
+    g.save();
+    g.translate(x, y);
+    g.rotate(a + rng.range(-0.8, 0.8));
+    g.fillStyle = `rgb(${v},${v},${Math.floor(v * 0.92)})`;
+    g.beginPath();
+    g.ellipse(0, 0, rng.range(6, 10), rng.range(3.2, 5), 0, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = `rgba(40,40,30,0.35)`;
+    g.lineWidth = 0.8;
+    g.beginPath();
+    g.moveTo(-8, 0);
+    g.lineTo(8, 0);
+    g.stroke();
+    g.restore();
+  }
+  // needle spray: a twig with many thin needles, fanning out and drooping
+  g.save();
+  g.translate(128, 0);
+  for (let b = 0; b < 5; b++) {
+    const x0 = 64 + rng.range(-10, 10);
+    const ang = -Math.PI / 2 + (b - 2) * 0.32;
+    const len = rng.range(70, 110);
+    for (let k = 0; k < 46; k++) {
+      const t = k / 46;
+      const px = x0 + Math.cos(ang) * len * t;
+      const py = 124 + Math.sin(ang) * len * t;
+      const v = Math.floor(rng.range(90, 200));
+      g.strokeStyle = `rgb(${v},${v},${Math.floor(v * 0.9)})`;
+      g.lineWidth = 1.6;
+      for (const s of [-1, 1]) {
+        const na = ang + s * rng.range(0.6, 1.1);
+        const nl = (1 - t * 0.6) * rng.range(10, 18);
+        g.beginPath();
+        g.moveTo(px, py);
+        g.lineTo(px + Math.cos(na) * nl, py + Math.sin(na) * nl);
+        g.stroke();
+      }
+    }
+  }
+  g.restore();
+  const t = tex(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return t;
+}
+
+const cache = new Map<string, THREE.Texture>();
+
+/** Soft round dot (white, alpha falloff) for particles, glints and smoke. Shared and cached. */
+export function softDot(hard = 0.0): THREE.Texture {
+  const key = 'dot' + hard;
+  let t = cache.get(key);
+  if (t) return t;
+  const [c, g] = canvas(64, 64);
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(Math.max(0.05, hard), 'rgba(255,255,255,0.85)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  t = new THREE.CanvasTexture(c);
+  cache.set(key, t);
+  return t;
+}
+
+/** Soft puffy smoke blob (noisy, alpha). Shared and cached. */
+export function smokeTexture(): THREE.Texture {
+  let t = cache.get('smoke');
+  if (t) return t;
+  const rng = new Rng(8);
+  const [c, g] = canvas(64, 64);
+  for (let i = 0; i < 26; i++) {
+    const x = 32 + rng.range(-12, 12);
+    const y = 32 + rng.range(-12, 12);
+    const r = rng.range(8, 18);
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,0.22)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 64, 64);
+  }
+  t = new THREE.CanvasTexture(c);
+  cache.set('smoke', t);
+  return t;
+}
+
+/** Four-point star glint for loot. Shared and cached. */
+export function glintTexture(): THREE.Texture {
+  let t = cache.get('glint');
+  if (t) return t;
+  const [c, g] = canvas(64, 64);
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 10);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 64, 64);
+  for (const [dx, dy] of [[1, 0], [0, 1]]) {
+    const lg = g.createLinearGradient(32 - dx * 32, 32 - dy * 32, 32 + dx * 32, 32 + dy * 32);
+    lg.addColorStop(0, 'rgba(255,255,255,0)');
+    lg.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+    lg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = lg;
+    if (dx) g.fillRect(0, 31, 64, 2);
+    else g.fillRect(31, 0, 2, 64);
+  }
+  t = new THREE.CanvasTexture(c);
+  cache.set('glint', t);
+  return t;
+}
+
+/** Raw meat: dark red with pale fat streaks. Shared and cached. */
+export function meatTexture(): THREE.Texture {
+  let t = cache.get('meat');
+  if (t) return t;
+  const rng = new Rng(13);
+  const [c, g] = canvas(64, 64);
+  g.fillStyle = '#7a1e18';
+  g.fillRect(0, 0, 64, 64);
+  for (let i = 0; i < 14; i++) {
+    g.strokeStyle = `rgba(235,215,190,${rng.range(0.25, 0.6)})`;
+    g.lineWidth = rng.range(0.6, 2);
+    g.beginPath();
+    let x = rng.range(0, 64);
+    let y = rng.range(0, 64);
+    g.moveTo(x, y);
+    for (let k = 0; k < 4; k++) {
+      x += rng.range(-14, 14);
+      y += rng.range(-6, 6);
+      g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  const tx = new THREE.CanvasTexture(c);
+  tx.colorSpace = THREE.SRGBColorSpace;
+  cache.set('meat', tx);
+  return tx;
+}

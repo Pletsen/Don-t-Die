@@ -1,45 +1,60 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { PLAYER } from '../data/balance';
+import { DIFFICULTY } from '../data/difficulty';
 import { getLevel, LEVEL_COUNT, type LevelDef } from '../data/levels';
 import { UPGRADES, type UpgradeId } from '../data/upgrades';
 import { effective, FAMILIES, MAX_UPGRADE, upgradeCost, weaponById, WEAPONS, type Effective, type Track, type WeaponDef } from '../data/weapons';
 import { Animal, type AnimalContext } from '../animals/Animal';
 import { spawnAnimals } from '../animals/spawner';
-import { Sound } from '../audio/Sound';
+import { Audio } from '../audio/Audio';
+import { AudioDirector } from '../audio/AudioDirector';
 import { CameraRig } from '../player/CameraRig';
+import { buildHeldModel } from '../player/Held';
 import { Player, type PlayerStats } from '../player/Player';
 import { Hud } from '../ui/Hud';
 import { canAfford, Screens, type RunSummary } from '../ui/Screens';
 import { Projectiles } from '../weapons/Projectiles';
 import { Traps } from '../weapons/Traps';
 import { Drift, Fireflies } from '../world/Drift';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { Wind } from '../world/Wind';
 import { World } from '../world/World';
 import { Bursts } from './Burst';
-import { buildHeldModel } from '../player/Held';
 import { Drops, DROP_LABEL } from './Drops';
 import { Input } from './Input';
-import { qualityProfile } from './settings';
 import { freshSave, loadSave, writeSave, type Save } from './save';
+import { qualityProfile, settings } from './settings';
 
 const MIN_POWER = 0.12; // a tap on the button
+const HOSTILE = new Set(['chase', 'windup', 'strike', 'recover']);
 
-type State = 'menu' | 'hub' | 'playing' | 'paused' | 'dead';
+type State = 'menu' | 'hub' | 'playing' | 'paused' | 'dead' | 'arriving' | 'ending';
+
+/** Help texts shown once each, the first time the situation comes up (stored in save.seenHelp). */
+const HELP: Record<string, string> = {
+  draw: 'Hold venstre museknap nede for at spænde buen. Slip for at skyde. Jo længere du spænder, jo hårdere og mere præcist.',
+  wind: 'Et dyr har fået færten af dig. Se vindkompasset: driver din fært hen mod dyrene, lugter de dig langt væk.',
+  pickup: 'Tryk E for at samle kød, skærv og pile op.',
+  eat: 'Du er såret. Tryk E for at spise et stykke kød.',
+  roll: 'Et rovdyr jagter dig! Tryk Ctrl (eller C) for at rulle væk, når det springer.',
+  cave: 'Hulen er lige foran. Gå ind for at komme i sikkerhed.',
+  jump: 'Mellemrum hopper over sten og væltede stammer.',
+};
 
 export class Game {
   readonly renderer: THREE.WebGLRenderer;
   readonly camera = new THREE.PerspectiveCamera(68, 1, 0.1, 600);
   readonly rig = new CameraRig(this.camera);
   readonly input: Input;
-  readonly sound = new Sound();
+  readonly audio = new Audio();
+  readonly director = new AudioDirector(this.audio);
   readonly hud: Hud;
   readonly screens: Screens;
-  save: Save = loadSave();
+  save: Save;
   state: State = 'menu';
 
   scene!: THREE.Scene;
@@ -54,65 +69,97 @@ export class Game {
   drops!: Drops;
   drift!: Drift;
   fireflies?: Fireflies;
+  bursts!: Bursts;
+
   private composer!: EffectComposer;
   private renderPass!: RenderPass;
   private gradePass!: ShaderPass;
-  bursts!: Bursts;
-
+  private builtLevel = 0;
   private time = 0;
   private last = performance.now();
   private lastRun: RunSummary | null = null;
+  private stats: PlayerStats = { maxHealth: 100, maxStamina: 100, scentMul: 1 };
   private deathTimer = 0;
-  private completed = false;
-  private stats!: PlayerStats;
+  private arriveT = 0;
+  private hitStop = 0;
+  /** Physics/animation run at this speed (slow motion on big moments). */
+  private timeScale = 1;
+  private slowT = 0;
+  private ghost?: THREE.Mesh;
+  private delayed: { t: number; fn: () => void }[] = [];
+  private run = { hunted: false, whiteDeer: false, kills: 0 };
+  private helpShown = new Set<string>();
+  /** The browser must hand us the mouse to play; tests (webdriver) have no pointer lock. */
+  private readonly requireLock = !navigator.webdriver;
+  private v1 = new THREE.Vector3();
 
   constructor(root: HTMLElement, ui: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualityProfile().pixelRatioMax));
+    this.save = loadSave();
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     root.appendChild(this.renderer.domElement);
-    this.setupPost();
     this.input = new Input(this.renderer.domElement);
     this.hud = new Hud(ui);
-    this.screens = new Screens(ui);
+    this.screens = new Screens(ui, () => this.audio.play('ui_click'));
+    this.setupPost();
     addEventListener('resize', () => this.resize());
     this.resize();
 
     this.input.onLockChange = (locked) => {
-      if (!locked && this.state === 'playing') this.pause();
-      else if (locked && this.state === 'paused') {
-        this.state = 'playing';
-        this.screens.hide();
-        this.hud.show(true);
-      }
+      if (!locked && this.state === 'playing' && this.requireLock) this.pause();
+      this.hud.setUnlocked(this.state === 'playing' && !locked && this.requireLock);
     };
+    this.input.onPauseKey = () => {
+      if (this.state === 'playing') this.pause();
+      else if (this.state === 'paused') this.resume();
+    };
+    this.input.onClickUnlocked = () => this.input.requestLock();
 
-    this.buildLevel(this.save.level);
+    try {
+      this.buildLevel(this.save.selected);
+    } catch (err) {
+      // a broken save must never brick the game
+      console.error(err);
+      this.save = freshSave();
+      writeSave(this.save);
+      this.buildLevel(1);
+    }
     this.showMenu();
     requestAnimationFrame(() => this.loop());
   }
 
-  // ---------- flow ----------
+  // ======================================================================
+  // rendering setup
+  // ======================================================================
 
-  /** Bloom, a colour grade with vignette, then tone mapping. Rendered in half-float with 4x MSAA. */
+  /** Bloom (per quality), a colour grade with vignette, then tone mapping. */
   private setupPost() {
+    const q = qualityProfile();
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, q.pixelRatioMax));
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: qualityProfile().msaa });
+    this.composer?.dispose();
+    const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: q.msaa });
     this.composer = new EffectComposer(this.renderer, target);
-    this.renderPass = new RenderPass(new THREE.Scene(), this.camera);
+    this.renderPass = new RenderPass(this.scene ?? new THREE.Scene(), this.camera);
     this.composer.addPass(this.renderPass);
-    if (qualityProfile().bloom) this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.65, 0.88));
+    if (q.bloom) this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.3, 0.6, 0.9));
     this.gradePass = new ShaderPass({
-      uniforms: { tDiffuse: { value: null }, vig: { value: 0.4 }, tint: { value: new THREE.Vector3(1, 1, 1) }, sat: { value: 1.1 } },
+      uniforms: {
+        tDiffuse: { value: null },
+        vig: { value: 0.4 },
+        tint: { value: new THREE.Vector3(1, 1, 1) },
+        sat: { value: 1.08 },
+        hurt: { value: 0 },
+      },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float vig; uniform vec3 tint; uniform float sat; varying vec2 vUv;
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float vig; uniform vec3 tint; uniform float sat; uniform float hurt; varying vec2 vUv;
         void main(){
           vec3 c = texture2D(tDiffuse, vUv).rgb;
           float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
-          c = mix(vec3(l), c, sat) * tint;
+          c = mix(vec3(l), c, sat * (1.0 - 0.6 * hurt)) * tint;
           float d = distance(vUv, vec2(0.5));
           c *= 1.0 - vig * smoothstep(0.32, 0.9, d);
           gl_FragColor = vec4(c, 1.0);
@@ -120,19 +167,138 @@ export class Game {
     });
     this.composer.addPass(this.gradePass);
     this.composer.addPass(new OutputPass());
+    this.composer.setSize(w, h);
+    if (this.level) this.applyGrade();
   }
+
+  private applyGrade() {
+    const tod = this.level.tod;
+    const g = (this.world as unknown as { grade?: { tint?: THREE.Vector3; sat?: number; vignette?: number } }).grade;
+    if (g?.tint) this.gradePass.uniforms.tint.value.copy(g.tint);
+    else this.gradePass.uniforms.tint.value.set(1.05 - tod * 0.12, 1.0 - tod * 0.02, 0.95 + tod * 0.12);
+    this.gradePass.uniforms.sat.value = g?.sat ?? 1.08 - tod * 0.1;
+    this.gradePass.uniforms.vig.value = g?.vignette ?? 0.36 + tod * 0.16;
+  }
+
+  private resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.renderer.setSize(w, h);
+    this.composer?.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  // ======================================================================
+  // level building and teardown
+  // ======================================================================
+
+  /** Frees everything the old level put on the GPU (geometries, materials, textures). */
+  private disposeScene() {
+    if (!this.scene) return;
+    const seen = new Set<object>();
+    const free = (o: { dispose?: () => void } | null | undefined) => {
+      if (!o || seen.has(o)) return;
+      seen.add(o);
+      o.dispose?.();
+    };
+    this.scene.traverse((obj) => {
+      const m = obj as THREE.Mesh;
+      if (m.geometry) free(m.geometry);
+      const mats = m.material ? (Array.isArray(m.material) ? m.material : [m.material]) : [];
+      for (const mat of mats) {
+        for (const v of Object.values(mat as unknown as Record<string, unknown>)) if (v instanceof THREE.Texture) free(v);
+        free(mat);
+      }
+    });
+    this.world?.dispose();
+    this.renderer.renderLists.dispose();
+  }
+
+  /** Builds the world for a level. Also used as a slowly turning backdrop for the menus. */
+  private buildLevel(n: number) {
+    this.disposeScene();
+    this.level = getLevel(n);
+    this.builtLevel = n;
+    this.scene = new THREE.Scene();
+    this.ghost = undefined;
+    this.delayed = [];
+    this.world = new World(this.scene, this.level, this.renderer);
+    this.renderPass.scene = this.scene;
+    this.applyGrade();
+    const view = (this.world as unknown as { viewDistance?: number }).viewDistance;
+    this.camera.far = view ? Math.max(80, view) : 600;
+    this.camera.updateProjectionMatrix();
+    this.wind = new Wind(this.level.windAngle, this.level.windStrength);
+    this.projectiles = new Projectiles(this.scene, this.world);
+    this.projectiles.onHit = (e) => this.onAnimalHit(e.animal, e.killed, e.point);
+    this.traps = new Traps(this.scene, this.world);
+    this.traps.onTrigger = (a) => {
+      this.audio.play(a.def.radius > 1 ? 'beartrap_clamp' : 'snare_snap', { pos: a.pos });
+      this.hud.toast('Fælden klaprede!', 1400);
+    };
+    this.drops = new Drops(this.scene, this.world);
+    this.bursts = new Bursts(this.scene);
+    this.drift = new Drift(this.world.night > 0.5 ? 0x9fb4d8 : 0xd9c58a);
+    this.scene.add(this.drift.points);
+    this.fireflies = this.level.tod > 0.4 ? new Fireflies() : undefined;
+    if (this.fireflies) this.scene.add(this.fireflies.points);
+    this.animals = spawnAnimals(this.level, this.world);
+    for (const a of this.animals) {
+      this.scene.add(a.group);
+      a.onDeath = (an) => this.onKilled(an);
+    }
+    this.renderer.toneMappingExposure = this.world.light.exposure;
+    // placeholder player so the menu backdrop has something to follow
+    this.player = new Player({ maxHealth: 100, maxStamina: 100, scentMul: 1 }, 0);
+    this.player.pos.copy(this.world.spawn);
+    this.player.dead = true;
+  }
+
+  /**
+   * Compiles the shaders of everything that can appear mid-fight (loot, particles, thrown weapons, traps, held weapons)
+   * while the level loads. Otherwise the first kill or first throw would freeze for a moment.
+   */
+  private warmup() {
+    const warm = new THREE.Scene();
+    const at = this.world.spawn;
+    const drops = new Drops(warm, this.world);
+    for (const k of ['meat', 'shards', 'trophies'] as const) drops.spawn(k, 1, at);
+    new Bursts(warm).emit(at, 0xffffff);
+    const proj = new Projectiles(warm, this.world);
+    for (const look of ['arrow', 'knife', 'axe', 'spear', 'stone'] as const) {
+      proj.fire(at, new THREE.Vector3(0, 1, 0), { weaponId: 'x', look, speed: 1, gravity: 0, damage: 0, retrievable: false, spin: false });
+    }
+    const traps = new Traps(warm, this.world);
+    traps.placeTrap(at, { weaponId: 'x', type: 'snare', radius: 1, damage: 0, root: 0 });
+    traps.placeTrap(at, { weaponId: 'x', type: 'bear', radius: 1, damage: 0, root: 0 });
+    traps.placeBait(at, { weaponId: 'x', life: 1, lure: 1 });
+    traps.placeBait(at, { weaponId: 'x', life: 1, lure: 1, poison: { dps: 1, time: 1 } });
+    for (const w of WEAPONS) if (this.save.owned[w.id]) warm.add(buildHeldModel(w).group);
+    this.renderer.compile(warm, this.camera, this.scene);
+  }
+
+  // ======================================================================
+  // flow: menu, hub, level, pause, death, arrival, ending
+  // ======================================================================
 
   private showMenu() {
     this.state = 'menu';
+    this.input.playing = false;
     this.hud.show(false);
-    this.buildLevel(this.save.level);
+    this.hud.setUnlocked(false);
+    if (this.builtLevel !== this.save.selected) this.buildLevel(this.save.selected);
+    this.director.menu(this.level.tod);
     this.screens.menu(this.save, {
       play: () => {
-        this.sound.init();
+        this.audio.init();
         this.showHub();
       },
+      settings: () => this.openSettings(() => this.showMenu()),
       reset: () => {
+        const keep = { ...settings };
         this.save = freshSave();
+        this.save.settings = keep;
         writeSave(this.save);
         this.lastRun = null;
         this.showMenu();
@@ -142,44 +308,61 @@ export class Game {
 
   private showHub() {
     this.state = 'hub';
+    this.input.playing = false;
     this.hud.show(false);
-    this.buildLevel(this.save.level);
+    this.hud.setUnlocked(false);
+    this.save.selected = Math.max(1, Math.min(this.save.selected || this.save.level, this.save.level));
+    if (this.builtLevel !== this.save.selected) {
+      this.screens.loading('Hulen…');
+      this.buildLevel(this.save.selected);
+    }
+    this.director.menu(this.level.tod);
+    this.refreshHub();
+  }
+
+  /** Re-renders the hub screen only (buying something must not rebuild the forest). */
+  private refreshHub() {
     this.screens.hub(this.save, this.lastRun, {
-      go: () => this.startLevel(this.save.level),
+      go: () => this.startLevel(this.save.selected),
+      select: (n) => {
+        this.save.selected = n;
+        writeSave(this.save);
+        this.refreshHub();
+      },
       buy: (id) => {
         this.buy(id);
-        this.showHub();
+        this.refreshHub();
       },
       buyWeapon: (id) => {
         this.buyWeapon(id);
-        this.showHub();
+        this.refreshHub();
       },
       upgradeWeapon: (id, track) => {
         this.upgradeWeapon(id, track);
-        this.showHub();
+        this.refreshHub();
       },
+      settings: () => this.openSettings(() => this.refreshHub()),
+      menu: () => this.showMenu(),
     });
   }
 
-  private buy(id: UpgradeId) {
-    const def = UPGRADES.find((u) => u.id === id)!;
-    const lvl = this.save.upgrades[id];
-    const cost = def.costs[lvl];
-    if (!cost || !canAfford(this.save.bank, cost)) return;
-    this.save.bank.meat -= cost.meat ?? 0;
-    this.save.bank.shards -= cost.shards ?? 0;
-    this.save.bank.trophies -= cost.trophies ?? 0;
-    this.save.upgrades[id] = lvl + 1;
-    writeSave(this.save);
-    this.sound.pickup();
+  private openSettings(back: () => void) {
+    const before = settings.quality;
+    this.screens.settings(() => {
+      writeSave(this.save);
+      if (before !== settings.quality) this.setupPost();
+      back();
+    });
   }
 
   startLevel(n: number) {
-    this.sound.init();
+    this.audio.init();
+    this.screens.loading(`Bane ${n}…`);
     this.buildLevel(n);
     const u = this.save.upgrades;
+    const diff = DIFFICULTY[settings.difficulty];
     this.stats = {
-      maxHealth: PLAYER.maxHealth + 15 * u.health,
+      maxHealth: Math.round((PLAYER.maxHealth + 15 * u.health) * diff.playerHealth),
       maxStamina: PLAYER.maxStamina + 15 * u.stamina,
       scentMul: 1 - 0.08 * u.wind,
     };
@@ -187,124 +370,191 @@ export class Game {
     this.eff = {};
     for (const w of WEAPONS) {
       this.eff[w.id] = effective(w, this.save.weaponLv[w.id]);
-      if (this.save.owned[w.id] && w.ammo > 0) this.player.ammo[w.id] = Math.round(this.eff[w.id].ammo);
+      if (this.save.owned[w.id] && w.ammo > 0) this.player.ammo[w.id] = Math.round(this.eff[w.id].ammo * diff.ammo);
     }
     this.player.weaponId = 'jagtbue';
     this.player.pos.copy(this.world.spawn);
-    this.player.onRoll = () => this.sound.roll();
-    this.player.onJump = () => this.sound.jump();
-    this.player.onLand = () => this.sound.land();
+    this.player.onRoll = () => this.audio.play('roll');
+    this.player.onJump = () => {
+      this.audio.play('jump');
+      this.tip('jump', false);
+    };
+    this.player.onLand = () => this.audio.play('land');
     this.player.onHurt = () => {
-      this.sound.hurt();
-      this.rig.kick(0.25);
+      this.audio.play('hurt');
+      this.audio.duck(0.35, 0.8);
+      this.hitStop = Math.max(this.hitStop, 0.06);
     };
     this.scene.add(this.player.group);
     this.rig.heading = Math.PI;
     this.rig.pitch = 0.08;
-    this.completed = false;
+    this.run = { hunted: false, whiteDeer: false, kills: 0 };
+    this.helpShown.clear();
+    this.hitStop = 0;
+    this.timeScale = 1;
     this.state = 'playing';
+    this.input.playing = true;
     this.screens.hide();
     this.hud.show(true);
     this.warmup();
-    this.hud.toast(`Bane ${n}. Hold vinden i ansigtet.`, 3200);
+    this.director.startLevel(this.level.tod, this.world.caveEntrance, this.level.n % 10 === 0);
+    this.hud.toast(`Bane ${n} · ${this.windText()}`, 3500);
+    if (n === 1) setTimeout(() => this.tip('draw'), 3800);
     this.input.requestLock();
-  }
-
-  /** Builds the world for a level. Also used as a slowly turning backdrop for the menus. */
-  private buildLevel(n: number) {
-    if (this.world) this.world.dispose();
-    this.level = getLevel(n);
-    this.scene = new THREE.Scene();
-    this.ghost = undefined;
-    this.delayed = [];
-    this.world = new World(this.scene, this.level, this.renderer);
-    this.renderPass.scene = this.scene;
-    const tod = this.level.tod;
-    this.gradePass.uniforms.tint.value.set(1.05 - tod * 0.14, 1.0 - tod * 0.01, 0.95 + tod * 0.14);
-    this.gradePass.uniforms.vig.value = 0.38 + tod * 0.15;
-    this.wind = new Wind(this.level.windAngle, this.level.windStrength);
-    this.projectiles = new Projectiles(this.scene, this.world);
-    this.projectiles.onHit = (e) => this.onHit(e.killed, e.point);
-    this.traps = new Traps(this.scene, this.world);
-    this.traps.onTrigger = () => {
-      this.sound.hit();
-      this.hud.toast('Fælden klaprede!', 1400);
-    };
-    this.drops = new Drops(this.scene, this.world);
-    this.bursts = new Bursts(this.scene);
-    this.drift = new Drift(this.world.night > 0.5 ? 0x9fb4d8 : 0xd9c58a);
-    this.scene.add(this.drift.points);
-    this.fireflies = this.world.night > 0.15 || this.level.tod > 0.4 ? new Fireflies() : undefined;
-    if (this.fireflies) this.scene.add(this.fireflies.points);
-    this.animals = spawnAnimals(this.level, this.world);
-    for (const a of this.animals) {
-      this.scene.add(a.group);
-      a.onDeath = (an) => this.onKilled(an);
-    }
-    this.renderer.toneMappingExposure = this.world.light.exposure;
-    // placeholder player so the menu backdrop has something to follow
-    this.player = new Player(
-      { maxHealth: 100, maxStamina: 100, scentMul: 1 },
-      0,
-    );
-    this.player.pos.copy(this.world.spawn);
-    this.player.dead = true;
+    this.hud.setUnlocked(this.requireLock && !this.input.locked);
   }
 
   private pause() {
+    if (this.state !== 'playing') return;
     this.state = 'paused';
+    this.input.playing = false;
+    this.player.drawing = false;
+    this.audio.stopLoop('sling');
     this.hud.show(false);
+    this.hud.setUnlocked(false);
+    document.exitPointerLock?.();
     this.screens.pause({
-      resume: () => {
-        this.input.requestLock();
-        // if the browser refuses the lock we still let the player carry on
-        setTimeout(() => {
-          if (this.state === 'paused') {
-            this.state = 'playing';
-            this.screens.hide();
-            this.hud.show(true);
-          }
-        }, 400);
-      },
-      menu: () => {
-        this.showMenu();
-      },
+      resume: () => this.resume(),
+      settings: () => this.openSettings(() => this.pauseScreenAgain()),
+      hub: () => this.showHub(),
+      menu: () => this.showMenu(),
     });
+  }
+
+  private pauseScreenAgain() {
+    this.state = 'playing';
+    this.pause();
+  }
+
+  /** Back to the game. If the browser refuses the mouse right now, a "click to continue" overlay waits for a click. */
+  private resume() {
+    this.state = 'playing';
+    this.input.playing = true;
+    this.screens.hide();
+    this.hud.show(true);
+    this.input.requestLock();
+    this.hud.setUnlocked(this.requireLock && !this.input.locked);
   }
 
   private die() {
     this.state = 'dead';
-    this.deathTimer = 1.4;
-    this.sound.death();
+    this.input.playing = false;
+    this.deathTimer = 1.8;
+    this.timeScale = 0.4;
+    this.slowT = 1.2;
+    this.audio.play('death');
+    this.audio.play('death_sting');
+    this.audio.duck(0.7, 2.5);
+    this.audio.stopLoop('sling');
+    this.save.stats.deaths++;
+    // on easy you keep part of what you carried
+    const keep = DIFFICULTY[settings.difficulty].keepCarried;
+    if (keep > 0) {
+      const c = this.player.carried;
+      this.save.bank.shards += Math.floor(c.shards * keep);
+      this.save.bank.meat += Math.floor(Math.max(0, c.meat - this.player.startMeat) * keep);
+    }
+    writeSave(this.save);
     document.exitPointerLock?.();
+    this.hud.setUnlocked(false);
+  }
+
+  /** Reached the cave: a short walk into the light before the hub. */
+  private arrive() {
+    this.state = 'arriving';
+    this.input.playing = false;
+    this.arriveT = 0;
+    this.player.drawing = false;
+    this.audio.play('level_complete');
+    document.exitPointerLock?.();
+    this.hud.setUnlocked(false);
+    this.hud.show(false);
   }
 
   private complete() {
-    this.completed = true;
+    const n = this.level.n;
     const c = this.player.carried;
+    const stat = (this.save.levels[n] ??= { cleared: false, plays: 0, marks: { home: false, unseen: false, whiteDeer: false } });
+    const firstClear = !stat.cleared;
+    // replays pay fewer shards each time, so going back is worth it but not farmable (QA review 2.6)
+    const replayMul = firstClear ? 1 : Math.max(0.25, 0.7 - 0.15 * Math.max(0, stat.plays - 1));
+    const shards = Math.round(c.shards * replayMul * DIFFICULTY[settings.difficulty].shardMul) + (firstClear ? 5 * Math.ceil(n / 5) : 0);
     const meatGain = Math.max(0, c.meat - this.player.startMeat);
     const bank = this.save.bank;
     bank.meat = Math.max(0, bank.meat + (c.meat - this.player.startMeat));
-    bank.shards += c.shards;
+    bank.shards += shards;
     bank.trophies += c.trophies;
-    this.lastRun = { level: this.level.n, meat: meatGain, shards: c.shards, trophies: c.trophies };
-    this.save.level = Math.min(LEVEL_COUNT, Math.max(this.save.level, this.level.n + 1));
-    writeSave(this.save);
-    this.sound.complete();
-    document.exitPointerLock?.();
-    this.hud.show(false);
-    if (this.level.n >= LEVEL_COUNT) {
-      this.state = 'menu';
-      this.screens.ending({ menu: () => this.showHub() });
-    } else {
-      setTimeout(() => this.showHub(), 600);
-      this.state = 'menu';
+    stat.cleared = true;
+    stat.plays++;
+    const newMarks: string[] = [];
+    stat.marks.home = true;
+    if (!this.run.hunted && !stat.marks.unseen) {
+      stat.marks.unseen = true;
+      newMarks.push('Uset');
     }
+    if (this.run.whiteDeer && !stat.marks.whiteDeer) {
+      stat.marks.whiteDeer = true;
+      newMarks.push('Hvid hjort');
+    }
+    this.lastRun = { level: n, meat: meatGain, shards, trophies: c.trophies, firstClear, replayMul, marks: newMarks };
+    this.save.level = Math.min(LEVEL_COUNT, Math.max(this.save.level, n + 1));
+    this.save.selected = Math.min(this.save.level, n >= LEVEL_COUNT ? n : n + 1);
+    if (n >= LEVEL_COUNT && !this.save.finished) {
+      this.save.finished = true;
+      writeSave(this.save);
+      this.state = 'ending';
+      this.screens.ending(this.save, { hub: () => this.showHub() });
+      return;
+    }
+    writeSave(this.save);
+    this.showHub();
   }
 
-  // ---------- gameplay ----------
+  // ======================================================================
+  // shop
+  // ======================================================================
 
-  // ---------- weapons ----------
+  private buy(id: UpgradeId) {
+    const def = UPGRADES.find((u) => u.id === id)!;
+    const lvl = this.save.upgrades[id];
+    const cost = def.costs[lvl];
+    if (!cost || !canAfford(this.save.bank, cost)) return void this.audio.play('ui_error');
+    this.spend(cost);
+    this.save.upgrades[id] = lvl + 1;
+    writeSave(this.save);
+    this.audio.play('ui_buy');
+  }
+
+  private buyWeapon(id: string) {
+    const w = weaponById(id);
+    if (this.save.owned[id] || !canAfford(this.save.bank, w.price)) return void this.audio.play('ui_error');
+    this.spend(w.price);
+    this.save.owned[id] = true;
+    writeSave(this.save);
+    this.audio.play('ui_buy');
+  }
+
+  private upgradeWeapon(id: string, track: Track) {
+    const w = weaponById(id);
+    const lv = this.save.weaponLv[id];
+    if (!this.save.owned[id] || lv[track] >= MAX_UPGRADE) return;
+    const cost = upgradeCost(w, track, lv[track]);
+    if (!canAfford(this.save.bank, cost)) return void this.audio.play('ui_error');
+    this.spend(cost);
+    lv[track]++;
+    writeSave(this.save);
+    this.audio.play('ui_buy');
+  }
+
+  private spend(c: { meat?: number; shards?: number; trophies?: number }) {
+    this.save.bank.meat -= c.meat ?? 0;
+    this.save.bank.shards -= c.shards ?? 0;
+    this.save.bank.trophies -= c.trophies ?? 0;
+  }
+
+  // ======================================================================
+  // weapons
+  // ======================================================================
 
   private ownedWeapons(): WeaponDef[] {
     return WEAPONS.filter((w) => this.save.owned[w.id]);
@@ -332,62 +582,18 @@ export class Game {
     this.player.drawing = false;
     this.player.drawP = 0;
     this.player.shotCooldown = Math.max(this.player.shotCooldown, 0.25);
+    this.audio.play('weapon_switch');
+    this.audio.stopLoop('sling');
     this.hud.toast(weaponById(id).name, 900);
   }
 
-  /** Seconds before delayed effects (like a spear hit landing mid-thrust) happen. */
-  private ghost?: THREE.Mesh;
-
-  /**
-   * Compiles the shaders of everything that can appear mid-fight (loot glow, particles, thrown weapons,
-   * traps, held weapons) while the level loads. Otherwise the first kill or first throw would freeze for a moment.
-   */
-  private warmup() {
-    const warm = new THREE.Scene();
-    const at = this.world.spawn;
-    const drops = new Drops(warm, this.world);
-    for (const k of ['meat', 'shards', 'trophies'] as const) drops.spawn(k, 1, at);
-    new Bursts(warm).emit(at, 0xffffff);
-    const proj = new Projectiles(warm, this.world);
-    for (const look of ['arrow', 'knife', 'axe', 'spear', 'stone'] as const) {
-      proj.fire(at, new THREE.Vector3(0, 1, 0), { weaponId: 'x', look, speed: 1, gravity: 0, damage: 0, retrievable: false, spin: false });
-    }
-    const traps = new Traps(warm, this.world);
-    traps.placeTrap(at, { weaponId: 'x', type: 'snare', radius: 1, damage: 0, root: 0 });
-    traps.placeTrap(at, { weaponId: 'x', type: 'bear', radius: 1, damage: 0, root: 0 });
-    traps.placeBait(at, { weaponId: 'x', life: 1, lure: 1 });
-    traps.placeBait(at, { weaponId: 'x', life: 1, lure: 1, poison: { dps: 1, time: 1 } });
-    for (const w of WEAPONS) warm.add(buildHeldModel(w).group);
-    this.renderer.compile(warm, this.camera, this.scene);
+  private ammoName(w: WeaponDef): string {
+    return w.ammoName ?? w.name.toLowerCase();
   }
-
-  /** A ring on the ground shows where a trap or bait will land while you hold the button. */
-  private updateGhost() {
-    const p = this.player;
-    const w = weaponById(p.weaponId);
-    const on = p.drawing && (w.kind === 'trap' || w.kind === 'bait');
-    if (!this.ghost) {
-      this.ghost = new THREE.Mesh(
-        new THREE.RingGeometry(0.7, 0.85, 28).rotateX(-Math.PI / 2),
-        new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.7, depthWrite: false }),
-      );
-      this.ghost.visible = false;
-      this.scene.add(this.ghost);
-    }
-    this.ghost.visible = on;
-    if (on) {
-      const at = this.placeAt(w.kind === 'bait' ? 8 : 2.2);
-      this.ghost.position.set(at.x, this.world.height(at.x, at.z) + 0.08, at.z);
-      this.ghost.scale.setScalar(w.kind === 'bait' ? 1.4 : 1);
-    }
-  }
-
-  private delayed: { t: number; fn: () => void }[] = [];
 
   /** 0..1 power of the current draw. A tap gives `MIN_POWER`, a full draw gives 1. */
   private power(): number {
-    const p = this.player;
-    return Math.max(MIN_POWER, p.drawP);
+    return Math.max(MIN_POWER, this.player.drawP);
   }
 
   /**
@@ -401,6 +607,7 @@ export class Game {
     const w = weaponById(p.weaponId);
     const e = this.eff[w.id];
     if (p.rolling) {
+      if (p.drawing) this.audio.stopLoop('sling');
       p.drawing = false;
       p.drawP = 0;
       return;
@@ -415,14 +622,16 @@ export class Game {
         if (!hasAmmo) {
           if (this.input.leftPressed) {
             p.shotCooldown = 0.4;
-            this.hud.toast(`Ingen ${w.name.toLowerCase()} tilbage. Find dem i skoven.`, 1500);
+            this.audio.play('ui_error');
+            this.hud.toast(`Ingen ${this.ammoName(w)} tilbage. Find dem i skoven.`, 1500);
           }
           return;
         }
         p.drawing = true;
         p.drawT = 0;
         p.drawP = 0;
-        this.sound.drawStart();
+        if (w.family === 1) this.audio.play('bow_draw', { rate: w.id === 'langbue' ? 0.85 : w.id === 'hurtigbue' ? 1.3 : 1 });
+        if (w.id === 'slynge') this.audio.loop('sling', 'sling_whirl', 1, undefined, 0.3);
       }
       return;
     }
@@ -435,6 +644,7 @@ export class Game {
     const power = w.kind === 'proj' ? this.power() : 1;
     p.drawing = false;
     p.held.release();
+    this.audio.stopLoop('sling', 0.15);
     if (w.kind === 'proj') this.fireProjectile(w, e, power);
     else if (w.kind === 'trap') this.placeTrap(w, e);
     else this.placeBait(w, e);
@@ -448,13 +658,16 @@ export class Game {
   private currentSpread(): number {
     const p = this.player;
     const w = weaponById(p.weaponId);
-    const e = this.eff[w.id];
     if (w.kind !== 'proj') return 0.02;
-    const pw = p.drawing ? this.power() : MIN_POWER;
-    let s = e.spread * (1 - 0.92 * pw);
-    if (p.aiming) s = Math.min(s, e.spreadAim + e.spread * (1 - 0.92 * pw) * 0.35);
+    return this.spreadFor(this.eff[w.id], p.drawing ? this.power() : MIN_POWER);
+  }
+
+  private spreadFor(e: Effective, power: number): number {
+    const p = this.player;
+    let s = e.spread * (1 - 0.92 * power);
+    if (p.aiming) s = Math.min(s, e.spreadAim + e.spread * (1 - 0.92 * power) * 0.35);
     // holding a full draw for too long makes the arms tremble
-    if (p.drawing && p.drawP >= 1) s += Math.min(0.02, Math.max(0, p.drawT - e.draw - 1.2) * 0.012);
+    if (p.drawing || power >= 1) s += Math.min(0.02, Math.max(0, p.drawT - e.draw - 1.2) * 0.012);
     if (p.moving) s *= 1.35;
     return s;
   }
@@ -464,12 +677,17 @@ export class Game {
     return p.aiming ? 1 : p.drawing ? 0.25 + 0.35 * p.drawP : 0;
   }
 
+  /** Where shots leave: the visible weapon if the player model offers it, else in front of the chest. */
+  private muzzle(): THREE.Vector3 {
+    const p = this.player as unknown as { muzzle?: (out: THREE.Vector3) => THREE.Vector3 };
+    if (typeof p.muzzle === 'function') return p.muzzle(new THREE.Vector3());
+    return this.player.chest.addScaledVector(new THREE.Vector3(Math.sin(this.rig.heading), 0, Math.cos(this.rig.heading)), 0.55);
+  }
+
   private fireProjectile(w: WeaponDef, e: Effective, power: number) {
-    const p = this.player;
     const forward = this.rig.forward;
-    const origin = p.chest.addScaledVector(new THREE.Vector3(Math.sin(this.rig.heading), 0, Math.cos(this.rig.heading)), 0.55);
+    const origin = this.muzzle();
     // Aim at what the crosshair is on: the nearest animal under the camera ray, otherwise a point 40 m out.
-    // The shot leaves the chest, not the camera, so this keeps close shots from missing sideways.
     let range = 40;
     for (const a of this.animals) {
       if (a.dead) continue;
@@ -499,18 +717,10 @@ export class Game {
       spin: !!w.spin,
       poison: w.poison ? { dps: e.poisonDps, time: e.poisonTime } : undefined,
     });
-    if (w.look === 'arrow') this.sound.shoot();
-    else this.sound.throwSound();
-    this.rig.kick(0.04);
-  }
-
-  private spreadFor(e: Effective, power: number): number {
-    const p = this.player;
-    let s = e.spread * (1 - 0.92 * power);
-    if (p.aiming) s = Math.min(s, e.spreadAim + e.spread * (1 - 0.92 * power) * 0.35);
-    if (p.drawing || power >= 1) s += Math.min(0.02, Math.max(0, p.drawT - e.draw - 1.2) * 0.012);
-    if (p.moving) s *= 1.35;
-    return s;
+    if (w.look === 'arrow') this.audio.play('bow_release', { rate: w.id === 'langbue' ? 0.92 : w.id === 'hurtigbue' ? 1.1 : 1, volume: 0.7 + 0.3 * power });
+    else if (w.look === 'stone') this.audio.play('sling_release');
+    else this.audio.play(w.look === 'knife' ? 'throw_light' : 'throw_heavy');
+    this.rig.kick(0.04 + 0.04 * power);
   }
 
   private melee(w: WeaponDef, e: Effective) {
@@ -518,43 +728,53 @@ export class Game {
     p.shotCooldown = e.cooldown;
     p.fired(e.noise);
     p.heading = this.rig.heading;
-    p.held.swing(Math.min(0.55, Math.max(0.24, e.cooldown * 0.75)));
-    this.sound.swing();
-    // the blow lands a moment into the swing, not on the click
-    const delay = w.id === 'jagtkniv' ? 0.07 : 0.16;
-    this.delayed.push({
-      t: delay,
-      fn: () => {
-        if (p.dead) return;
-        const fx = Math.sin(p.heading);
-        const fz = Math.cos(p.heading);
-        let hit = false;
-        for (const a of this.animals) {
-          if (a.dead) continue;
-          const dx = a.pos.x - p.pos.x;
-          const dz = a.pos.z - p.pos.z;
-          const d = Math.hypot(dx, dz);
-          if (d - a.def.radius > e.reach) continue;
-          if (d > 0.01 && (dx * fx + dz * fz) / d < 0.5) continue;
-          a.hurt(e.damage, this.world, p.pos);
-          this.onHit(a.dead, a.hitCenter());
-          hit = true;
-        }
-        if (!hit) this.bursts.emit(p.chest.add(new THREE.Vector3(fx * (e.reach * 0.8), -0.4, fz * (e.reach * 0.8))), 0xcfd6da, 4, 2);
-        this.rig.kick(hit ? 0.1 : 0.03);
-      },
-    });
+    const dur = Math.min(0.55, Math.max(0.24, e.cooldown * 0.75));
+    this.audio.play('melee_swing');
+    const strike = () => {
+      if (p.dead) return;
+      const fx = Math.sin(p.heading);
+      const fz = Math.cos(p.heading);
+      let hit = false;
+      for (const a of this.animals) {
+        if (a.dead) continue;
+        const dx = a.pos.x - p.pos.x;
+        const dz = a.pos.z - p.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d - a.def.radius > e.reach) continue;
+        if (d > 0.01 && (dx * fx + dz * fz) / d < 0.5) continue;
+        const point = a.hitCenter();
+        const dir = new THREE.Vector3(fx, 0, fz);
+        const hurt = a.hurt as unknown as (dmg: number, world: World, from: THREE.Vector3, info?: { dir?: THREE.Vector3; point?: THREE.Vector3 }) => boolean;
+        const killed = hurt.call(a, e.damage, this.world, p.pos, { dir, point });
+        this.onAnimalHit(a, killed, point);
+        this.audio.play(w.id === 'jagtkniv' ? 'knife_stab' : 'axe_chop', { pos: point });
+        hit = true;
+      }
+      if (!hit) this.bursts.emit(p.chest.add(new THREE.Vector3(fx * (e.reach * 0.8), -0.4, fz * (e.reach * 0.8))), 0xcfd6da, 4, 2);
+      this.rig.kick(hit ? 0.12 : 0.03);
+    };
+    // the blow lands at the contact frame of the swing animation, not on the click
+    const held = p.held as unknown as { swing: (dur: number, contactAt?: number, onContact?: () => void) => void };
+    if (held.swing.length >= 3) held.swing(dur, 0.5, strike);
+    else {
+      held.swing(dur);
+      this.delayed.push({ t: dur * 0.5, fn: strike });
+    }
   }
 
+  /** Point in front of the hunter, kept out of trees and inside the forest. */
   private placeAt(dist: number): THREE.Vector3 {
     const h = this.rig.heading;
     this.player.heading = h;
-    return this.player.pos.clone().add(new THREE.Vector3(Math.sin(h) * dist, 0, Math.cos(h) * dist));
+    const at = this.player.pos.clone().add(new THREE.Vector3(Math.sin(h) * dist, 0, Math.cos(h) * dist));
+    this.world.collide(at, 0.8);
+    at.y = this.world.height(at.x, at.z);
+    return at;
   }
 
   private placeTrap(w: WeaponDef, e: Effective) {
     this.traps.placeTrap(this.placeAt(2.2), { weaponId: w.id, type: w.trap!, radius: w.radius!, damage: e.damage, root: e.root });
-    this.sound.pickup();
+    this.audio.play(w.trap === 'snare' ? 'snare_set' : 'trap_set');
     this.hud.toast(`${w.name} lagt ud`, 1000);
   }
 
@@ -565,89 +785,150 @@ export class Game {
       lure: e.lure,
       poison: w.poison ? { dps: e.poisonDps, time: e.poisonTime } : undefined,
     });
-    this.sound.eat();
-    this.hud.toast(`${w.name} lagt ud`, 1000);
+    this.audio.play('bait_place');
+    this.hud.toast(`${w.name} kastet ud`, 1000);
   }
 
-  private onHit(killed: boolean, point: THREE.Vector3) {
-    this.sound.hit();
+  /** A ring on the ground shows where a trap or bait will land while you hold the button. */
+  private updateGhost() {
+    const p = this.player;
+    const w = weaponById(p.weaponId);
+    const on = p.drawing && (w.kind === 'trap' || w.kind === 'bait');
+    if (!this.ghost) {
+      this.ghost = new THREE.Mesh(
+        new THREE.RingGeometry(0.7, 0.85, 28).rotateX(-Math.PI / 2),
+        new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.7, depthWrite: false, fog: false }),
+      );
+      this.ghost.visible = false;
+      this.scene.add(this.ghost);
+    }
+    this.ghost.visible = on;
+    if (on) {
+      const at = this.placeAt(w.kind === 'bait' ? 8 : 2.2);
+      this.ghost.position.set(at.x, at.y + 0.08, at.z);
+      this.ghost.scale.setScalar(w.kind === 'bait' ? 1.4 : 1);
+    }
+  }
+
+  // ======================================================================
+  // hits, kills, loot
+  // ======================================================================
+
+  private onAnimalHit(a: Animal, killed: boolean, point: THREE.Vector3) {
+    this.audio.play('hit_flesh', { pos: point });
+    if (killed) this.audio.play(a.def.radius > 0.9 ? 'bone_crunch' : 'gore_splat', { pos: point });
     this.hud.hitMarker();
-    this.bursts.emit(point, killed ? 0xe8d9b0 : 0xd9b27a, killed ? 22 : 10);
+    const stealth = (a as unknown as { lastHitStealth?: boolean }).lastHitStealth;
+    if (stealth && !killed) this.hud.toast('Snigskud! Dobbelt skade', 1200);
+    const heavy = killed || a.def.radius > 1;
+    this.hitStop = Math.max(this.hitStop, killed ? 0.07 : heavy ? 0.045 : 0.025);
   }
 
   private onKilled(a: Animal) {
-    this.sound.kill();
     const d = a.def;
-    this.drops.spawn('meat', d.meat, a.pos);
-    this.drops.spawn('shards', d.shards, a.pos);
-    this.drops.spawn('trophies', d.trophies, a.pos);
-    this.hud.toast(`${cap(d.name)} nedlagt`, 1600);
+    const deathPos = (a as unknown as { deathPos?: () => THREE.Vector3 }).deathPos?.() ?? a.pos;
+    this.drops.spawn('meat', d.meat, deathPos);
+    this.drops.spawn('shards', d.shards, deathPos);
+    this.run.kills++;
+    this.save.stats.kills[d.id] = (this.save.stats.kills[d.id] ?? 0) + 1;
+    let msg = `${cap(d.name)} nedlagt`;
+    // trophies: the white deer pays once per level, the first kill of every species pays once per game
+    if (d.trophies > 0) {
+      const stat = this.save.levels[this.level.n];
+      if (d.id === 'hvidhjort' && stat?.marks.whiteDeer) this.drops.spawn('shards', 6, deathPos);
+      else this.drops.spawn('trophies', d.trophies, deathPos);
+      if (d.id === 'hvidhjort') this.run.whiteDeer = true;
+    }
+    if (!this.save.firstKill[d.id]) {
+      this.save.firstKill[d.id] = true;
+      this.drops.spawn('trophies', 1, deathPos);
+      msg = `Første ${d.name}! +1 trofæ`;
+    }
+    this.hud.toast(msg, 1800);
+    this.hitStop = Math.max(this.hitStop, 0.07);
   }
 
   private interact(): boolean {
     const p = this.player;
-    let any = false;
     const got: string[] = [];
+    let any = false;
     for (const d of this.drops.near(p.pos, PLAYER.pickupRange)) {
       p.carried[d.kind] += d.amount;
       got.push(`+${d.amount} ${DROP_LABEL[d.kind]}`);
       this.drops.take(d);
+      this.audio.play(d.kind === 'meat' ? 'pickup_meat' : d.kind === 'shards' ? 'pickup_shards' : 'pickup_trophy');
       any = true;
     }
     const back: Record<string, number> = { ...this.projectiles.collect(p.pos, PLAYER.pickupRange) };
-    for (const [id, n] of Object.entries(this.traps.collect(p.pos, PLAYER.pickupRange))) back[id] = (back[id] ?? 0) + n;
+    // eating comes before taking traps back: you just put that trap down on purpose
+    if (!any && Object.keys(back).length === 0 && p.carried.meat > 0 && p.hp < this.stats.maxHealth) {
+      p.carried.meat--;
+      p.heal(PLAYER.eatHeal * DIFFICULTY[settings.difficulty].eatHeal);
+      this.audio.play('eat');
+      this.hud.toast('Du spiser et stykke kød', 1200);
+      return true;
+    }
+    if (!any) for (const [id, n] of Object.entries(this.traps.collect(p.pos, PLAYER.pickupRange))) back[id] = (back[id] ?? 0) + n;
     for (const [id, n] of Object.entries(back)) {
-      const room = Math.max(0, Math.round(this.eff[id].ammo) - (p.ammo[id] ?? 0));
-      p.ammo[id] = (p.ammo[id] ?? 0) + Math.min(n, room);
-      got.push(`+${n} ${weaponById(id).name.toLowerCase()}`);
+      const w = weaponById(id);
+      const room = Math.max(0, Math.round(this.eff[id].ammo * DIFFICULTY[settings.difficulty].ammo) - (p.ammo[id] ?? 0));
+      const add = Math.min(n, room);
+      p.ammo[id] = (p.ammo[id] ?? 0) + add;
+      got.push(add < n ? `+${add} ${this.ammoName(w)} (fuldt)` : `+${n} ${this.ammoName(w)}`);
+      this.audio.play('ammo_pickup');
       any = true;
     }
     if (any) {
-      this.sound.pickup();
       this.hud.toast(got.join('  '), 1400);
-      return true;
-    }
-    if (p.carried.meat > 0 && p.hp < this.stats.maxHealth) {
-      p.carried.meat--;
-      p.heal(PLAYER.eatHeal);
-      this.sound.eat();
-      this.hud.toast('Du spiser et stykke kød', 1200);
       return true;
     }
     return false;
   }
 
-  // ---------- cave shop ----------
+  // ======================================================================
+  // per frame
+  // ======================================================================
 
-  private buyWeapon(id: string) {
-    const w = weaponById(id);
-    if (this.save.owned[id] || !canAfford(this.save.bank, w.price)) return;
-    this.spend(w.price);
-    this.save.owned[id] = true;
-    writeSave(this.save);
-    this.sound.pickup();
-  }
-
-  private upgradeWeapon(id: string, track: Track) {
-    const w = weaponById(id);
-    const lv = this.save.weaponLv[id];
-    if (!this.save.owned[id] || lv[track] >= MAX_UPGRADE) return;
-    const cost = upgradeCost(w, track, lv[track]);
-    if (!canAfford(this.save.bank, cost)) return;
-    this.spend(cost);
-    lv[track]++;
-    writeSave(this.save);
-    this.sound.pickup();
-  }
-
-  private spend(c: { meat?: number; shards?: number; trophies?: number }) {
-    this.save.bank.meat -= c.meat ?? 0;
-    this.save.bank.shards -= c.shards ?? 0;
-    this.save.bank.trophies -= c.trophies ?? 0;
+  private animalCtx(): AnimalContext {
+    const p = this.player;
+    const diff = DIFFICULTY[settings.difficulty];
+    const ctx = {
+      player: p,
+      wind: this.wind,
+      world: this.world,
+      scentMul: this.stats.scentMul,
+      time: this.time,
+      diff,
+      onAlert: () => this.tip('wind'),
+      onStrike: (a: Animal) => {
+        const dmg = a.def.damage * diff.animalDamage;
+        const dmgFn = p.damage as unknown as (amount: number, by: string, from?: THREE.Vector3) => boolean;
+        if (dmgFn.call(p, dmg, a.def.name, a.pos)) {
+          this.rig.kick(0.3);
+          this.hud.hurtFrom(this.screenAngleTo(a.pos));
+        }
+      },
+      canEngage: (a: Animal) => {
+        let n = 0;
+        for (const o of this.animals) if (o !== a && !o.dead && HOSTILE.has(o.state) && !(o as unknown as { isBoss?: boolean }).isBoss) n++;
+        return n < diff.maxAttackers;
+      },
+      onImpact: (kind: string, strength: number) => {
+        if (kind === 'kill') this.hitStop = Math.max(this.hitStop, 0.07);
+        else if (kind === 'heavy') this.hitStop = Math.max(this.hitStop, 0.045);
+        else if (kind === 'thud') this.rig.kick(Math.min(0.25, 0.02 * strength));
+        else if (kind === 'roar') {
+          this.rig.kick(0.2);
+          this.audio.duck(0.4, 1.5);
+        }
+      },
+    };
+    return ctx as unknown as AnimalContext;
   }
 
   private updatePlaying(dt: number) {
     const p = this.player;
+    this.save.stats.playSeconds += dt;
     this.wind.update(dt);
     if (this.input.dx || this.input.dy) this.rig.look(this.input.dx, this.input.dy);
     p.update(dt, this.input, this.rig, this.world);
@@ -660,24 +941,16 @@ export class Game {
       this.delayed[i].t -= dt;
       if (this.delayed[i].t <= 0) this.delayed.splice(i, 1)[0].fn();
     }
-    if (this.input.was('KeyE')) {
-      if (!this.interact()) this.hud.toast('Intet at samle op her', 900);
-    }
+    if (this.input.was('KeyE') && !this.interact()) this.hud.toast('Intet at samle op her', 900);
 
-    const ctx: AnimalContext = {
-      player: p,
-      wind: this.wind,
-      world: this.world,
-      scentMul: this.stats.scentMul,
-      time: this.time,
-      onAlert: (a) => {
-        if (a.pos.distanceTo(p.pos) < 35) this.sound.alert();
-      },
-      onStrike: (a) => {
-        if (p.damage(a.def.damage, a.def.name)) this.rig.kick(0.3);
-      },
-    };
-    for (const a of this.animals) a.update(dt, ctx);
+    const ctx = this.animalCtx();
+    for (const a of this.animals) {
+      a.update(dt, ctx);
+      if (!a.dead && HOSTILE.has(a.state)) {
+        this.run.hunted = true;
+        if (a.def.role === 'predator' && a.pos.distanceTo(p.pos) < 25) this.tip('roll');
+      }
+    }
     for (let i = this.animals.length - 1; i >= 0; i--) {
       if (this.animals[i].removable) {
         this.scene.remove(this.animals[i].group);
@@ -694,11 +967,42 @@ export class Game {
       return;
     }
     const dCave = Math.hypot(p.pos.x - this.world.caveEntrance.x, p.pos.z - this.world.caveEntrance.z);
-    if (dCave < 5 && !this.completed) {
-      this.complete();
+    if (dCave < 25) this.tip('cave');
+    if (dCave < 5) {
+      this.arrive();
       return;
     }
+    if (this.drops.near(p.pos, 6).length) this.tip('pickup');
+    if (p.hp < this.stats.maxHealth * 0.6 && p.carried.meat > 0) this.tip('eat');
     this.updateHud(dCave, dt);
+  }
+
+  /** Shows a help text once per save. `big` help is shown as a panel, the rest as a toast. */
+  private tip(id: string, big = true) {
+    if (this.save.seenHelp[id] || this.helpShown.has(id) || !HELP[id]) return;
+    this.helpShown.add(id);
+    this.save.seenHelp[id] = true;
+    writeSave(this.save);
+    if (big) this.hud.tip(HELP[id]);
+    else this.hud.toast(HELP[id], 3500);
+  }
+
+  /** Angle (deg, clockwise from straight ahead on screen) towards a world point. */
+  private screenAngleTo(pos: THREE.Vector3): number {
+    const h = this.rig.heading;
+    const dx = pos.x - this.player.pos.x;
+    const dz = pos.z - this.player.pos.z;
+    const right = dx * -Math.cos(h) + dz * Math.sin(h);
+    const fwd = dx * Math.sin(h) + dz * Math.cos(h);
+    return (Math.atan2(right, fwd) * 180) / Math.PI;
+  }
+
+  private windText(): string {
+    // the route runs towards -z: wind blowing towards -z carries your scent ahead of you
+    const ahead = -this.wind.dz;
+    if (ahead > 0.5) return 'Medvind: din fært driver fremad. Pas på!';
+    if (ahead < -0.5) return 'Modvind: din fært driver bagud.';
+    return 'Sidevind: din fært driver til siden.';
   }
 
   private updateHud(dCave: number, dt: number) {
@@ -708,44 +1012,55 @@ export class Game {
     const wz = this.wind.dz;
     const xs = wx * -Math.cos(heading) + wz * Math.sin(heading);
     const ys = wx * Math.sin(heading) + wz * Math.cos(heading);
-    const nearLoot = this.drops.near(p.pos, PLAYER.pickupRange).length > 0 || this.projectiles.nearestStuck(p.pos, PLAYER.pickupRange) || this.traps.nearTrap(p.pos, PLAYER.pickupRange);
+    const ahead = -wz; // towards the cave
+    const nearLoot = this.drops.near(p.pos, PLAYER.pickupRange).length > 0 || this.projectiles.nearestStuck(p.pos, PLAYER.pickupRange);
     let hint = '';
     if (nearLoot) hint = '[E] Saml op';
-    else if (p.hp < this.stats.maxHealth * 0.6 && p.carried.meat > 0) hint = '[E] Spis kød';
-    const total = this.level.length;
+    else if (p.carried.meat > 0 && p.hp < this.stats.maxHealth * 0.6) hint = '[E] Spis kød';
+    else if (this.traps.nearTrap(p.pos, PLAYER.pickupRange)) hint = '[E] Tag fælden op';
+    // predators hunting you from outside the screen
+    const threats: number[] = [];
+    for (const a of this.animals) {
+      if (a.dead || !HOSTILE.has(a.state) || a.pos.distanceTo(p.pos) > 45) continue;
+      const ang = this.screenAngleTo(a.pos);
+      if (Math.abs(ang) > 38) threats.push(ang);
+    }
+    const w = weaponById(p.weaponId);
+    const owned = this.ownedWeapons();
+    const spread = this.currentSpread();
     this.hud.update(
       {
         hp: p.hp,
         maxHp: this.stats.maxHealth,
         stamina: p.stamina,
         maxStamina: this.stats.maxStamina,
-        exhausted: p.stamina < PLAYER.exhaustedUntil && !p.sprinting && p.stamina < 5,
-        ...this.weaponHud(),
+        exhausted: (p as unknown as { exhausted?: boolean }).exhausted ?? p.stamina < 5,
+        crossSize: Math.round(Math.min(90, Math.max(24, 18 + spread * 560))),
+        drawP: p.drawing ? p.drawP : 0,
+        weaponName: w.name,
+        ammoText: w.ammo > 0 ? `${p.ammo[w.id] ?? 0} ${this.ammoName(w)}` : '',
+        slots: FAMILIES.map((f, i) => {
+          const inFam = owned.filter((o) => o.family === i + 1);
+          const active = w.family === i + 1;
+          return { key: f.key, name: active ? w.name : inFam[0]?.name ?? '', active, locked: inFam.length === 0, count: inFam.length };
+        }),
         meat: p.carried.meat,
         shards: p.carried.shards,
         trophies: p.carried.trophies,
         windDeg: (Math.atan2(xs, ys) * 180) / Math.PI,
-        windLabel: this.wind.label(),
-        progress: 1 - dCave / total,
+        windLabel: ahead > 0.5 ? 'Din fært driver fremad' : ahead < -0.5 ? 'Din fært driver bagud' : 'Din fært driver til siden',
+        windDanger: ahead > 0.5 ? 2 : ahead > -0.5 ? 1 : 0,
+        noise: p.noise,
+        progress: 1 - dCave / this.level.length,
         distLeft: dCave,
         level: this.level.n,
         hint,
         aiming: p.aiming,
         hurt: p.hurtFlash,
+        threats,
       },
       dt,
     );
-  }
-
-  // ---------- loop ----------
-
-  private resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    this.renderer.setSize(w, h);
-    this.composer?.setSize(w, h);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
   }
 
   private loop() {
@@ -759,85 +1074,88 @@ export class Game {
   /** One frame. Public so tests can step the game deterministically. */
   step(dt: number, render = true) {
     this.time += dt;
-    if (this.state === 'playing') {
-      this.updatePlaying(dt);
+    // hit-stop and slow motion scale the game; camera, HUD and audio use real time
+    let gdt = dt * this.timeScale;
+    if (this.hitStop > 0) {
+      this.hitStop -= dt;
+      gdt = dt * 0.05;
+    }
+    if (this.slowT > 0) {
+      this.slowT -= dt;
+      if (this.slowT <= 0) this.timeScale = 1;
+    }
+    const frozen = this.state === 'playing' && this.requireLock && !this.input.locked;
+    if (this.state === 'playing' && !frozen) {
+      this.updatePlaying(gdt);
+      if (this.state === 'playing') {
+        this.rig.update(dt, this.player.pos, this.aimBlend(), this.world);
+        this.director.update(dt, this.player, this.animals, this.wind, this.world, this.stats.maxHealth);
+      }
+    } else if (this.state === 'playing') {
       this.rig.update(dt, this.player.pos, this.aimBlend(), this.world);
     } else if (this.state === 'dead') {
       this.deathTimer -= dt;
-      this.rig.update(dt, this.player.pos, 0, this.world);
-      this.wind.update(dt);
-      for (const a of this.animals) a.update(dt, this.deadCtx());
-      this.hud.update(this.hudSnapshot(), dt);
+      const rig = this.rig as unknown as { deathCam?: (dt: number, target: THREE.Vector3) => void };
+      if (rig.deathCam) rig.deathCam(dt, this.player.pos);
+      else this.rig.update(dt, this.player.pos, 0, this.world);
+      this.wind.update(gdt);
+      const ctx = this.animalCtx() as unknown as { scentMul: number; onStrike: () => void };
+      ctx.scentMul = 0;
+      ctx.onStrike = () => {};
+      for (const a of this.animals) a.update(gdt, ctx as unknown as AnimalContext);
+      this.bursts.update(gdt);
       if (this.deathTimer <= 0 && !document.querySelector('.scr.on')) {
         this.hud.show(false);
-        this.screens.death(`Dræbt af ${this.player.killedBy}.`, {
+        this.screens.death(`Dræbt af ${this.player.killedBy}.`, DIFFICULTY[settings.difficulty].keepCarried > 0, {
           retry: () => this.startLevel(this.level.n),
-          menu: () => this.showMenu(),
+          hub: () => this.showHub(),
         });
+      }
+    } else if (this.state === 'arriving') {
+      // walk into the cave mouth while the screen fades, then the hub
+      this.arriveT += dt;
+      const p = this.player;
+      const target = this.world.caveEntrance;
+      this.v1.set(target.x - p.pos.x, 0, target.z - 2 - p.pos.z);
+      if (this.v1.length() > 0.3) {
+        this.v1.normalize();
+        p.pos.addScaledVector(this.v1, 2.2 * dt);
+        p.heading = Math.atan2(this.v1.x, this.v1.z);
+      }
+      p.pos.y = this.world.height(p.pos.x, p.pos.z);
+      p.group.position.copy(p.pos);
+      p.group.rotation.y = p.heading;
+      this.rig.update(dt, p.pos, 0, this.world);
+      this.hud.fade(Math.min(1, this.arriveT / 1.4));
+      if (this.arriveT > 1.6) {
+        this.hud.fade(0);
+        this.complete();
       }
     } else if (this.state === 'paused') {
       // frozen
     } else {
-      // menu / hub backdrop: orbit slowly around the start or the cave
+      // menu / hub / ending backdrop: orbit slowly around the start or the cave
       this.wind.update(dt);
-      const focus = this.state === 'hub' ? this.world.caveEntrance : this.world.spawn;
-      const a = this.time * 0.08;
-      const r = this.state === 'hub' ? 15 : 12;
-      this.camera.position.set(focus.x + Math.sin(a) * r, focus.y + 4.5, focus.z + Math.cos(a) * r + (this.state === 'hub' ? 4 : 0));
-      this.camera.lookAt(focus.x, focus.y + (this.state === 'hub' ? 3 : 2), focus.z);
-      if (this.camera.fov !== 68) {
-        this.camera.fov = 68;
+      const atCave = this.state !== 'menu';
+      const focus = atCave ? this.world.caveEntrance : this.world.spawn;
+      const a = this.time * 0.06;
+      const r = atCave ? 16 : 12;
+      this.camera.position.set(focus.x + Math.sin(a) * r, focus.y + 4.5, focus.z + Math.cos(a) * r + (atCave ? 5 : 0));
+      this.camera.lookAt(focus.x, focus.y + (atCave ? 3 : 2), focus.z);
+      if (this.camera.fov !== 60) {
+        this.camera.fov = 60;
         this.camera.updateProjectionMatrix();
       }
     }
-    const focus = this.state === 'playing' || this.state === 'dead' || this.state === 'paused' ? this.player.pos : this.camera.position;
+    const focus = this.state === 'playing' || this.state === 'dead' || this.state === 'paused' || this.state === 'arriving' ? this.player.pos : this.camera.position;
     this.world.update(dt, focus, this.camera, this.time);
     this.drift.update(dt, this.wind, this.camera.position, this.time);
     this.fireflies?.update(dt, focus, this.time, this.world.height(focus.x, focus.z));
     this.world.setWind(this.wind.dx, this.wind.dz, this.wind.strength);
-    this.sound.setWind(this.wind.strength, this.time);
+    this.audio.update(dt, this.camera);
+    this.gradePass.uniforms.hurt.value = this.state === 'playing' ? Math.max(0, 1 - this.player.hp / this.stats.maxHealth - 0.5) : 0;
     if (render) this.composer.render(dt);
     this.input.endFrame();
-  }
-
-  private weaponHud() {
-    const p = this.player;
-    const w = weaponById(p.weaponId);
-    const owned = this.ownedWeapons();
-    const spread = this.currentSpread();
-    return {
-      crossSize: Math.round(Math.min(90, Math.max(10, 9 + spread * 560))),
-      drawP: p.drawing ? p.drawP : 0,
-      weaponName: w.name,
-      ammoText: w.ammo > 0 ? String(p.ammo[w.id] ?? 0) : '∞',
-      slots: FAMILIES.map((f, i) => {
-        const inFam = owned.filter((o) => o.family === i + 1);
-        const active = w.family === i + 1;
-        return { key: f.key, name: active ? w.name : inFam[0]?.name ?? '', active, locked: inFam.length === 0, count: inFam.length };
-      }),
-    };
-  }
-
-  private deadCtx(): AnimalContext {
-    // dead hunters smell of nothing, animals just wander off
-    return {
-      player: this.player,
-      wind: this.wind,
-      world: this.world,
-      scentMul: 0,
-      time: this.time,
-      onAlert: () => {},
-      onStrike: () => {},
-    };
-  }
-
-  private hudSnapshot() {
-    const p = this.player;
-    return {
-      hp: p.hp, maxHp: this.stats.maxHealth, stamina: p.stamina, maxStamina: this.stats.maxStamina, exhausted: false,
-      ...this.weaponHud(), meat: p.carried.meat, shards: p.carried.shards, trophies: p.carried.trophies,
-      windDeg: 0, windLabel: this.wind.label(), progress: 0, distLeft: 0, level: this.level.n, hint: '', aiming: false, hurt: 1,
-    };
   }
 }
 
