@@ -170,9 +170,52 @@ export class HazardView {
   setFrozen(on: boolean) {
     if (on === this.frozen) return;
     this.frozen = on;
-    if (on) this.body.setTint(0xbfefff);
+    if (on) this.body.setTint(this.inkColor ?? 0xbfefff);
     else this.body.clearTint();
-    this.halo.setTint(on ? 0x9fe8ff : this.color);
+    this.halo.setTint(on ? (this.inkColor ?? 0x9fe8ff) : this.color);
+  }
+
+  private inkColor: number | null = null;
+
+  /** OCTO's ink (or tangerine juice): splatted in `color`, shrunk to `size`, and still for good. */
+  setInked(color: number, size: number) {
+    this.inkColor = color;
+    this.frozen = false;
+    this.setFrozen(true);
+    this.body.setScale(this.body.scaleX * size);
+    this.halo.setScale(this.halo.scaleX * size).setAlpha(0.3);
+    this.warn.setVisible(false);
+    this.fuse?.setVisible(false);
+    this.scene.tweens.add({ targets: this.root, scale: { from: 1.35, to: 1 }, duration: 260, ease: 'Back.easeOut' });
+  }
+
+  private bodyScale = -1;
+  private haloScale = -1;
+
+  /** SO SHY: shrink back (k = share of the full size). Bombs follow their radius by themselves. */
+  setShrink(k: number) {
+    if (this.hazard.kind === 'bomb') return;
+    if (this.bodyScale < 0) {
+      this.bodyScale = this.body.scaleX;
+      this.haloScale = this.halo.scaleX;
+    }
+    this.body.setScale(this.bodyScale * k);
+    this.halo.setScale(this.haloScale * k);
+  }
+
+  /** Beamed up by a tractor beam: it floats up, spinning and shrinking, and is gone. */
+  abduct() {
+    this.warn.setVisible(false);
+    this.scene.tweens.add({
+      targets: this.root,
+      y: this.root.y - 70,
+      scale: 0.1,
+      angle: 540,
+      alpha: 0,
+      duration: 480,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.destroy(),
+    });
   }
 
   /** Duck got bonked: it spins off into space and is gone. */

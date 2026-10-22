@@ -11,6 +11,7 @@ import { PITY, RARITIES, RARITY_ORDER, REFUND, SPIN_COST, SKINS, rollRarity, ski
 //   skins of that rarity you don't have yet. Only once you own all of them
 //   can it repeat, and a repeat pays REFUND[rarity] ducks back.
 // - A free spin (save.freeSpins) is used before any ducks.
+// - The very first pull ever is at least a rare.
 //
 // Everything is decided and saved the moment you pull, before the reels
 // spin, so closing the app mid-spin can't lose or duplicate a prize.
@@ -108,7 +109,10 @@ export const gacha = {
       const rarity = rand() < legendary.chance / (epic.chance + legendary.chance) ? 'legendary' : 'epic';
       return { rarity, pity: 'epic' };
     }
-    return { rarity: rollRarity(rand), pity: null };
+    const rarity = rollRarity(rand);
+    // The very first pull is at least a rare: a character with a real power is a better first taste.
+    if (this.stats.spins === 0 && rarity === 'common') return { rarity: 'rare', pity: null };
+    return { rarity, pity: null };
   },
 
   /**

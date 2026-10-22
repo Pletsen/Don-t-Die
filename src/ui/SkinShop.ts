@@ -13,8 +13,9 @@ import { M, Q, SHOP_TEX, TILE_IN, TILE_TEX, bulbX, ensureShopTextures, reelX, sa
 import { shopSfx } from './shopSfx';
 
 const REEL_SLOTS = 8;
-const COLS = 8;
-const GAP = 6;
+/** The collection: 50 skins in 5 tidy rows of 10. */
+const COLS = 10;
+const GAP = 5;
 /** Where the machine sits in the root container (left of centre: room for the lever). */
 const MACHINE_DX = -20;
 /** Reel symbol scale: 128 px textures shown at 54 px. */
@@ -421,7 +422,9 @@ export class SkinShop {
       cx -= t.width + 20;
     }
     y += 16;
-    const s = Math.floor((width - (COLS - 1) * GAP) / COLS);
+    // The grid may use a little more of the width than the rest.
+    const gridRoom = Math.min(w - 24, 380);
+    const s = Math.floor((gridRoom - (COLS - 1) * GAP) / COLS);
     const gridW = COLS * s + (COLS - 1) * GAP;
     const gx = -gridW / 2;
     const k = (s * TILE_TEX) / TILE_IN / TILE_TEX;

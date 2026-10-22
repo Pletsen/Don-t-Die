@@ -368,7 +368,7 @@ export class HowToPlay {
     // 7. Skins.
     {
       const duck = this.img(TEX.duck, 40);
-      const shown = ['kitty', 'soccer', 'pizza', 'crown', 'galaxy', 'froggy'];
+      const shown = ['kitty', 'unicorn', 'pizza', 'crown', 'ufo', 'froggy'];
       const skins = shown.map((id) => this.img(skinTexture(id), 36));
       const cost = this.word(`${SPIN_COST}`, '#ffd21f', 22);
       const count = this.word(`${SKINS.length} SKINS`, css.ink, 12);
