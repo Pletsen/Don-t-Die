@@ -8,7 +8,7 @@ import {
   zoneOrder,
   type ZoneInfo,
 } from './tuning';
-import { WORLDS, type HazardRules, type LevelDef } from './levels';
+import { WORLDS, levelNumber, type HazardRules, type LevelDef, type LevelSet } from './levels';
 import { randomSeed, seededRng } from './rng';
 import type { RunMode } from './shared';
 import { dailyModifier, dailySeed, todayKey, type DailyModifier } from './daily';
@@ -62,10 +62,16 @@ const DUCKS: HazardRules = { chance: 0.75, kinds: ['duck'], placement: 'any', pe
 
 /** Guaranteed safe tap window (s) per world: forgiving early, tight late. */
 const LEVEL_WINDOW = [0.24, 0.2, 0.17, 0.15];
+/** ... and per set: EASY keeps it wider, HARD narrower. */
+const SET_WINDOW: Record<LevelSet, number> = { easy: 0.05, normal: 0, hard: -0.04 };
 /** Chance of a duck on a hazard-free straight, per world. */
 const LEVEL_DUCKS = [0.15, 0.2, 0.2, 0.2];
+/** ... times this per set (harder levels pay more). */
+const SET_DUCKS: Record<LevelSet, number> = { easy: 0.8, normal: 1, hard: 1.25 };
 /** Universe 2 isn't completely safe in later worlds: a stray static saw now and then. */
 const WARP_DANGER = [0, 0.1, 0.22, 0.32];
+/** EASY's Universe 2 is gentler still. */
+const EASY_WARP_DANGER = [0, 0, 0.1, 0.18];
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const clamp01 = (v: number) => clamp(v, 0, 1);
@@ -127,6 +133,8 @@ export function levelCourse(level: LevelDef): Course {
   const goalPx = level.goal / METERS_PER_PX;
   const progress = (d: number) => clamp01(d / goalPx);
   const color = WORLDS[level.world].color;
+  const set = level.set ?? 'normal';
+  const world = Math.min(level.world, LEVEL_WINDOW.length - 1);
   // In the bonus universe speed and width freeze at the moment of the warp.
   let warpSpeed = 0;
   let warpWidth = 0;
@@ -160,13 +168,10 @@ export function levelCourse(level: LevelDef): Course {
       // The party runs for another half level, then the finish.
       course.goalPx = d + goalPx * 0.5;
     },
-    minWindowAt: () => LEVEL_WINDOW[Math.min(level.world, LEVEL_WINDOW.length - 1)] - (level.hard ? 0.04 : 0),
+    minWindowAt: () => LEVEL_WINDOW[world] + SET_WINDOW[set],
     // Ducks from level 4 (their tip comes just before), more in later worlds.
-    duckChanceAt: (d) =>
-      (level.world === 0 && level.id < 4) || d * METERS_PER_PX < 40
-        ? 0
-        : LEVEL_DUCKS[Math.min(level.world, LEVEL_DUCKS.length - 1)] * (level.hard ? 1.25 : 1),
-    warpDanger: WARP_DANGER[Math.min(level.world, WARP_DANGER.length - 1)],
+    duckChanceAt: (d) => (levelNumber(level.id) < 4 || d * METERS_PER_PX < 40 ? 0 : LEVEL_DUCKS[world] * SET_DUCKS[set]),
+    warpDanger: (set === 'easy' ? EASY_WARP_DANGER : WARP_DANGER)[world],
   };
   return course;
 }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
 import { sfx } from '../audio/Sfx';
-import { LEVELS } from '../game/levels';
+import { ALL_LEVELS, WARP_FROM_LEVEL, levelNumber } from '../game/levels';
 import { progress } from '../game/progress';
 import { shortDate } from '../game/daily';
 import { ACHIEVEMENTS } from '../game/achievements';
@@ -249,7 +249,10 @@ export class RecordsScreen {
     g.fillStyle(LINE, 1).fillRect(left + 18, 100 + 78, W - 36, 1);
 
     const s = progress.stats();
-    const cleared = progress.levelsCleared();
+    // All three sets (EASY, NORMAL, HARD) together.
+    const cleared = ALL_LEVELS.filter((l) => progress.starsFor(l.id) > 0).length;
+    const stars = ALL_LEVELS.reduce((a, l) => a + progress.starsFor(l.id), 0);
+    const warpLevels = ALL_LEVELS.filter((l) => levelNumber(l.id) >= WARP_FROM_LEVEL);
     const cells: [string, string][] = [
       [String(s.runs), 'RUNS'],
       [String(Math.max(s.deaths, save.deaths)), 'DEATHS'],
@@ -259,11 +262,9 @@ export class RecordsScreen {
       [`x${s.bestCombo}`, 'BEST COMBO'],
       [String(s.nearMisses), 'CLOSE CALLS'],
       [String(s.ducksEarned), 'DUCKS EARNED'],
-      [`${cleared} / ${LEVELS.length}`, 'LEVELS CLEARED'],
-      save.hardStars() > 0
-        ? [`${progress.totalStars()} + ${save.hardStars()}`, 'STARS · HARD']
-        : [`${progress.totalStars()} / ${LEVELS.length * 3}`, 'STARS'],
-      [`${[...save.warps].filter((id) => id <= LEVELS.length).length} / ${LEVELS.length}`, 'WARP STARS'],
+      [`${cleared} / ${ALL_LEVELS.length}`, 'LEVELS CLEARED'],
+      [`${stars} / ${ALL_LEVELS.length * 3}`, 'STARS'],
+      [`${warpLevels.filter((l) => save.warps.has(l.id)).length} / ${warpLevels.length}`, 'WARP STARS'],
       [`${progress.daily.streak().best} ${progress.daily.streak().best === 1 ? 'DAY' : 'DAYS'}`, 'BEST STREAK'],
     ];
     cells.forEach(([v, l], i) => {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HARD_LEVELS, HARD_OFFSET, LEVELS, WORLDS, isHardLevel, type LevelDef } from '../game/levels';
+import { ALL_LEVELS, LEVELS_OF, SETS, UNLOCK_AT, WORLDS, levelId, levelNumber, setOf, type LevelDef, type LevelSet } from '../game/levels';
 import { save } from '../game/storage';
 import { css } from '../game/palette';
 import { sfx } from '../audio/Sfx';
@@ -21,25 +21,36 @@ interface Tile {
   warp: Phaser.GameObjects.Image;
 }
 
-/** HARD MODE opens once level 20 is cleared. */
-export const hardUnlocked = () => save.starsFor(LEVELS[LEVELS.length - 1].id) > 0;
-
-export const isUnlocked = (id: number) => {
-  if (isHardLevel(id)) return hardUnlocked() && (id === HARD_OFFSET + 1 || save.starsFor(id - 1) > 0);
-  return id === 1 || save.starsFor(id - 1) > 0;
-};
+/** The set before this one: clearing its level 10 opens this one. */
+const PREV: Record<LevelSet, LevelSet | null> = { easy: null, normal: 'easy', hard: 'normal' };
+const SET_COLOR: Record<LevelSet, number> = { easy: 0x7cff6b, normal: palette.cyan, hard: palette.crimson };
+const SET_HEADER: Record<LevelSet, string> = { easy: 'EASY MODE', normal: 'LEVELS', hard: 'HARD MODE' };
 
 /**
- * The next level to play: the first unlocked one without stars; once all 20
- * are cleared, the first open HARD level without stars; else the last open.
+ * EASY is always open; EASY 10 opens NORMAL and NORMAL 10 opens HARD. A set
+ * that already has stars stays open (saves from before EASY existed).
+ */
+export const setUnlocked = (set: LevelSet): boolean => {
+  const prev = PREV[set];
+  if (!prev) return true;
+  return save.starsFor(levelId(prev, UNLOCK_AT)) > 0 || LEVELS_OF[set].some((l) => save.starsFor(l.id) > 0);
+};
+
+export const isUnlocked = (id: number) => setUnlocked(setOf(id)) && (levelNumber(id) === 1 || save.starsFor(id - 1) > 0);
+
+/**
+ * The next level to play: the first open level without stars in the hardest
+ * open set (a newly opened set is where the game goes on), else in an easier
+ * one; once everything open is cleared, the last open level of the hardest set.
  */
 export function nextLevelToPlay(): number {
-  const open = LEVELS.filter((l) => isUnlocked(l.id));
-  const fresh = open.find((l) => save.starsFor(l.id) === 0);
-  if (fresh) return fresh.id;
-  if (!hardUnlocked()) return open[open.length - 1].id;
-  const hard = HARD_LEVELS.filter((l) => isUnlocked(l.id));
-  return (hard.find((l) => save.starsFor(l.id) === 0) ?? hard[hard.length - 1]).id;
+  const open = SETS.filter(setUnlocked).reverse();
+  for (const set of open) {
+    const fresh = LEVELS_OF[set].find((l) => isUnlocked(l.id) && save.starsFor(l.id) === 0);
+    if (fresh) return fresh.id;
+  }
+  const top = LEVELS_OF[open[0]].filter((l) => isUnlocked(l.id));
+  return top[top.length - 1].id;
 }
 
 /**
@@ -57,12 +68,11 @@ export class LevelSelect {
   private plate: Phaser.GameObjects.Graphics;
   private worldStars: Phaser.GameObjects.Text[] = [];
   private size = 58;
-  /** Showing the HARD MODE set. */
-  private hard = false;
-  private normalTab: Button;
-  private hardTab: Button;
-  /** The HARD tab before level 20 is cleared: greyed, with a lock. */
-  private hardLocked: Button;
+  /** The set on show. */
+  private set: LevelSet = 'easy';
+  private tabs = {} as Record<LevelSet, Button>;
+  /** A set's tab before it opens: greyed, with a lock. */
+  private lockedTabs = {} as Record<LevelSet, Button>;
   private pokes = 0;
   private lastPoke = 0;
 
@@ -88,16 +98,18 @@ export class LevelSelect {
       this.worldStars.push(makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1 }).setOrigin(1, 0));
     });
 
-    // NORMAL / HARD tabs. Until level 20 is cleared the HARD tab is a teaser:
+    // EASY / NORMAL / HARD tabs. Until a set opens its tab is a teaser:
     // greyed, with a lock, and tapping it says what opens it.
-    this.normalTab = makeButton(scene, { label: 'NORMAL', width: 120, height: 34, style: 'ghost', onPress: () => this.setHard(false) });
-    this.hardTab = makeButton(scene, { label: 'HARD', width: 120, height: 34, style: 'ghost', color: palette.crimson, onPress: () => this.setHard(true) });
-    this.hardLocked = makeButton(scene, { label: 'HARD', icon: 'lock', width: 120, height: 34, style: 'ghost', color: 0x4a5866, onPress: () => this.lockedHard() });
+    for (const set of SETS) {
+      const label = set.toUpperCase();
+      this.tabs[set] = makeButton(scene, { label, width: 104, height: 34, style: 'ghost', color: SET_COLOR[set], onPress: () => this.setSet(set) });
+      this.lockedTabs[set] = makeButton(scene, { label, icon: 'lock', width: 104, height: 34, style: 'ghost', color: 0x4a5866, onPress: () => this.lockedSet(set) });
+    }
 
-    for (const level of [...LEVELS, ...HARD_LEVELS]) {
+    for (const level of ALL_LEVELS) {
       const glow = scene.add.graphics();
       const bg = scene.add.graphics();
-      const num = makeText(scene, 0, 0, String(level.id % HARD_OFFSET || HARD_OFFSET), { size: 20 }).setOrigin(0.5);
+      const num = makeText(scene, 0, 0, String(levelNumber(level.id)), { size: 20 }).setOrigin(0.5);
       const stars = scene.add.graphics();
       const warp = scene.add.image(0, 0, TEX.warpStar).setScale(0.2).setVisible(false);
       const hit = scene.add.zone(0, 0, 10, 10).setInteractive({ useHandCursor: true });
@@ -124,35 +136,36 @@ export class LevelSelect {
       ...this.worldLabels,
       ...this.worldStars,
       ...this.tiles.map((t) => t.root),
-      this.normalTab,
-      this.hardTab,
-      this.hardLocked,
+      ...SETS.map((s) => this.tabs[s]),
+      ...SETS.map((s) => this.lockedTabs[s]),
       this.back,
     ]);
     this.root.setVisible(false);
   }
 
-  /** Tapped the locked HARD tab: it shakes, and a toast says how to open it. */
-  private lockedHard() {
+  /** Tapped a locked tab: it shakes, and a toast says how to open it. */
+  private lockedSet(set: LevelSet) {
     sfx.denied();
-    const tab = this.hardLocked;
+    const tab = this.lockedTabs[set];
+    const x = tab.getData('x') as number;
     this.scene.tweens.killTweensOf(tab);
-    tab.setX(66);
-    this.scene.tweens.add({ targets: tab, x: 70, duration: 40, yoyo: true, repeat: 2, onComplete: () => tab.setX(66) });
-    this.toast(`CLEAR LEVEL ${LEVELS[LEVELS.length - 1].id} TO UNLOCK HARD MODE`);
+    tab.setX(x);
+    this.scene.tweens.add({ targets: tab, x: x + 4, duration: 40, yoyo: true, repeat: 2, onComplete: () => tab.setX(x) });
+    const prev = PREV[set]!;
+    this.toast(`CLEAR ${prev.toUpperCase()} ${UNLOCK_AT} TO UNLOCK ${set.toUpperCase()}`);
   }
 
-  /** Show the NORMAL or the HARD set. */
-  setHard(on: boolean) {
-    if (on && !hardUnlocked()) return;
-    if (on !== this.hard) sfx.click();
-    this.hard = on;
+  /** Show one of the sets. */
+  setSet(set: LevelSet) {
+    if (!setUnlocked(set)) return;
+    if (set !== this.set) sfx.click();
+    this.set = set;
     this.refresh();
   }
 
-  /** Open on the set the next level to play is in. */
+  /** Open on the set this level is in. */
   showSetOf(id: number) {
-    this.hard = isHardLevel(id) && hardUnlocked();
+    this.set = setUnlocked(setOf(id)) ? setOf(id) : 'easy';
     this.refresh();
   }
 
@@ -160,14 +173,15 @@ export class LevelSelect {
   refresh() {
     const s = this.size;
     const next = nextLevelToPlay();
-    const open = hardUnlocked();
-    if (!open) this.hard = false;
-    this.normalTab.setAlpha(this.hard ? 0.45 : 1);
-    this.hardTab.setVisible(open).setAlpha(this.hard ? 1 : 0.45);
-    this.hardLocked.setVisible(!open);
-    this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS').setColor(this.hard ? '#ff2d55' : '#eaf6ff');
+    if (!setUnlocked(this.set)) this.set = 'easy';
+    for (const set of SETS) {
+      const open = setUnlocked(set);
+      this.tabs[set].setVisible(open).setAlpha(set === this.set ? 1 : 0.45);
+      this.lockedTabs[set].setVisible(!open);
+    }
+    this.header.setText(SET_HEADER[this.set]).setColor(this.set === 'normal' ? '#eaf6ff' : hexColor(SET_COLOR[this.set]));
     for (const t of this.tiles) {
-      t.root.setVisible(!!t.level.hard === this.hard);
+      t.root.setVisible((t.level.set ?? 'normal') === this.set);
       if (!t.root.visible) continue;
       const color = WORLDS[t.level.world].color;
       const open = isUnlocked(t.level.id);
@@ -203,11 +217,11 @@ export class LevelSelect {
       }
     }
 
-    const set = this.hard ? HARD_LEVELS : LEVELS;
+    const set = LEVELS_OF[this.set];
     const total = set.reduce((a, l) => a + save.starsFor(l.id), 0);
     this.totalStars.setText(`${total} / ${set.length * 3}`);
     this.totalIcon.clear();
-    drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7.5, this.hard ? palette.crimson : 0xffd21f, true);
+    drawStar(this.totalIcon, this.totalStars.x - this.totalStars.width - 12, this.totalStars.y, 7.5, this.set === 'hard' ? palette.crimson : 0xffd21f, true);
     WORLDS.forEach((_, wi) => {
       const levels = set.filter((l) => l.world === wi);
       const got = levels.reduce((a, l) => a + save.starsFor(l.id), 0);
@@ -227,10 +241,12 @@ export class LevelSelect {
     this.header.setPosition(0, y + 22);
     this.totalStars.setPosition(-left, y + 22);
     y += 64;
-    // NORMAL / HARD tabs (HARD is a locked teaser until level 20 is cleared).
-    this.normalTab.setPosition(-66, y + 4);
-    this.hardTab.setPosition(66, y + 4);
-    this.hardLocked.setPosition(66, y + 4);
+    // EASY / NORMAL / HARD tabs (locked teasers until they open).
+    SETS.forEach((set, i) => {
+      const x = (i - 1) * 114;
+      this.tabs[set].setPosition(x, y + 4);
+      this.lockedTabs[set].setPosition(x, y + 4).setData('x', x);
+    });
     y += 50;
     const plateTop = y - 10;
 
@@ -238,10 +254,10 @@ export class LevelSelect {
       this.worldLabels[wi].setPosition(left, y);
       this.worldStars[wi].setPosition(-left, y);
       y += 22;
-      const row = this.tiles.filter((t) => t.level.world === wi && !t.level.hard);
-      const hardRow = this.tiles.filter((t) => t.level.world === wi && t.level.hard);
-      hardRow.forEach((t, i) => t.root.setPosition(left + s / 2 + i * (s + GAP), y + s / 2));
-      row.forEach((t, i) => t.root.setPosition(left + s / 2 + i * (s + GAP), y + s / 2));
+      for (const set of SETS) {
+        const row = this.tiles.filter((t) => t.level.world === wi && (t.level.set ?? 'normal') === set);
+        row.forEach((t, i) => t.root.setPosition(left + s / 2 + i * (s + GAP), y + s / 2));
+      }
       y += s + 22;
     });
 
@@ -265,10 +281,10 @@ export class LevelSelect {
     this.scene.tweens.add({ targets: this.header, x: this.header.x + 3, duration: 35, yoyo: true, repeat: 1 });
     if (this.pokes === 5) {
       this.header.setText('STOP POKING ME');
-      this.scene.time.delayedCall(1600, () => this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS'));
+      this.scene.time.delayedCall(1600, () => this.header.setText(SET_HEADER[this.set]));
     } else if (this.pokes === 10) {
       this.pokes = 0;
-      this.header.setText(this.hard ? 'HARD MODE' : 'LEVELS');
+      this.header.setText(SET_HEADER[this.set]);
       this.onSecret();
     }
   }

@@ -1,7 +1,7 @@
 import { EV, type HudData, type NotifyData, type RunMode, type StatEvent } from './shared';
 import { save } from './storage';
 import { readJSON, writeJSON } from './persist';
-import { LEVELS, isHardLevel, levelById, levelNumber } from './levels';
+import { ALL_LEVELS, LEVELS, LEVELS_OF, UNLOCK_AT, levelById, levelId, levelNumber, setOf } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
 import { Daily, DAILY_MILESTONES, dailyModifier, dayKey, dayNumber, newDailyData, todayKey, type DailyData } from './daily';
@@ -25,11 +25,14 @@ const VERSION = 1;
 
 /** Economy (designer's numbers). */
 export const ECONOMY = {
-  /** Ducks per star you didn't have before (twice that in HARD MODE). */
-  perNewStar: (id: number) => (isHardLevel(id) ? 4 : 2),
-  /** First clear of a level: 2 (level 1) up to 6 (level 20); HARD MODE pays double. */
-  firstClear: (id: number) =>
-    (2 + Math.round(((levelNumber(id) - 1) / Math.max(1, LEVELS.length - 1)) * 4)) * (isHardLevel(id) ? 2 : 1),
+  /** Ducks per star you didn't have before: 1 in EASY, 2 in NORMAL, 4 in HARD MODE. */
+  perNewStar: (id: number) => ({ easy: 1, normal: 2, hard: 4 })[setOf(id)],
+  /** First clear of a level: 2 (level 1) up to 6 (level 20); EASY 1 to 4, HARD MODE double. */
+  firstClear: (id: number) => {
+    const k = (levelNumber(id) - 1) / Math.max(1, LEVELS.length - 1);
+    const set = setOf(id);
+    return set === 'easy' ? 1 + Math.round(k * 3) : (2 + Math.round(k * 4)) * (set === 'hard' ? 2 : 1);
+  },
   /** Survival: one duck per this many metres. */
   survivalMetersPerDuck: 200,
   /** A free spin each time total stars reach one of these. */
@@ -466,10 +469,11 @@ class Progress {
     save.addDucks(n, source);
   }
 
+  /** The furthest level number open in any set (missions about saws wait until they've shown up). */
   private highestUnlocked(): number {
-    let id = 1;
-    for (const l of LEVELS) if (l.id === 1 || this.starsFor(l.id - 1) > 0) id = Math.max(id, l.id);
-    return id;
+    let n = 1;
+    for (const l of ALL_LEVELS) if (levelNumber(l.id) > 1 && this.starsFor(l.id - 1) > 0) n = Math.max(n, levelNumber(l.id));
+    return n;
   }
 
   private missionCtx(): MissionCtx {
@@ -673,8 +677,11 @@ class Progress {
       sum.firstClear = true;
       rec.first = todayKey();
       sum.rewards.push({ label: 'FIRST CLEAR', ducks: ECONOMY.firstClear(id) });
-      if (id === LEVELS[LEVELS.length - 1].id) {
-        this.notify({ title: 'HARD MODE UNLOCKED', subtitle: '20 REMIXED LEVELS · SEE LEVELS', color: 0xff2d55 });
+      // EASY 10 opens NORMAL, NORMAL 10 opens HARD (unless it was open already).
+      const opens = id === levelId('easy', UNLOCK_AT) ? 'normal' : id === levelId('normal', UNLOCK_AT) ? 'hard' : null;
+      if (opens && !LEVELS_OF[opens].some((l) => this.starsFor(l.id) > 0)) {
+        if (opens === 'normal') this.notify({ title: 'NORMAL UNLOCKED', subtitle: '20 LEVELS · FASTER, MORE TO DODGE', color: 0x2be8ff });
+        else this.notify({ title: 'HARD MODE UNLOCKED', subtitle: '20 REMIXED LEVELS · SEE LEVELS', color: 0xff2d55 });
       }
     }
     // The fastest clear is a clean one: a CONTINUE doesn't set the record.

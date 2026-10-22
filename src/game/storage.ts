@@ -117,12 +117,16 @@ export const save = {
     write(KEYS.stars, JSON.stringify(this.stars));
     return true;
   },
-  /** Stars on the 20 normal levels (HARD MODE counts on its own, ids > 100). */
+  /** Stars on the 20 normal levels (HARD, ids 101-120, and EASY, 201-220, count on their own). */
   totalStars(): number {
     return Object.entries(this.stars).reduce((a, [id, n]) => (Number(id) <= 100 ? a + n : a), 0);
   },
   hardStars(): number {
-    return Object.entries(this.stars).reduce((a, [id, n]) => (Number(id) > 100 ? a + n : a), 0);
+    return Object.entries(this.stars).reduce((a, [id, n]) => (Number(id) > 100 && Number(id) <= 200 ? a + n : a), 0);
+  },
+  /** Stars on the EASY levels (ids > 200). */
+  easyStars(): number {
+    return Object.entries(this.stars).reduce((a, [id, n]) => (Number(id) > 200 ? a + n : a), 0);
   },
 
   setBest(v: number) {

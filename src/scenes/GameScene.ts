@@ -3,7 +3,7 @@ import { Track, DIRS, pointInRect, distToRectEdge, trackDistance, type Dir, type
 import { tuning, METERS_PER_PX, SECTOR_METERS } from '../game/tuning';
 import { shared, EV, type DeathData, type ClearData, type PlayRequest, type FrenzyData, type StatEvent, type RunMode } from '../game/shared';
 import { dailyCourse, endlessCourse, levelCourse, type Course } from '../game/course';
-import { levelById } from '../game/levels';
+import { isHardLevel, levelById, levelNumber } from '../game/levels';
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
@@ -236,6 +236,8 @@ export class GameScene extends Phaser.Scene {
   private visScratch: Segment[] = [];
   private nearLists: Hazard[][] = [NO_HAZARDS, NO_HAZARDS];
   private starView: WarpStarView | null = null;
+  /** This run's first look at the warp star has been called out. */
+  private starCalled = false;
   /** The ghost of your best attempt on this level, and the recording of this one (levels only). */
   private ghostView!: GhostView;
   private ghostRec: GhostRecorder | null = null;
@@ -379,6 +381,7 @@ export class GameScene extends Phaser.Scene {
     this.starView?.destroy();
     this.starView = null;
     this.starSparkled = false;
+    this.starCalled = false;
     this.ducks = 0;
     this.ghostRec = null;
     this.ghostView.stop();
@@ -445,9 +448,9 @@ export class GameScene extends Phaser.Scene {
     this.mode = this.course.mode;
     // The UNIVERSE 2 daily starts in the bonus universe.
     if (this.course.warped) this.setUniverse(true);
-    // Level 1, never cleared: guide the first corners.
-    this.guidedGates = level && level.id === 1 && save.starsFor(1) === 0 ? 3 : 0;
-    this.abilityLocked = !!level && level.id < ABILITY_FROM_LEVEL;
+    // A first level, before any level was ever cleared: guide the first corners.
+    this.guidedGates = level && levelNumber(level.id) === 1 && Object.keys(save.stars).length === 0 ? 3 : 0;
+    this.abilityLocked = !!level && !isHardLevel(level.id) && levelNumber(level.id) < ABILITY_FROM_LEVEL;
     if (this.abilityLocked) this.abilityCharges = 0;
     // Levels: race the ghost of your best attempt, and record this one.
     if (level && !req.daily) {
@@ -1207,6 +1210,20 @@ export class GameScene extends Phaser.Scene {
   private updateWarpStar(t: number) {
     const seg = this.visibleSegments().find((s) => s.warpStar && !s.warpStar.taken);
     if (seg && !this.starView) this.starView = new WarpStarView(this, seg.warpStar!);
+    // Until you've found one: once the star is well on screen, time slows a
+    // moment and it calls out.
+    const star = seg?.warpStar;
+    if (star && !this.starCalled && !this.demo && this.course.mode === 'level' && save.warps.size === 0) {
+      const v = this.cameras.main.worldView;
+      const mx = v.width * 0.15;
+      const my = v.height * 0.22;
+      if (star.x > v.x + mx && star.x < v.right - mx && star.y > v.y + my && star.y < v.bottom - my) {
+        this.starCalled = true;
+        this.slowMo = Math.max(this.slowMo, 0.9);
+        this.effects.floater(star.x, star.y - 42, 'WARP STAR!', '#ff5cb8', 22, 3);
+        [0, 260, 520].forEach((ms) => this.time.delayedCall(ms, () => !star.taken && this.effects.shockwave(star.x, star.y, 0xff5cb8, 70, 600)));
+      }
+    }
     if (!seg && this.starView) {
       this.starView.destroy();
       this.starView = null;

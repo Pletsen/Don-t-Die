@@ -3,11 +3,11 @@ import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyDa
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
-import { LEVELS, WORLDS, isHardLevel, lastOfSet, levelById, levelName, levelNumber } from '../game/levels';
+import { LEVELS, SET_NAME, WORLDS, lastOfSet, levelById, levelName, levelNumber, setOf } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
-import { LevelSelect, nextLevelToPlay } from '../ui/LevelSelect';
+import { LevelSelect, nextLevelToPlay, setUnlocked } from '../ui/LevelSelect';
 import { skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
 import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
@@ -35,11 +35,12 @@ type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play'
  * The camera is zoomed by the device pixel ratio with its origin at the
  * top-left, so every position here is in plain CSS pixels.
  */
-/** Tip cards shown once, right before the level where they matter. */
+/** Tip cards shown once, right before the level (number, in any set) where they matter. */
 const LEVEL_TIPS: Record<number, number> = {
   2: HowToPlay.CARD.perfect,
   3: HowToPlay.CARD.power,
   4: HowToPlay.CARD.ducks,
+  5: HowToPlay.CARD.warp,
   6: HowToPlay.CARD.danger,
 };
 const TIPS_KEY = 'dontdie_tips_seen';
@@ -868,12 +869,14 @@ export class UIScene extends Phaser.Scene {
     this.dailyDot.setVisible(badge.claim || badge.missionsLeft > 0);
     this.dailyBtn.setLabel(badge.streak > 1 ? `DAILY · ${badge.streak}` : 'DAILY');
     const next = nextLevelToPlay();
-    this.playBtn.setLabel(save.totalStars() > 0 || next > 1 ? `PLAY  ·  ${levelName(next)}` : 'PLAY');
+    this.playBtn.setLabel(Object.keys(save.stars).length > 0 ? `PLAY  ·  ${levelName(next)}` : 'PLAY');
 
     this.title.setVisible(true).setAlpha(0);
     this.fadeIn(this.title);
     if (!this.logoLit) this.igniteLogo();
-    const stars = save.totalStars();
+    // Stars of the main game; before NORMAL opens, EASY's.
+    const easyOnly = save.totalStars() === 0 && !setUnlocked('normal');
+    const stars = easyOnly ? save.easyStars() : save.totalStars();
     const parts = [`${stars} / ${LEVELS.length * 3} STARS`, `${save.ducks} DUCKS`];
     if (save.hardStars() > 0) parts.splice(1, 0, `${save.hardStars()} HARD`);
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
@@ -992,9 +995,11 @@ export class UIScene extends Phaser.Scene {
   private play(level: number | null) {
     this.hideReactorTip();
     // A one-time tip card right before a level that brings something new.
-    const tip = level !== null ? LEVEL_TIPS[level] : undefined;
-    if (tip !== undefined && !this.tipsSeen.has(level!)) {
-      this.tipsSeen.add(level!);
+    const n = level !== null ? levelNumber(level) : 0;
+    const tip = LEVEL_TIPS[n];
+    // (No warp star card for someone who has already found one.)
+    if (tip !== undefined && !this.tipsSeen.has(n) && !(tip === HowToPlay.CARD.warp && save.warps.size > 0)) {
+      this.tipsSeen.add(n);
       writeJSON(TIPS_KEY, [...this.tipsSeen]);
       this.mode = 'howto';
       this.hideSpinBanner();
@@ -1046,7 +1051,7 @@ export class UIScene extends Phaser.Scene {
 
     const level = this.level === null ? null : levelById(this.level);
     if (level) {
-      this.rightLabel.setText(isHardLevel(level.id) ? 'HARD' : 'LEVEL');
+      this.rightLabel.setText(SET_NAME[setOf(level.id)]);
       this.rightValue.setText(String(levelNumber(level.id))).setTint(WORLDS[level.world].color);
     } else if (this.runMode === 'daily') {
       // The Daily Run has its own best: today's.

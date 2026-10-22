@@ -1,5 +1,5 @@
 import type { Course } from './course';
-import type { HazardRules } from './levels';
+import { WARP_FROM_LEVEL, levelNumber, type HazardRules } from './levels';
 import { seededRng, type Rng } from './rng';
 import { METERS_PER_PX, tuning } from './tuning';
 
@@ -266,8 +266,9 @@ export class Track {
   private placeWarpStar(seg: Segment) {
     const at = this.course.warpAtPx;
     if (at === null || this.warpPlaced || this.course.warped) return;
-    // Not in the first two levels: beginners turning early hit it by accident.
-    if (this.course.level && this.course.level.id <= 2) return;
+    // Not before level 5 (its tip card comes right before): beginners
+    // turning early would hit it by accident.
+    if (this.course.level && levelNumber(this.course.level.id) < WARP_FROM_LEVEL) return;
     const margin = seg.halfWidth + 30;
     if (seg.length < margin * 2 + 20 || seg.travelled + seg.length - margin < at) return;
     const along = Math.max(margin, Math.min(seg.length - margin, at - seg.travelled));

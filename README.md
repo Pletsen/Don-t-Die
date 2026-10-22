@@ -12,13 +12,13 @@ Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, 
 - **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **REACTOR** er QUACK REACTOR, hvor nye skins kommer fra, og hvor din samling ligger (første gang menuen vises efter en tur, peger en lille boble på knappen: "YOUR SKINS LIVE IN HERE NOW"), og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
 - Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS) og til højre **musik**, **lyd** og **effekter**. Musik og lydeffekter slås fra hver for sig og huskes (`dontdie_music` og `dontdie_sound`). Havde man slået al lyd fra i en ældre version, starter begge slukket.
 
-Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
+Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, warp-stjernen før level 5, forhindringer før level 6; i hvilken som helst sværhedsgrad man møder dem først). HOW TO PLAY med 8 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
 
 Under en tur er der en **pause-knap** øverst. Pausen har RESUME, RETRY, MENU, musik, lyd og effekter, og man kommer tilbage via en 3-2-1-nedtælling. Forlader man appen, sættes spillet automatisk på pause.
 
 ### Levels
 
-Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
+Der er **tre sværhedsgrader, EASY, NORMAL og HARD, med 20 levels i 4 verdener hver**, og hver verden introducerer én ny ting:
 
 | Verden | Farve | Nyt |
 |---|---|---|
@@ -29,7 +29,9 @@ Der er **20 levels i 4 verdener**, og hver verden introducerer én ny ting:
 
 Hvert level har en fast bane, så man kan lære den. Et level giver 1–3 stjerner: 1 for at nå målet, 2 hvis 60 % af svingene var PERFECT, og 3 ved 80 % (højst 1 med CONTINUE, se nedenfor). Levels låses op ét ad gangen.
 
-**HARD MODE** åbner, når level 20 er klaret: alle 20 levels i en ny udgave (egen bane, cirka 14 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Faneblade NORMAL/HARD øverst i LEVELS. Indtil level 20 er klaret, står HARD-fanen gråt med en lås som en smagsprøve: et tryk får den til at ryste, og en besked siger CLEAR LEVEL 20 TO UNLOCK HARD MODE. Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
+Alle starter i **EASY** (`EASY_LEVELS` i `src/game/levels.ts`, id 201–220): de samme fire verdener, men langsommere, bredere, med færre og mest stillestående forhindringer og et bredere sikkert tidsvindue i hvert sving. **Klarer du EASY 10, åbner NORMAL** (id 1–20), og **klarer du NORMAL 10, åbner HARD** (id 101–120). Man kan stadig spille hver sværhedsgrad færdig til level 20. Et banner siger NORMAL UNLOCKED / HARD MODE UNLOCKED, og PLAY i menuen fortsætter i den sværeste åbne sværhedsgrad (til den er klaret, så den næste lettere). Faneblade EASY/NORMAL/HARD øverst i LEVELS; en låst fane står gråt med en lås, og et tryk siger fx CLEAR EASY 10 TO UNLOCK NORMAL. Gamle gemte spil med stjerner i NORMAL eller HARD har dem stadig åbne.
+
+**HARD MODE** er alle 20 NORMAL-levels i en ny udgave (egen bane, cirka 16 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. EASY giver tilsvarende mindre: 1–4 ænder for første gennemførsel og 1 pr. ny stjerne, og 20 % færre ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
 
 Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet flere tusind ture). En gennemsnitlig spiller klarer cirka 97 % af forsøgene på level 6 og 40–60 % i verden 3–4, med lidt luft i starten af hver ny verden:
 
@@ -77,7 +79,9 @@ Livstidsstatistik, top 5 i Survival, bedste % pr. level og **35 achievements** (
 
 ### Warp-stjernen og Universe 2
 
-Fra level 3 er der gemt en lillebitte regnbuestjerne sent på banen (65–80 % af vejen), ude ved den ene væg, så den er en belønning for at nå langt og ikke en genvej forbi det svære. Rammer du den, bliver du sendt til **Universe 2** resten af turen: festen varer en halv bane mere, baggrunden en psykedelisk regnbue-spiral med discokugle, en lille discokugle-måne kredser om din kugle (selve skinnet er urørt), forhindringerne bliver til gummiænder, og musikken skifter toneart. Fra verden 2 er der dog en enkelt sav hist og her (10/22/32 % af strækkene i verden 2/3/4).
+Fra level 5 (i alle tre sværhedsgrader) er der gemt en lillebitte regnbuestjerne sent på banen (65–80 % af vejen), ude ved den ene væg, så den er en belønning for at nå langt og ikke en genvej forbi det svære. Rammer du den, bliver du sendt til **Universe 2** resten af turen: festen varer en halv bane mere, baggrunden en psykedelisk regnbue-spiral med discokugle, en lille discokugle-måne kredser om din kugle (selve skinnet er urørt), forhindringerne bliver til gummiænder, og musikken skifter toneart. Fra verden 2 er der dog en enkelt sav hist og her (10/22/32 % af strækkene i verden 2/3/4, i EASY kun 0/10/18 %).
+
+Lige før det første level med en stjerne kommer et tip-kort, WARP STAR: en lille animation, hvor kuglen drejer lidt tidligt, ruller gennem stjernen og ender i Universe 2 mellem ænderne, og teksten forklarer, at stjernen er en hemmelig dør til en bonustur med flere ænder, at den sidder tæt ved en væg, og at banen bare fortsætter, hvis man misser den. Indtil man har ramt sin første stjerne, går tiden desuden et øjeblik i slowmotion, når stjernen kommer godt ind på skærmen, med "WARP STAR!" og pulserende ringe om den.
 
 ### Tre slags ænder (med rigtige "rap"-lyde)
 
@@ -247,7 +251,7 @@ src/
 │   ├── glowFont.ts       Glødende bitmap-fonte til tal, der ændrer sig hele tiden
 │   └── widgets.ts        Knapper, tekst og stjerner, der genbruges
 ├── game/                 Ren logik og data, ingen grafik
-│   ├── levels.ts         ⭐ Alle 20 levels som data: mål, fart, bredde, forhindringer
+│   ├── levels.ts         ⭐ Alle levels som data (EASY, NORMAL, HARD): mål, fart, bredde, forhindringer
 │   ├── course.ts         Reglerne for én runde (level, SURVIVAL med zoner, Daily Run)
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens

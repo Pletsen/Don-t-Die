@@ -1,6 +1,6 @@
 import type { StatEvent } from './shared';
 import type { ProgressHooks, Stats } from './progress';
-import { HARD_LEVELS, LEVELS } from './levels';
+import { ALL_LEVELS, EASY_LEVELS, HARD_LEVELS, LEVELS, levelId } from './levels';
 import { SKINS } from './skins';
 
 // ~30 achievements, each with a duck reward. They are checked after every
@@ -47,7 +47,16 @@ const a = (def: AchievementDef) => def;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   // --- Levels ---
-  a({ id: 'first_clear', name: 'FIRST STEPS', desc: 'Clear level 1.', ducks: 3, glyph: 'flag', check: (c) => c.starsFor(1) > 0 }),
+  a({ id: 'first_clear', name: 'FIRST STEPS', desc: 'Clear your first level.', ducks: 3, glyph: 'flag', check: (c) => c.starsFor(1) > 0 || c.starsFor(levelId('easy', 1)) > 0 }),
+  a({
+    id: 'easy_all',
+    name: 'WARMED UP',
+    desc: 'Clear all 20 EASY levels.',
+    ducks: 15,
+    glyph: 'flag',
+    check: (c) => EASY_LEVELS.every((l) => c.starsFor(l.id) > 0),
+    progress: (c) => [EASY_LEVELS.filter((l) => c.starsFor(l.id) > 0).length, EASY_LEVELS.length],
+  }),
   a({
     id: 'world1',
     name: 'BASIC TRAINING',
@@ -78,7 +87,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'world4',
     name: "DIDN'T DIE",
-    desc: 'Clear all 20 levels.',
+    desc: 'Clear all 20 NORMAL levels.',
     ducks: 25,
     glyph: 'crown',
     big: true,
@@ -96,7 +105,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: (c) => HARD_LEVELS.every((l) => c.starsFor(l.id) > 0),
     progress: (c) => [HARD_LEVELS.filter((l) => c.starsFor(l.id) > 0).length, HARD_LEVELS.length],
   }),
-  a({ id: 'three_star', name: 'FLAWLESS', desc: 'Get 3 stars on any level.', ducks: 3, glyph: 'star', check: (c) => LEVELS.some((l) => c.starsFor(l.id) >= 3) }),
+  a({ id: 'three_star', name: 'FLAWLESS', desc: 'Get 3 stars on any level.', ducks: 3, glyph: 'star', check: (c) => ALL_LEVELS.some((l) => c.starsFor(l.id) >= 3) }),
   a({
     id: 'w1_stars',
     name: 'STARGAZER',
