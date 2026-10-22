@@ -33,12 +33,24 @@ Alle starter i **EASY** (`EASY_LEVELS` i `src/game/levels.ts`, id 201–220): de
 
 **HARD MODE** er alle 20 NORMAL-levels i en ny udgave (egen bane, cirka 16 % hurtigere, 10 % smallere og 10 % længere, flere og mere bevægelige forhindringer, og save allerede i verden 1). Stjernerne tæller for sig ("HARD 3" i HUD'en), første gennemførsel og nye stjerner giver dobbelt så mange ænder, og der er 25 % flere ænder på banerne. EASY giver tilsvarende mindre: 1–4 ænder for første gennemførsel og 1 pr. ny stjerne, og 20 % færre ænder på banerne. Med bot-tests klarer en gennemsnitlig spiller 57 % → 0 % hen over HARD 11–20, en ekspert 43–100 %.
 
-Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet flere tusind ture). En gennemsnitlig spiller klarer cirka 97 % af forsøgene på level 6 og 40–60 % i verden 3–4, med lidt luft i starten af hver ny verden:
+Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "gennemsnitlig" og en "ekspert"-profil har spillet over 9.000 ture på de tre sværhedsgrader). Chancen for at klare et level i ét forsøg (sidste runde, 12 forsøg pr. profil pr. level):
+
+| | Nybegynder | Gennemsnitlig | Ekspert |
+|---|---|---|---|
+| EASY 1–8 | 70–100 % | 92–100 % | 100 % |
+| EASY 9–10 (åbner NORMAL) | 40–55 % | 83–92 % | 94–100 % |
+| EASY 11–20 | 10–75 % | 75–100 % | 70–100 % |
+| NORMAL 1–10 (åbner HARD) | 100 → 0 % | 100 → 50–75 % | 92–100 % |
+| NORMAL 11–20 | 0–25 % | 50–90 % | 60–100 % |
+| HARD 1–10 | 85 → 0 % | 100 → 40–80 % | 92–100 % |
+| HARD 11–20 | 0–8 % | 70 → 8–30 % | 58–100 % |
+
+NORMAL 12–20 er gjort roligere end før (op til ca. 15 % lavere fart i slutningen og færre bevægelige forhindringer): før klarede den gennemsnitlige profil 20–60 % på NORMAL 16–20, nu 58–92 %. Mistænkte "umulige" sving er tjekket ved at prøve hvert eneste tryk-tidspunkt (bot.cjs brute): de har 16–21 overlevelige frames, ca. 0,3 sekunder. Desuden:
 
 - Forhindringer kommer først efter 60 m i et level og bliver gradvist tættere.
 - Afstanden fra et sving til første forhindring vokser med farten, så der altid er tid til at reagere.
 - En bevægelig forhindring får aldrig en makker på samme stræk, så banen aldrig lukker helt.
-- **Fairness-regel:** efter et sving kan man ikke styre, så der er altid et stykke af sporet, som ingen forhindring kan nå, uanset hvor de bevægelige save er. Det er mindst 0,24/0,20/0,17/0,15 sekunders tryk-vindue i verden 1/2/3/4. Ellers fjernes den anden forhindring, de bevægelige svinger mindre, eller forhindringen rykkes ind mod væggen.
+- **Fairness-regel:** efter et sving kan man ikke styre, så der er altid et stykke af sporet, som ingen forhindring kan nå, uanset hvor de bevægelige save er. Det er mindst 0,24/0,20/0,17/0,15 sekunders tryk-vindue i verden 1/2/3/4 (0,05 s mere i EASY, 0,04 s mindre i HARD). Ellers fjernes den anden forhindring, de bevægelige svinger mindre, eller forhindringen rykkes ind mod væggen.
 - Saws og bomber rammer lidt inden for deres tegnede kant.
 
 **Bomber** lader op (de svulmer, gløder og ringen strammer sig) og eksploderer så kort til næsten den dobbelte radius hvert 2,6 sekund. Man skal time sit sving, ikke bare undgå dem.

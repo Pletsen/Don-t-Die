@@ -152,7 +152,7 @@ export const EASY_LEVELS: LevelDef[] = [
   easy(12, 2, 640, [220, 250], [80, 76], [240, 320], { chance: 0.34, kinds: both, placement: 'side' }),
   easy(13, 2, 720, [225, 260], [78, 73], [235, 310], { chance: 0.38, kinds: both, placement: 'any' }),
   easy(14, 2, 800, [230, 265], [76, 71], [230, 305], { chance: 0.38, kinds: both, placement: 'any', moving: 0.1 }),
-  easy(15, 2, 880, [235, 275], [75, 70], [225, 300], { chance: 0.45, kinds: both, placement: 'any', moving: 0.15 }),
+  easy(15, 2, 880, [235, 270], [76, 71], [225, 300], { chance: 0.4, kinds: both, placement: 'any', moving: 0.1 }),
   // World 4: everything, a bit faster.
   easy(16, 3, 760, [240, 275], [76, 71], [230, 300], { chance: 0.4, kinds: both, placement: 'any', moving: 0.15 }),
   easy(17, 3, 840, [245, 285], [75, 70], [225, 295], { chance: 0.43, kinds: both, placement: 'any', moving: 0.2 }),
