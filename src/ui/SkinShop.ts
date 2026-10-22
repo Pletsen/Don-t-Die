@@ -25,6 +25,10 @@ const SEEN_KEY = 'dontdie_reactor_reveals';
 const SKIP_AFTER = 2;
 /** The card under the prize (reveal coordinates). */
 const CARD_Y = { rarity: 44, name: 78, note: 112, power: 138, desc: 157 };
+/** How far below the screen's centre the card reaches (CHARGE AGAIN under a two-line power text); shorter screens shrink the reveal to fit. */
+const CARD_BOTTOM = 304;
+/** The card's buttons ignore taps this long after they appear: taps meant to skip the show mustn't press them. */
+const BUTTON_GRACE = 400;
 /** On short phones the bay is no taller than this (the collection keeps its size). */
 const BAY_MIN_H = 244;
 
@@ -124,6 +128,8 @@ export class SkinShop {
   private pageShown = true;
   private screenW = 390;
   private screenH = 844;
+  /** When the card's buttons appeared (scene time). */
+  private buttonsAt = 0;
   private seen = Math.max(0, parseInt(read(SEEN_KEY) ?? '0', 10) || 0);
   /** For tests: force (true) or forbid (false) the upgrade tease; null rolls it. */
   forceTease: boolean | null = null;
@@ -219,15 +225,15 @@ export class SkinShop {
     this.skipHint = makeText(scene, 0, 0, 'TAP TO SKIP', { font: 'mono', size: 10, weight: '700', color: css.inkDim, spacing: 2 }).setOrigin(0.5);
     this.stageCount = makeText(scene, 0, 0, '', { font: 'mono', size: 44, weight: '700', color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
     this.stageLabel = makeText(scene, 0, 0, '', { font: 'mono', size: 11, weight: '700', color: css.inkDim, spacing: 3 }).setOrigin(0.5);
-    this.revealEquip = makeButton(scene, { label: 'WEAR IT', width: 150, onPress: () => this.closeReveal('wear') });
-    this.revealOk = makeButton(scene, { label: 'NICE', width: 110, style: 'ghost', onPress: () => this.closeReveal('ok') });
+    this.revealEquip = makeButton(scene, { label: 'WEAR IT', width: 150, onPress: () => this.pressCard('wear') });
+    this.revealOk = makeButton(scene, { label: 'NICE', width: 110, style: 'ghost', onPress: () => this.pressCard('ok') });
     this.revealAgain = makeButton(scene, {
       label: 'CHARGE AGAIN',
       width: 220,
       height: 40,
       style: 'ghost',
       color: palette.magenta,
-      onPress: () => this.closeReveal('again'),
+      onPress: () => this.pressCard('again'),
     });
     this.reveal = add
       .container(0, 0, [
@@ -356,18 +362,17 @@ export class SkinShop {
     this.root.setScale(scale).setPosition(w / 2, top + Math.max(0, (avail - y * scale) / 2));
 
     // The reveal fills the screen and is centred on it, whatever the root's scale.
-    this.revealScale = 1 / scale;
-    this.reveal.setScale(1 / scale).setPosition(0, (h / 2 - this.root.y) / scale);
-    this.screenW = w;
-    this.screenH = h;
-    this.fx.layout(w, h);
+    // Its units are screen pixels, unless the screen is too short for the
+    // card: then the whole show (stage, prize, card) shrinks to fit.
+    const fit = Math.min(1, (h / 2 - safeBottom() - 10) / CARD_BOTTOM);
+    this.revealScale = fit / scale;
+    this.reveal.setScale(this.revealScale).setPosition(0, (h / 2 - this.root.y) / scale);
+    this.screenW = w / fit;
+    this.screenH = h / fit;
+    this.fx.layout(this.screenW, this.screenH);
     if (this.staged) this.placeStage(this.t);
-    const bottomRoom = h / 2 - safeBottom() - 24;
-    const by = Math.min(218, bottomRoom - 80);
-    this.revealEquip.setPosition(-70, by);
-    this.revealOk.setPosition(80, by);
-    this.revealAgain.setPosition(0, by + 56);
-    this.skipHint.setPosition(0, by + 30);
+    this.skipHint.setPosition(0, 248);
+    this.placeButtons();
     this.refresh();
   }
 
@@ -539,6 +544,8 @@ export class SkinShop {
    * out) and the reactor moves into it, to be zoomed onto the stage.
    */
   private openStage() {
+    // A closing card's fade must not hide this show when it ends.
+    this.scene.tweens.killTweensOf(this.reveal);
     this.reveal.setVisible(true).setAlpha(1);
     for (const o of [this.prize, this.prizeShine, this.revealRarity, this.revealName, this.nameShine, this.revealNote, this.revealPower, this.revealDesc, this.refundText])
       o.setVisible(false);
@@ -629,6 +636,8 @@ export class SkinShop {
     const gap = this.lastTime < 0 ? 16.7 : time - this.lastTime;
     const dt = Math.max(0, Math.min(50, gap));
     this.lastTime = time;
+    // A show or card with no reveal on screen can't be seen or closed: put the reactor back.
+    if (this.phase !== 'idle' && !this.reveal.visible) this.closeReveal('ok');
     const p = this.plan;
     if (this.phase === 'show' && p) {
       // Back on the screen mid-overload (it was left): the drone picks up again.
@@ -727,11 +736,23 @@ export class SkinShop {
     });
   }
 
+  /** The card's buttons go under the power text, however many lines it takes. */
+  private placeButtons() {
+    const descBottom = CARD_Y.desc + (this.revealDesc.text ? this.revealDesc.height : 30);
+    const y = Math.max(218, descBottom + 41);
+    const canWear = this.revealEquip.visible;
+    this.revealEquip.setPosition(-70, y);
+    this.revealOk.setPosition(canWear ? 80 : 0, y);
+    this.revealAgain.setPosition(0, y + 52);
+  }
+
   private showRevealButtons(res: SpinResult) {
     if (!this.reveal.visible || this.plan?.res !== res) return;
     const canWear = save.skin !== res.skin.id;
     this.revealEquip.setVisible(canWear);
-    this.revealOk.setVisible(true).setX(canWear ? 80 : 0);
+    this.revealOk.setVisible(true);
+    this.placeButtons();
+    this.buttonsAt = this.lastTime;
     const pay = gacha.payment();
     this.revealAgain.setVisible(pay !== null);
     if (pay) this.revealAgain.setLabel(pay === 'free' ? 'CHARGE AGAIN  ·  FREE' : `CHARGE AGAIN  ·  ${SPIN_COST}`);
@@ -816,6 +837,16 @@ export class SkinShop {
         o.setPosition(this.prize.x, this.prize.y).setScale(this.prize.scaleX).setAlpha(0.32);
       } else o.setAlpha(0.9);
     }
+  }
+
+  /**
+   * A card button. Only once per card (a double tap on CHARGE AGAIN used to
+   * close it twice: the second fade hid the next show and the screen stayed
+   * empty), and not while the buttons are still popping in.
+   */
+  private pressCard(action: 'wear' | 'ok' | 'again') {
+    if (this.phase !== 'card' || this.lastTime - this.buttonsAt < BUTTON_GRACE) return;
+    this.closeReveal(action);
   }
 
   private closeReveal(action: 'wear' | 'ok' | 'again') {
