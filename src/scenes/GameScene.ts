@@ -51,6 +51,8 @@ const MILESTONES: [number, string][] = [
 /** DUCK FRENZY: tap as fast as you can for this long, one duck per tap. */
 /** Skin powers unlock on this level (levels before it teach the basics). */
 const ABILITY_FROM_LEVEL = 3;
+/** How fast the game runs during slow motion. */
+const SLOW_MO_RATE = 0.35;
 const FRENZY_SECONDS = 8;
 const FRENZY_MAX = 70;
 /** Pause after the frenzy so leftover taps don't steer you into a wall. */
@@ -238,6 +240,8 @@ export class GameScene extends Phaser.Scene {
   private starView: WarpStarView | null = null;
   /** This run's first look at the warp star has been called out. */
   private starCalled = false;
+  /** The call-out's slow motion lasts through the next corner, and ends with the turn. */
+  private starSlowToTurn = false;
   /** The ghost of your best attempt on this level, and the recording of this one (levels only). */
   private ghostView!: GhostView;
   private ghostRec: GhostRecorder | null = null;
@@ -382,6 +386,7 @@ export class GameScene extends Phaser.Scene {
     this.starView = null;
     this.starSparkled = false;
     this.starCalled = false;
+    this.starSlowToTurn = false;
     this.ducks = 0;
     this.ghostRec = null;
     this.ghostView.stop();
@@ -677,6 +682,10 @@ export class GameScene extends Phaser.Scene {
     }
     this.gateTurns++;
     if (this.guidedGates > 0) this.guidedGates--;
+    if (this.starSlowToTurn) {
+      this.starSlowToTurn = false;
+      this.slowMo = Math.min(this.slowMo, 0.1);
+    }
     if (perfect) {
       this.combo++;
       this.perfects++;
@@ -1062,7 +1071,7 @@ export class GameScene extends Phaser.Scene {
     if (this.ability && this.elapsed >= this.ability.until) this.endAbility();
     const ab = this.ability?.def;
     if (this.slowMo > 0) this.slowMo = Math.max(0, this.slowMo - dt);
-    const sim = dt * (this.slowMo > 0 ? 0.35 : 1) * (ab ? this.abilityTimeScale(ab) : 1);
+    const sim = dt * (this.slowMo > 0 ? SLOW_MO_RATE : 1) * (ab ? this.abilityTimeScale(ab) : 1);
     if (!ab?.freeze) this.hazardClock += sim;
 
     const speed = this.course.speedAt(this.distance) * (ab?.speed ?? 1);
@@ -1206,6 +1215,29 @@ export class GameScene extends Phaser.Scene {
 
   // --- The warp star and the bonus universe ---------------------------------
 
+  /**
+   * How long the warp star call-out slows time (s), from `want`. Time must not
+   * snap back to full speed just as the ball reaches a corner: if it would,
+   * the slow motion ends earlier (at least 0.4 s before the corner) or, if
+   * that leaves too little of it, lasts through the corner until the turn.
+   */
+  private starCallSlowMo(want: number) {
+    const cur = this.track.get(this.current);
+    const gate = this.track.get(this.current + 1)?.gate;
+    if (!cur || !gate || this.player.dir !== cur.dir) return want;
+    const d = DIRS[this.player.dir];
+    const along = (x: number, y: number) => (x - this.player.x) * d.x + (y - this.player.y) * d.y;
+    const entry = Math.min(along(gate.x1, gate.y1), along(gate.x2, gate.y2));
+    const exit = Math.max(along(gate.x1, gate.y1), along(gate.x2, gate.y2));
+    const v = Math.max(1, this.course.speedAt(this.distance)) * SLOW_MO_RATE;
+    const full = v / SLOW_MO_RATE;
+    if (want * v < entry - full * 0.4 || want * v > exit) return want;
+    const shorter = (entry - full * 0.4) / v;
+    if (shorter >= 0.45) return shorter;
+    this.starSlowToTurn = true;
+    return Math.max(0, exit) / v + 0.1;
+  }
+
   /** Show the star while its segment is on screen. */
   private updateWarpStar(t: number) {
     const seg = this.visibleSegments().find((s) => s.warpStar && !s.warpStar.taken);
@@ -1219,7 +1251,7 @@ export class GameScene extends Phaser.Scene {
       const my = v.height * 0.22;
       if (star.x > v.x + mx && star.x < v.right - mx && star.y > v.y + my && star.y < v.bottom - my) {
         this.starCalled = true;
-        this.slowMo = Math.max(this.slowMo, 0.9);
+        this.slowMo = Math.max(this.slowMo, this.starCallSlowMo(0.9));
         this.effects.floater(star.x, star.y - 42, 'WARP STAR!', '#ff5cb8', 22, 3);
         [0, 260, 520].forEach((ms) => this.time.delayedCall(ms, () => !star.taken && this.effects.shockwave(star.x, star.y, 0xff5cb8, 70, 600)));
       }
