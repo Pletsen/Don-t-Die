@@ -47,6 +47,8 @@ export class HowToPlay {
   /** In single-card mode: what to do when the card is dismissed. */
   private single: (() => void) | null = null;
   private openedAt = 0;
+  /** Text width the body and note wrap at (set by layout). */
+  private wrap = 360;
   /** Every ball image, so the equipped skin can be swapped in. */
   private balls: Phaser.GameObjects.Image[] = [];
 
@@ -314,10 +316,10 @@ export class HowToPlay {
         draw: (g, t) => {
           const T = t % 4.6;
           const cx = -110;
-          const line = -15; // turning early puts the ball close to the top wall
+          const line = 15; // turning early (before the middle of the corner) keeps the ball close to the bottom wall
           const sx = -10;
           const hit = 1.9;
-          // Up the side lane, an early turn, along the top wall into the star.
+          // Up the side lane, an early turn, along the bottom wall into the star.
           const vUp = 120;
           const upEnd = (74 - line) / vUp;
           const vRight = (sx - cx) / (hit - upEnd);
@@ -339,7 +341,7 @@ export class HowToPlay {
           ball.setPosition(Math.min(bx, 170), by).setVisible(bx < 170);
           // The tap, a little before the middle of the corner.
           this.ripple(g, cx, line, (T - upEnd) * 3);
-          this.float(early, cx - 4, line - 34, (T - upEnd) * 1.4);
+          this.float(early, cx - 4, -49, (T - upEnd) * 1.4);
           // The star spins until the ball rolls through it.
           const pulse = 1 + 0.15 * Math.sin(t * 6);
           star.setVisible(!warped).setPosition(sx, line).setRotation(t * 2.4).setScale((50 / 64) * pulse);
@@ -347,7 +349,7 @@ export class HowToPlay {
           if (warped) {
             for (let i = 0; i < 3; i++) this.ripple(g, sx, line, (T - hit) * 1.6 - i * 0.12, rainbow[i * 2]);
           }
-          this.float(warp, sx, line - 40, (T - hit) * 1.1);
+          this.float(warp, sx, -55, (T - hit) * 1.1);
           u2.setVisible(warped).setPosition(70, 46).setAlpha(Math.min(1, (T - hit) * 3));
           // UNIVERSE 2: ducks on the rest of the straight, +1 each.
           ducks.forEach((d, i) => {
@@ -355,7 +357,7 @@ export class HowToPlay {
             const passed = bx >= x;
             d.setVisible(warped && !passed).setPosition(x, line + Math.sin(t * 5 + i) * 2).setRotation(Math.sin(t * 3 + i) * 0.15);
             const at = hit + (x - sx) / vRight;
-            this.float(plus[i], x, line - 26, (T - at) * 1.8);
+            this.float(plus[i], x, -41, (T - at) * 1.8);
           });
         },
       });
@@ -523,6 +525,7 @@ export class HowToPlay {
     this.title.setText(card.title).setShadow(0, 0, hexColor(card.color), 16, false, true);
     this.body.setText(card.body);
     this.note.setText(card.note);
+    this.fitText();
     this.cards.forEach((c) => {
       const on = c === card;
       c.images.forEach((i) => i.setVisible(on));
@@ -553,11 +556,24 @@ export class HowToPlay {
     this.title.setPosition(0, top + 36);
     const stageY = top + 76 + 100 * scale;
     this.stage.setPosition(0, stageY).setScale(scale);
-    this.body.setPosition(0, stageY + 118 * scale).setWordWrapWidth(wrap);
-    this.note.setPosition(0, stageY + 118 * scale + 58).setWordWrapWidth(wrap);
+    this.wrap = wrap;
+    this.body.setPosition(0, stageY + 118 * scale);
+    this.fitText();
     this.dots.setPosition(0, h - 96);
     this.back.setPosition(-80, h - 50);
     this.next.setPosition(66, h - 50);
+  }
+
+  /**
+   * On narrow phones the body and note shrink a little instead of wrapping
+   * into extra lines, and the note always starts below the body.
+   */
+  private fitText() {
+    const kb = Math.min(1, this.wrap / 330);
+    const kn = Math.min(1, this.wrap / 300);
+    this.body.setScale(kb).setWordWrapWidth(this.wrap / kb);
+    this.note.setScale(kn).setWordWrapWidth(this.wrap / kn);
+    this.note.setPosition(0, this.body.y + Math.max(58, this.body.displayHeight + 10));
   }
 
   update(time: number) {

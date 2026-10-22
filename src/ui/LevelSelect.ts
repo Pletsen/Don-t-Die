@@ -227,6 +227,14 @@ export class LevelSelect {
       const got = levels.reduce((a, l) => a + save.starsFor(l.id), 0);
       this.worldStars[wi].setText(`${got} / ${levels.length * 3}`);
     });
+    this.fitHeader();
+  }
+
+  /** Shrink the title to fit between the back button and the star count (narrow phones). */
+  private fitHeader() {
+    const half = this.totalStars.x;
+    const room = 2 * Math.min(half - 48, half - this.totalStars.width - 28);
+    this.header.setScale(Math.min(1, room / Math.max(1, this.header.width)));
   }
 
   layout(w: number, h: number, top: number) {
@@ -241,11 +249,13 @@ export class LevelSelect {
     this.header.setPosition(0, y + 22);
     this.totalStars.setPosition(-left, y + 22);
     y += 64;
-    // EASY / NORMAL / HARD tabs (locked teasers until they open).
+    // EASY / NORMAL / HARD tabs (locked teasers until they open), smaller
+    // on narrow phones so all three fit.
+    const k = Math.min(1, width / (3 * 104 + 2 * 10));
     SETS.forEach((set, i) => {
-      const x = (i - 1) * 114;
-      this.tabs[set].setPosition(x, y + 4);
-      this.lockedTabs[set].setPosition(x, y + 4).setData('x', x);
+      const x = (i - 1) * 114 * k;
+      this.tabs[set].setPosition(x, y + 4).setScale(k);
+      this.lockedTabs[set].setPosition(x, y + 4).setScale(k).setData('x', x);
     });
     y += 50;
     const plateTop = y - 10;
@@ -281,10 +291,15 @@ export class LevelSelect {
     this.scene.tweens.add({ targets: this.header, x: this.header.x + 3, duration: 35, yoyo: true, repeat: 1 });
     if (this.pokes === 5) {
       this.header.setText('STOP POKING ME');
-      this.scene.time.delayedCall(1600, () => this.header.setText(SET_HEADER[this.set]));
+      this.fitHeader();
+      this.scene.time.delayedCall(1600, () => {
+        this.header.setText(SET_HEADER[this.set]);
+        this.fitHeader();
+      });
     } else if (this.pokes === 10) {
       this.pokes = 0;
       this.header.setText(SET_HEADER[this.set]);
+      this.fitHeader();
       this.onSecret();
     }
   }

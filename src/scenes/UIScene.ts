@@ -189,8 +189,8 @@ export class UIScene extends Phaser.Scene {
       menu: () => this.showMenu(),
       share: () => this.shareResult(),
     });
-    // Finishing HOW TO PLAY before ever clearing level 1 starts level 1.
-    this.howTo = new HowToPlay(this, (finished) => (finished && save.starsFor(1) === 0 ? this.play(1) : this.showMenu()));
+    // Finishing HOW TO PLAY before ever clearing a level starts the first one (EASY 1).
+    this.howTo = new HowToPlay(this, (finished) => (finished && Object.keys(save.stars).length === 0 ? this.play(nextLevelToPlay()) : this.showMenu()));
     this.buildToggles();
     this.buildAbilityPill();
     this.buildFrenzy();

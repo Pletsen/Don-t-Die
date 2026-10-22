@@ -645,7 +645,7 @@ class Progress {
     else if (sum.newStars > 0) submitScore('stars', this.totalStars() + save.hardStars());
     // Native prompts wait for a calm moment (UIScene), never a death card: a
     // rating after a great run, the reminders after a Daily Run.
-    if ((ev.cleared && ev.stars === 3 && (ev.level ?? 0) >= 5) || (ev.mode === 'survival' && sum.newBest && sum.bestBefore >= 200)) offerReview();
+    if ((ev.cleared && ev.stars === 3 && levelNumber(ev.level ?? 0) >= 5) || (ev.mode === 'survival' && sum.newBest && sum.bestBefore >= 200)) offerReview();
     if (ev.mode === 'daily') {
       offerReminders();
       syncReminders();
