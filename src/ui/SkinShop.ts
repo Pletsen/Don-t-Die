@@ -12,7 +12,7 @@ import { TEX, DUCK_RES } from '../fx/textures';
 import { makeButton, makeText, type Button } from './widgets';
 import { BAY, Q, SHOP_TEX, TILE_IN, TILE_TEX, ensureShopTextures, safeBottom } from './shopTextures';
 import { shopSfx } from './shopSfx';
-import { CREAK, QuackReactor, TEASE_CHANCE, crossed, makePlan, type Plan } from './QuackReactor';
+import { CREAK, QuackReactor, STAGE_IN, TEASE_CHANCE, crossed, makePlan, overloadAt, type Plan } from './QuackReactor';
 import { PRIZE_Y, ReactorReveal } from './ReactorReveal';
 
 /** The collection: 50 skins in 5 tidy rows of 10. */
@@ -25,6 +25,8 @@ const SEEN_KEY = 'dontdie_reactor_reveals';
 const SKIP_AFTER = 2;
 /** The card under the prize (reveal coordinates). */
 const CARD_Y = { rarity: 44, name: 78, note: 112, power: 138, desc: 157 };
+/** On short phones the bay is no taller than this (the collection keeps its size). */
+const BAY_MIN_H = 244;
 
 interface Tile {
   skin: Skin;
@@ -90,6 +92,10 @@ export class SkinShop {
   private revealDesc: Phaser.GameObjects.Text;
   private refundText: Phaser.GameObjects.Text;
   private skipHint: Phaser.GameObjects.Text;
+  /** The fuel counter on the stage (the bay's LCD fades out with the panel). */
+  private stageCount: Phaser.GameObjects.Text;
+  private stageLabel: Phaser.GameObjects.Text;
+  private stageFuel = -1;
   private revealEquip: Button;
   private revealOk: Button;
   private revealAgain: Button;
@@ -110,6 +116,14 @@ export class SkinShop {
   /** From the charge until the shell cracks, the collection and pity read-out don't change (no spoilers). */
   private hold = false;
   private revealScale = 1;
+  /** The reactor in its bay (shop root coordinates). */
+  private bayScale = 1;
+  private bayY = 0;
+  /** During a show the reactor lives in the reveal, on the stage. */
+  private staged = false;
+  private pageShown = true;
+  private screenW = 390;
+  private screenH = 844;
   private seen = Math.max(0, parseInt(read(SEEN_KEY) ?? '0', 10) || 0);
   /** For tests: force (true) or forbid (false) the upgrade tease; null rolls it. */
   forceTease: boolean | null = null;
@@ -203,6 +217,8 @@ export class SkinShop {
       .setWordWrapWidth(300);
     this.refundText = makeText(scene, 0, PRIZE_Y, '', { size: 34, color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
     this.skipHint = makeText(scene, 0, 0, 'TAP TO SKIP', { font: 'mono', size: 10, weight: '700', color: css.inkDim, spacing: 2 }).setOrigin(0.5);
+    this.stageCount = makeText(scene, 0, 0, '', { font: 'mono', size: 44, weight: '700', color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
+    this.stageLabel = makeText(scene, 0, 0, '', { font: 'mono', size: 11, weight: '700', color: css.inkDim, spacing: 3 }).setOrigin(0.5);
     this.revealEquip = makeButton(scene, { label: 'WEAR IT', width: 150, onPress: () => this.closeReveal('wear') });
     this.revealOk = makeButton(scene, { label: 'NICE', width: 110, style: 'ghost', onPress: () => this.closeReveal('ok') });
     this.revealAgain = makeButton(scene, {
@@ -228,6 +244,8 @@ export class SkinShop {
         this.revealDesc,
         this.refundText,
         this.skipHint,
+        this.stageCount,
+        this.stageLabel,
         this.revealEquip,
         this.revealOk,
         this.revealAgain,
@@ -279,9 +297,20 @@ export class SkinShop {
     this.freeNote.setPosition(-left - 52, y + 36);
     y += 48;
 
-    // The bay is a little wider than the rest; on narrow phones it shrinks to fit.
-    const bayScale = Math.min(1, (w - 20) / BAY.W);
-    this.reactor.root.setScale(bayScale).setPosition(0, y + (BAY.H / 2) * bayScale);
+    // The grid may use a little more of the width than the rest.
+    const gridRoom = Math.min(w - 24, 380);
+    const s = Math.floor((gridRoom - (COLS - 1) * GAP) / COLS);
+    const gridH = Math.ceil(this.tiles.length / COLS) * (s + GAP);
+    const avail = h - top - 10 - safeBottom();
+    // The bay is a little wider than the rest and as big as the screen allows:
+    // up to the full width, but on short phones no taller than it used to be
+    // (BAY_MIN_H), so the collection doesn't shrink for it.
+    const rest = 48 + 32 + 40 + 17 + 24 + 16 + gridH + 6 + 82;
+    const fitW = Math.min(1.06, (w - 16) / BAY.W);
+    const bayScale = Math.max(Math.min(fitW, BAY_MIN_H / BAY.H), Math.min(fitW, (avail - rest) / BAY.H));
+    this.bayScale = bayScale;
+    this.bayY = y + (BAY.H / 2) * bayScale;
+    if (!this.staged) this.reactor.root.setScale(bayScale).setPosition(0, this.bayY);
     y += BAY.H * bayScale + 32;
     this.pull.setPosition(0, y);
     this.freePull.setPosition(0, y);
@@ -303,9 +332,6 @@ export class SkinShop {
       cx -= t.width + 20;
     }
     y += 16;
-    // The grid may use a little more of the width than the rest.
-    const gridRoom = Math.min(w - 24, 380);
-    const s = Math.floor((gridRoom - (COLS - 1) * GAP) / COLS);
     const gridW = COLS * s + (COLS - 1) * GAP;
     const gx = -gridW / 2;
     const k = (s * TILE_TEX) / TILE_IN / TILE_TEX;
@@ -321,19 +347,21 @@ export class SkinShop {
       t.hit.setSize(s + GAP, s + GAP);
       t.look = '';
     });
-    y += Math.ceil(this.tiles.length / COLS) * (s + GAP) + 6;
+    y += gridH + 6;
     this.infoTitle.setPosition(0, y);
     this.infoBody.setPosition(0, y + 22).setWordWrapWidth(width - 10);
     y += 82;
 
-    const avail = h - top - 10 - safeBottom();
     const scale = Math.min(1, avail / y);
     this.root.setScale(scale).setPosition(w / 2, top + Math.max(0, (avail - y * scale) / 2));
 
     // The reveal fills the screen and is centred on it, whatever the root's scale.
     this.revealScale = 1 / scale;
     this.reveal.setScale(1 / scale).setPosition(0, (h / 2 - this.root.y) / scale);
+    this.screenW = w;
+    this.screenH = h;
     this.fx.layout(w, h);
+    if (this.staged) this.placeStage(this.t);
     const bottomRoom = h / 2 - safeBottom() - 24;
     const by = Math.min(218, bottomRoom - 80);
     this.revealEquip.setPosition(-70, by);
@@ -356,8 +384,8 @@ export class SkinShop {
     const free = save.freeSpins;
     setText(this.freeNote, free > 0 ? `+${free} FREE CHARGE${free > 1 ? 'S' : ''}` : '');
     const useFree = free > 0;
-    this.freePull.setVisible(useFree);
-    this.pull.setVisible(!useFree);
+    this.freePull.setVisible(useFree && this.pageShown);
+    this.pull.setVisible(!useFree && this.pageShown);
     if (useFree) this.freePull.setLabel(free > 1 ? `FREE CHARGE  ·  ${free} LEFT` : 'FREE CHARGE');
     this.pull.setAlpha(save.ducks >= SPIN_COST || this.phase !== 'idle' ? 1 : 0.5);
     if (this.phase === 'idle') this.setRule();
@@ -503,6 +531,86 @@ export class SkinShop {
     setText(this.rule, this.canSkip ? 'TAP TO SKIP' : res.free ? 'FREE CHARGE!' : 'CHARGING...');
     this.rule.setAlpha(1).setColor(res.free ? '#ffd21f' : css.inkDim);
     this.skipZone.input!.enabled = true;
+    this.openStage();
+  }
+
+  /**
+   * The show takes over the screen: the reveal opens (its dim fades the page
+   * out) and the reactor moves into it, to be zoomed onto the stage.
+   */
+  private openStage() {
+    this.reveal.setVisible(true).setAlpha(1);
+    for (const o of [this.prize, this.prizeShine, this.revealRarity, this.revealName, this.nameShine, this.revealNote, this.revealPower, this.revealDesc, this.refundText])
+      o.setVisible(false);
+    for (const b of [this.revealEquip, this.revealOk, this.revealAgain]) b.setVisible(false);
+    const r = this.reactor.root;
+    this.root.remove(r);
+    this.reveal.addAt(r, 1);
+    this.staged = true;
+    this.stageFuel = -1;
+    this.placeStage(0);
+  }
+
+  /** The reactor back in its bay, above the collection. */
+  private closeStage() {
+    if (!this.staged) return;
+    const r = this.reactor.root;
+    this.reveal.remove(r);
+    this.root.addAt(r, this.root.getIndex(this.back) + 1);
+    r.setScale(this.bayScale).setPosition(0, this.bayY).setAlpha(1);
+    this.reveal.setScale(this.revealScale);
+    this.staged = false;
+    this.showPage(true);
+  }
+
+  /** The page under the stage: hidden while the dim covers it anyway (fewer sprites to draw). */
+  private showPage(on: boolean) {
+    if (this.pageShown === on) return;
+    this.pageShown = on;
+    for (const o of [this.pull, this.freePull, ...this.odds, this.rule, this.message, this.collectionLabel, this.rarityDots, ...this.rarityCounts, this.infoTitle, this.infoBody])
+      o.setVisible(on);
+    for (const t of this.tiles) t.root.setVisible(on);
+    // The buttons' and the free note's own rules.
+    if (on) this.refresh();
+  }
+
+  /**
+   * Where the reactor is at show time `t` (reveal coordinates: screen pixels
+   * round the screen's centre). It zooms from its bay until the housing fills
+   * most of the screen's width, creeps closer as it overloads, and after the
+   * burst falls back into the dark behind the orb.
+   */
+  private placeStage(t: number) {
+    const p = this.plan;
+    const r = this.reactor.root;
+    const w = this.screenW;
+    const h = this.screenH;
+    const zoom = Math.min((w * 0.86) / (2 * BAY.housingR), (h * 0.4) / (2 * BAY.housingR));
+    const k0 = Math.min(1, Math.max(0, t / STAGE_IN));
+    const k = k0 < 0.5 ? 4 * k0 * k0 * k0 : 1 - Math.pow(-2 * k0 + 2, 3) / 2;
+    const u = p ? overloadAt(p, t) : 0;
+    const gone = p ? Math.min(1, Math.max(0, (t - p.blast - 80) / 450)) : 0;
+    const z = zoom * (1 + 0.07 * u * u + 0.05 * (p && t >= p.blast ? 1 : 0) + 0.06 * gone);
+    // The bay's core in reveal coordinates, and its scale there.
+    const s0 = this.bayScale / this.revealScale;
+    const cx0 = (BAY.core.x * this.bayScale) / this.revealScale;
+    const cy0 = (this.bayY + BAY.core.y * this.bayScale - this.reveal.y) / this.revealScale;
+    const sc = s0 + (z - s0) * k;
+    const cx = cx0 * (1 - k);
+    const cy = cy0 + (h * 0.05 - cy0) * k;
+    const x = cx - BAY.core.x * sc;
+    const y = cy - BAY.core.y * sc;
+    // ... and when the shell cracks it fades out of the way of the card.
+    const out = p ? Math.min(1, Math.max(0, (t - p.crack) / 350)) : 0;
+    r.setScale(sc).setPosition(x, y).setAlpha((1 - 0.72 * gone) * (1 - out));
+    this.showPage(k0 < 1);
+    this.reactor.setStage(k, (-w / 2 - x) / sc, (-h / 2 - y) / sc, (w / 2 - x) / sc, (h / 2 - y) / sc, sc);
+    this.reveal.setScale(this.revealScale * (1 + this.fx.kick));
+    // The fuel counter hangs over the reactor while the ducks go in.
+    const fade = p ? Math.min(1, Math.max(0, (p.feedEnd + 300 - t) / 250)) : 0;
+    const top = cy - BAY.housingR * sc;
+    this.stageCount.setPosition(0, top - 58).setAlpha(k * fade).setVisible(k * fade > 0);
+    this.stageLabel.setPosition(0, top - 26).setAlpha(k * fade).setVisible(k * fade > 0);
   }
 
   /** A tap during the show: skips to the shell cracking, once the player has seen a couple of reveals. */
@@ -530,6 +638,7 @@ export class SkinShop {
       this.reactor.update(dt, null, 0, 0, false, save.fxReduced);
       if (this.phase === 'card') {
         this.fx.idle(dt);
+        if (this.staged) this.placeStage(this.t);
         if (this.plan?.rarity === 'legendary' && this.prize.visible) this.shimmer(this.lastTime);
       }
     }
@@ -544,24 +653,27 @@ export class SkinShop {
     const prev = this.t;
     this.t = to;
     const reduced = save.fxReduced;
+    if (this.staged) this.placeStage(to);
     this.reactor.update(dt, p, prev, to, quiet, reduced);
     if (!p.free) {
       const shown = this.before - (SPIN_COST - this.reactor.fuel);
-      if (shown !== this.shownDucks && !this.reveal.visible) {
+      // Only while the ducks go in: a duplicate's refund counts up later.
+      if (shown !== this.shownDucks && prev < p.blast) {
         this.shownDucks = shown;
         this.setBalance(shown);
       }
     }
-    if (crossed(p.blast, prev, to)) {
-      this.reveal.setVisible(true).setAlpha(1);
-      for (const o of [this.prize, this.prizeShine, this.revealRarity, this.revealName, this.nameShine, this.revealNote, this.revealPower, this.revealDesc, this.refundText])
-        o.setVisible(false);
-      for (const b of [this.revealEquip, this.revealOk, this.revealAgain]) b.setVisible(false);
+    // The reactor is in the reveal, so its core is already in reveal coordinates.
+    this.fx.update(dt, prev, to, this.reactor.coreWorld(), quiet, reduced);
+    this.skipHint.setVisible(this.canSkip && to < p.crack - CREAK);
+    const fuel = this.reactor.fuel;
+    if (fuel !== this.stageFuel && this.stageCount.visible) {
+      const first = this.stageFuel < 0;
+      this.stageFuel = fuel;
+      this.stageCount.setText(p.free ? (fuel > 0 ? 'FREE' : 'GO!') : String(fuel)).setScale(first ? 1 : 1.18);
+      this.stageLabel.setText(p.free ? 'GOLDEN CHARGE' : fuel > 0 ? 'DUCKS TO GO' : 'FULL!');
     }
-    const core = this.reactor.coreWorld();
-    const from = { x: (core.x - this.reveal.x) / this.revealScale, y: (core.y - this.reveal.y) / this.revealScale };
-    this.fx.update(dt, prev, to, from, quiet, reduced);
-    this.skipHint.setVisible(this.canSkip && to < p.crack - CREAK && to >= p.blast);
+    if (this.stageCount.scale > 1) this.stageCount.setScale(Math.max(1, this.stageCount.scale - dt * 0.004));
     if (crossed(p.crack - CREAK, prev, to)) this.skipZone.input!.enabled = false;
     if (crossed(p.crack, prev, to)) this.crack();
     if (crossed(p.card, prev, to)) {
@@ -729,6 +841,7 @@ export class SkinShop {
     this.plan = null;
     this.skipZone.input!.enabled = false;
     this.shownDucks = save.ducks;
+    this.closeStage();
     this.reactor.reset(action === 'again');
     this.refresh();
   }

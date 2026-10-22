@@ -447,11 +447,15 @@ class SfxEngine {
   /** Steady white noise for the drone's steam hiss (the shared noise buffer decays, so it can't loop). */
   private hiss: AudioBuffer | null = null;
 
-  /** A duck waddles into the intake: a soft plop that climbs as the tank fills (k = 0..1). */
+  /**
+   * A duck dives into the core: a soft plop that climbs as the tank fills
+   * (k = 0..1). Up to ~25 a second at the end of the stream, so each is
+   * quiet and a little detuned from the last.
+   */
   reactorFeed(k: number) {
-    const f = 300 * Math.pow(2, k * 1.2);
-    this.tone({ freq: f * 2, glideTo: f, duration: 0.06, type: 'sine', gain: 0.09 });
-    this.tone({ freq: f * 4, duration: 0.03, type: 'triangle', gain: 0.02 });
+    const f = 300 * Math.pow(2, k * 1.3 + (Math.random() - 0.5) * 0.15);
+    this.tone({ freq: f * 2, glideTo: f, duration: 0.06, type: 'sine', gain: 0.07 });
+    this.tone({ freq: f * 4, duration: 0.03, type: 'triangle', gain: 0.015 });
   }
 
   /** Now and then a little quack from the queue (k = 0..1, higher as the tank fills). */
@@ -459,10 +463,12 @@ class SfxEngine {
     if (!this.sample('blip', { rate: 1.1 + k * 0.5, gain: LEVEL.blip * 0.6, group: 'blip', maxVoices: 2 })) this.synthQuack(1.4 + k * 0.4);
   }
 
-  /** The golden duck (a free charge) jumps in. */
+  /** The golden duck (a free charge) dives into the core: a splash of gold. */
   reactorGolden() {
     if (!this.sample('golden', { rate: 1.08, gain: LEVEL.golden * 0.7, group: 'golden', maxVoices: 1 })) this.synthQuack(0.8);
-    [0, 4, 7, 12].forEach((st, i) =>
+    this.thump(110, 0.25, 0.2);
+    this.burst({ filterType: 'highpass', filterFreq: 4500, duration: 0.5, gain: 0.06 });
+    [0, 4, 7, 12, 16].forEach((st, i) =>
       this.tone({ freq: 1046 * Math.pow(2, st / 12), duration: 0.18, type: 'triangle', gain: 0.05, delay: 0.12 + i * 0.05 }),
     );
   }

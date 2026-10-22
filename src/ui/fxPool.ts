@@ -12,6 +12,8 @@ export const Fade = {
   Puff: 1,
   /** Flickers while it fades (electric sparks). */
   Flicker: 2,
+  /** Fades in quickly and stays bright to the end (things sucked into the core). */
+  In: 3,
 } as const;
 export type Fade = (typeof Fade)[keyof typeof Fade];
 
@@ -37,6 +39,12 @@ export interface EmitOpts {
   /** Turn the sprite to face where it flies (streaks). */
   align?: boolean;
   fade?: Fade;
+  /**
+   * Sucked in: instead of flying, it spirals from (x, y) into this point,
+   * turning `swirl` radians on the way and arriving as its life ends
+   * (velocity, gravity and drag are ignored).
+   */
+  home?: { x: number; y: number; swirl: number };
 }
 
 export class FxPool {
@@ -54,6 +62,9 @@ export class FxPool {
   private drag: Float32Array;
   private rot: Float32Array;
   private spin: Float32Array;
+  private hx: Float32Array;
+  private hy: Float32Array;
+  private hsw: Float32Array;
   private flags: Uint8Array;
   private live = 0;
   private next = 0;
@@ -74,6 +85,9 @@ export class FxPool {
     this.rot = new Float32Array(count);
     this.spin = new Float32Array(count);
     // bit 0: alive, bit 1: align, bits 2-3: fade
+    this.hx = new Float32Array(count);
+    this.hy = new Float32Array(count);
+    this.hsw = new Float32Array(count);
     this.flags = new Uint8Array(count);
   }
 
@@ -108,7 +122,12 @@ export class FxPool {
     this.drag[i] = o.drag ?? 0;
     this.rot[i] = o.angle ?? 0;
     this.spin[i] = o.spin ?? 0;
-    this.flags[i] = 1 | (o.align ? 2 : 0) | ((o.fade ?? Fade.Out) << 2);
+    this.flags[i] = 1 | (o.align ? 2 : 0) | ((o.fade ?? Fade.Out) << 2) | (o.home ? 16 : 0);
+    if (o.home) {
+      this.hx[i] = o.home.x;
+      this.hy[i] = o.home.y;
+      this.hsw[i] = o.home.swirl;
+    }
     const s = this.sprites[i].setVisible(true).setPosition(o.x, o.y).setScale(o.scale).setRotation(this.rot[i]);
     if (o.tint === undefined) s.clearTint();
     else s.setTint(o.tint);
@@ -131,20 +150,43 @@ export class FxPool {
         s.setVisible(false);
         continue;
       }
-      if (this.drag[i] > 0) {
-        const k = Math.max(0, 1 - this.drag[i] * dt);
-        this.vx[i] *= k;
-        this.vy[i] *= k;
+      if (f & 16) {
+        // Homing: spiral from where it was born into the target, faster and faster.
+        const e = u * u;
+        const ang = this.hsw[i] * e;
+        const c = Math.cos(ang);
+        const sn = Math.sin(ang);
+        const dx = this.x[i] - this.hx[i];
+        const dy = this.y[i] - this.hy[i];
+        const px = this.hx[i] + (dx * c - dy * sn) * (1 - e);
+        const py = this.hy[i] + (dx * sn + dy * c) * (1 - e);
+        if (f & 2) s.setRotation(Math.atan2(py - s.y, px - s.x));
+        s.setPosition(px, py);
+      } else {
+        if (this.drag[i] > 0) {
+          const k = Math.max(0, 1 - this.drag[i] * dt);
+          this.vx[i] *= k;
+          this.vy[i] *= k;
+        }
+        this.vy[i] += this.grav[i] * dt;
+        this.x[i] += this.vx[i] * dt;
+        this.y[i] += this.vy[i] * dt;
+        this.rot[i] += this.spin[i] * dt;
+        s.setPosition(this.x[i], this.y[i]);
+        s.setRotation(f & 2 ? Math.atan2(this.vy[i], this.vx[i]) : this.rot[i]);
       }
-      this.vy[i] += this.grav[i] * dt;
-      this.x[i] += this.vx[i] * dt;
-      this.y[i] += this.vy[i] * dt;
-      this.rot[i] += this.spin[i] * dt;
-      s.setPosition(this.x[i], this.y[i]);
       s.setScale(this.s0[i] + (this.s1[i] - this.s0[i]) * u);
-      s.setRotation(f & 2 ? Math.atan2(this.vy[i], this.vx[i]) : this.rot[i]);
       const fade = (f >> 2) & 3;
-      const a = fade === Fade.Puff ? (u < 0.25 ? u * 4 : (1 - u) * 1.3333) : fade === Fade.Flicker ? (1 - u) * (0.55 + 0.45 * Math.sin(age * 90 + i)) : 1 - u;
+      const a =
+        fade === Fade.Puff
+          ? u < 0.25
+            ? u * 4
+            : (1 - u) * 1.3333
+          : fade === Fade.Flicker
+            ? (1 - u) * (0.55 + 0.45 * Math.sin(age * 90 + i))
+            : fade === Fade.In
+              ? Math.min(1, u * 4)
+              : 1 - u;
       s.setAlpha(this.a0[i] * a);
     }
   }

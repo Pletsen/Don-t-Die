@@ -6,38 +6,40 @@ import { RARITIES, RARITY_ORDER, SKINS, skinTexture, type Rarity } from '../game
 // Everything the QUACK REACTOR draws, painted once into canvas textures: the
 // bay with its fuel counter and core gauge, the reactor housing, spinning
 // rings and armour petals, the conveyor belt, the energy shell, its cracks and
-// lightning, smoke, light beams, glows, collection frames and stickers. Glows
-// are baked with canvas shadowBlur instead of using Phaser filters, so the
-// show costs a few dozen pooled sprites per frame.
+// lightning (round the shell and over the lid), smoke, light beams, glows,
+// shockwaves, the screen-edge glow, swirls, star flares, collection frames and
+// stickers. Glows are baked with canvas shadowBlur instead of using Phaser
+// filters, so the show costs a couple of hundred pooled sprites per frame at
+// most, all simple textured quads.
 
 /** Bay geometry (logical px, origin at the bay's centre). */
 export const BAY = {
   W: 350,
-  H: 244,
+  H: 284,
   R: 22,
   pad: 26,
   /** The reactor's centre. */
-  core: { x: 50, y: -24 },
-  housingR: 90,
-  ringOuterR: 73,
-  ringInnerR: 61,
-  chamberR: 50,
-  petalR: 47,
-  lampR: 84,
+  core: { x: 52, y: -26 },
+  housingR: 104,
+  ringOuterR: 85,
+  ringInnerR: 71,
+  chamberR: 58,
+  petalR: 55,
+  lampR: 97,
   /** Steam vents on top of the housing (angles in degrees, 0 = right, 90 = down). */
   vents: [236, 304],
   /** Lamps round the housing (degrees), leaving room for the vents. */
   lamps: [0, 30, 60, 90, 120, 150, 180, 210, 270, 330],
   /** Fuel counter LCD. */
-  counter: { x: -165, y: -110, w: 92, h: 58 },
+  counter: { x: -165, y: -128, w: 92, h: 58 },
   /** Core temperature gauge. */
-  dial: { x: -118, y: 16, r: 32 },
+  dial: { x: -118, y: 8, r: 32 },
   /** The conveyor: ducks walk on y = beltY from beltX0 into the intake at mouthX. */
-  beltY: 84,
+  beltY: 104,
   beltX0: -170,
   mouthX: -70,
   /** Pity read-out along the bottom. */
-  strip: { x: -165, y: 94, w: 330, h: 23 },
+  strip: { x: -165, y: 114, w: 330, h: 23 },
 };
 
 /** Gauge needle angle (radians) for a charge of 0..1: from lower left over the top to lower right. */
@@ -54,6 +56,8 @@ export const SHELL_R = 88;
 export const BOLT_R = 94;
 export const BOLT_ARCS = 4;
 export const BOLT_STRIKES = 2;
+/** Lid lightning variants. */
+export const ZAPS = 4;
 
 export const SHOP_TEX = {
   bay: 'shop:bay',
@@ -76,6 +80,16 @@ export const SHOP_TEX = {
   beam: 'shop:beam',
   halo: 'shop:halo',
   ring: 'shop:ring',
+  /** Lightning from the core out over the lid to the rim (origin at the core). */
+  zap: (i: number) => `shop:zap:${i}`,
+  /** Glow round the screen's edges (stretched to the screen). */
+  edge: 'shop:edge',
+  /** Spiral energy swirling inside the shell. */
+  swirl: 'shop:swirl',
+  /** A four-pointed star glint. */
+  flare: 'shop:flare',
+  /** A thick soft shockwave (the blast). */
+  wave: 'shop:wave',
   tile: (r: Rarity) => `shop:tile:${r}`,
   tileLocked: 'shop:tileLocked',
   tileWorn: 'shop:tileWorn',
@@ -261,12 +275,12 @@ function paintBay(scene: Phaser.Scene) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(core.x - 66, beltY - 40);
-    ctx.lineTo(core.x + 66, beltY - 40);
-    ctx.lineTo(core.x + 86, beltY + 4);
-    ctx.lineTo(core.x - 86, beltY + 4);
+    ctx.moveTo(core.x - 76, beltY - 44);
+    ctx.lineTo(core.x + 76, beltY - 44);
+    ctx.lineTo(core.x + 98, beltY + 4);
+    ctx.lineTo(core.x - 98, beltY + 4);
     ctx.closePath();
-    const ped = ctx.createLinearGradient(0, beltY - 40, 0, beltY + 4);
+    const ped = ctx.createLinearGradient(0, beltY - 44, 0, beltY + 4);
     ped.addColorStop(0, '#2c3854');
     ped.addColorStop(1, '#0c111d');
     ctx.fillStyle = ped;
@@ -275,12 +289,12 @@ function paintBay(scene: Phaser.Scene) {
     // Hazard stripes along the pedestal's foot.
     ctx.save();
     ctx.beginPath();
-    ctx.rect(core.x - 84, beltY - 6, 168, 7);
+    ctx.rect(core.x - 96, beltY - 6, 192, 7);
     ctx.clip();
     ctx.fillStyle = '#ffd21f';
-    ctx.fillRect(core.x - 84, beltY - 6, 168, 7);
+    ctx.fillRect(core.x - 96, beltY - 6, 192, 7);
     ctx.fillStyle = '#141414';
-    for (let x = core.x - 96; x < core.x + 90; x += 12) {
+    for (let x = core.x - 108; x < core.x + 102; x += 12) {
       ctx.beginPath();
       ctx.moveTo(x, beltY + 1);
       ctx.lineTo(x + 6, beltY - 6);
@@ -503,22 +517,24 @@ function paintReactor(scene: Phaser.Scene) {
     ctx.fill();
   });
   // Energy leaking through the seams between the petals: an X with a hot centre.
-  paint(scene, SHOP_TEX.seams, 112, 112, 2, (ctx) => {
-    ctx.translate(56, 56);
+  const ss = (BAY.petalR + 10) * 2;
+  paint(scene, SHOP_TEX.seams, ss, ss, 2, (ctx) => {
+    ctx.translate(ss / 2, ss / 2);
     ctx.shadowColor = '#ffffff';
     ctx.shadowBlur = 7 * 2;
     ctx.strokeStyle = '#ffffff';
     ctx.lineCap = 'round';
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.6;
+    const l = BAY.petalR - 1;
     for (const a of [Math.PI / 4, -Math.PI / 4]) {
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * -46, Math.sin(a) * -46);
-      ctx.lineTo(Math.cos(a) * 46, Math.sin(a) * 46);
+      ctx.moveTo(Math.cos(a) * -l, Math.sin(a) * -l);
+      ctx.lineTo(Math.cos(a) * l, Math.sin(a) * l);
       ctx.stroke();
     }
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.arc(0, 0, 6, 0, Math.PI * 2);
     ctx.fill();
   });
   // Bulb.
@@ -711,6 +727,29 @@ function paintLightning(scene: Phaser.Scene) {
       glowLine(ctx, [pts[k], [pts[k][0] + 14, pts[k][1] + 12], [pts[k][0] + 26, pts[k][1] + 9]], 1.1);
     });
   }
+  // Lid lightning: from the core out across the lid and the rings to the
+  // housing's rim (origin, x = 0, at the core), with a fork or two.
+  const zl = BAY.housingR + 14;
+  for (let i = 0; i < ZAPS; i++) {
+    paint(scene, SHOP_TEX.zap(i), zl, 52, 2, (ctx) => {
+      ctx.translate(0, 26);
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      const pts: number[][] = [];
+      let y = 0;
+      for (let x = 8; x < BAY.housingR + 6; x += 7 + rnd() * 7) {
+        pts.push([x, y]);
+        y = Math.max(-14, Math.min(14, y + (rnd() - 0.5) * 13));
+      }
+      glowLine(ctx, pts, 1.6);
+      for (let f = 0; f < 2; f++) {
+        const k = 3 + Math.floor(rnd() * (pts.length - 5));
+        const [x, y0] = pts[k];
+        const s = rnd() < 0.5 ? -1 : 1;
+        glowLine(ctx, [[x, y0], [x + 8, y0 + s * 7], [x + 15, y0 + s * 9]], 1);
+      }
+    });
+  }
 }
 
 function paintGlows(scene: Phaser.Scene) {
@@ -758,6 +797,85 @@ function paintGlows(scene: Phaser.Scene) {
     ctx.beginPath();
     ctx.arc(128, 128, 104, 0, Math.PI * 2);
     ctx.stroke();
+  });
+  // A thick, soft shockwave: a faint fill that swells into a bright edge.
+  paint(scene, SHOP_TEX.wave, 256, 256, 1, (ctx) => {
+    const g = ctx.createRadialGradient(128, 128, 0, 128, 128, 126);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.04)');
+    g.addColorStop(0.8, 'rgba(255,255,255,0.3)');
+    g.addColorStop(0.9, 'rgba(255,255,255,1)');
+    g.addColorStop(0.95, 'rgba(255,255,255,0.45)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+  });
+  // Screen-edge glow: bright along the edges, clear in the middle. Painted
+  // small and stretched over the screen (it is all soft gradients).
+  paint(scene, SHOP_TEX.edge, 128, 256, 1, (ctx) => {
+    const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.25, 'rgba(255,255,255,0.4)');
+      g.addColorStop(0.6, 'rgba(255,255,255,0.08)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(rx, ry, rw, rh);
+    };
+    edge(0, 0, 24, 0, 0, 0, 24, 256);
+    edge(128, 0, 104, 0, 104, 0, 24, 256);
+    edge(0, 0, 0, 30, 0, 0, 128, 30);
+    edge(0, 256, 0, 226, 0, 226, 128, 30);
+  });
+  // Energy swirling inside the shell: three glowing spiral arms (2x, like the shell).
+  paint(scene, SHOP_TEX.swirl, SHELL_TEX, SHELL_TEX, 2, (ctx) => {
+    ctx.translate(SHELL_TEX / 2, SHELL_TEX / 2);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 6 * 2;
+    const R = SHELL_R - 10;
+    for (let arm = 0; arm < 3; arm++) {
+      const a0 = (arm / 3) * Math.PI * 2;
+      for (let r = 10; r < R; r += 3) {
+        const k = r / R;
+        const a = a0 + r * 0.05;
+        const b = a0 + (r + 3.5) * 0.05;
+        ctx.strokeStyle = `rgba(255,255,255,${0.75 * Math.sin(Math.PI * Math.min(1, k * 1.15))})`;
+        ctx.lineWidth = 1.2 + 5 * (1 - k) * k * 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+        ctx.lineTo(Math.cos(b) * (r + 3.5), Math.sin(b) * (r + 3.5));
+        ctx.stroke();
+      }
+    }
+  });
+  // Star glint: a hot centre and four long thin spikes (two of them fainter).
+  paint(scene, SHOP_TEX.flare, 160, 160, 1, (ctx) => {
+    ctx.translate(80, 80);
+    const spike = (rot: number, len: number, thick: number, a: number) => {
+      ctx.save();
+      ctx.rotate(rot);
+      ctx.scale(1, thick);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, len);
+      g.addColorStop(0, `rgba(255,255,255,${a})`);
+      g.addColorStop(0.25, `rgba(255,255,255,${a * 0.5})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, len, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    spike(0, 80, 0.07, 1);
+    spike(Math.PI / 2, 80, 0.07, 1);
+    spike(Math.PI / 4, 46, 0.06, 0.55);
+    spike(-Math.PI / 4, 46, 0.06, 0.55);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 26);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(-26, -26, 52, 52);
   });
   // Smoke / steam puff: a few soft overlapping blobs (tinted, normal blend).
   paint(scene, SHOP_TEX.smoke, 64, 64, 1, (ctx) => {
