@@ -990,6 +990,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private play(level: number | null) {
+    this.hideReactorTip();
     // A one-time tip card right before a level that brings something new.
     const tip = level !== null ? LEVEL_TIPS[level] : undefined;
     if (tip !== undefined && !this.tipsSeen.has(level!)) {
