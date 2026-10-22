@@ -1,6 +1,6 @@
 import type { StatEvent } from './shared';
 import type { ProgressHooks, Stats } from './progress';
-import { ALL_LEVELS, EASY_LEVELS, HARD_LEVELS, LEVELS, levelId } from './levels';
+import { ALL_LEVELS, EASY_LEVELS, HARD_LEVELS, LEVELS, levelById, levelId } from './levels';
 import { SKINS } from './skins';
 
 // ~30 achievements, each with a duck reward. They are checked after every
@@ -140,7 +140,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     desc: 'Clear a World 3+ level without your ability.',
     ducks: 10,
     glyph: 'check',
-    check: (c) => !!runEnd(c)?.cleared && !runEnd(c)!.abilityUsed && !runEnd(c)!.continued && (runEnd(c)!.level ?? 0) >= 11,
+    check: (c) => !!runEnd(c)?.cleared && !runEnd(c)!.abilityUsed && !runEnd(c)!.continued && (levelById(runEnd(c)!.level ?? 0)?.world ?? 0) >= 2,
   }),
 
   // --- Skill ---

@@ -2,6 +2,7 @@ import type { StatEvent } from './shared';
 import { seededRng } from './rng';
 import { hashString, todayKey } from './daily';
 import type { ProgressHooks } from './progress';
+import { levelById, levelNumber } from './levels';
 
 // Three daily missions (easy / medium / hard), picked from a pool by the UTC
 // date, driven entirely by StatEvents. Finishing a mission pays ducks right
@@ -17,7 +18,7 @@ export const REROLLS_PER_DAY = 1;
 
 /** What a mission may look at to decide if it makes sense for this player yet. */
 export interface MissionCtx {
-  /** Highest level id that's open to play (1 for a brand-new player). */
+  /** Highest level number open to play, in any set (1 for a brand-new player). */
   unlocked: number;
   /** Ducks ever bonked: has the player met ducks at all? */
   ducksSeen: number;
@@ -39,6 +40,10 @@ export interface MissionDef {
 }
 
 const end = (ev: StatEvent) => (ev.type === 'runEnd' ? ev : null);
+/** The run's level number within its set (EASY 6, LEVEL 6 and HARD 6 are all 6), 0 outside levels. */
+const num = (ev: StatEvent) => levelNumber(end(ev)?.level ?? 0);
+/** The run's world (0-3), -1 outside levels. */
+const world = (ev: StatEvent) => levelById(end(ev)?.level ?? 0)?.world ?? -1;
 const m = (def: MissionDef) => def;
 
 export const MISSIONS: MissionDef[] = [
@@ -85,7 +90,7 @@ export const MISSIONS: MissionDef[] = [
     goal: 1,
     kind: 'sum',
     text: 'CLEAR LEVEL 3+ WITH 2+ STARS',
-    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 2 && (end(ev)!.level ?? 0) >= 3 ? 1 : 0),
+    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 2 && num(ev) >= 3 ? 1 : 0),
     requires: (c) => c.unlocked >= 3,
   }),
   m({ id: 'm_ability3', tier: 'medium', goal: 3, kind: 'sum', text: 'USE YOUR SKIN ABILITY 3 TIMES', count: (ev) => (ev.type === 'ability' ? 1 : 0) }),
@@ -123,7 +128,7 @@ export const MISSIONS: MissionDef[] = [
     goal: 1,
     kind: 'sum',
     text: 'CLEAR LEVEL 6+ WITH 3 STARS',
-    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 3 && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
+    count: (ev) => (end(ev)?.cleared && end(ev)!.stars >= 3 && num(ev) >= 6 ? 1 : 0),
     requires: (c) => c.unlocked >= 6,
   }),
   m({
@@ -150,7 +155,7 @@ export const MISSIONS: MissionDef[] = [
     goal: 1,
     kind: 'sum',
     text: 'CLEAR WORLD 2+ WITHOUT ABILITY',
-    count: (ev) => (end(ev)?.cleared && !end(ev)!.abilityUsed && !end(ev)!.continued && (end(ev)!.level ?? 0) >= 6 ? 1 : 0),
+    count: (ev) => (end(ev)?.cleared && !end(ev)!.abilityUsed && !end(ev)!.continued && world(ev) >= 1 ? 1 : 0),
     requires: (c) => c.unlocked >= 6,
   }),
   m({
