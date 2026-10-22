@@ -26,7 +26,6 @@ import {
   ARMY_MAX,
   FORGIVE_S,
   SPIN_TAP_WINDOW,
-  STAR_PULL,
   SURVIVAL_RECHARGE_M,
   SURVIVAL_RECHARGE_S,
   type AbilityDef,
@@ -1575,19 +1574,8 @@ export class GameScene extends Phaser.Scene {
     else if (z?.kind === 'fire') this.breatheFire(z.range, this.time.now / 1000);
     else if (this.abilityG?.visible) this.abilityG.clear().setVisible(false);
 
-    // A magnet reels in the warp star too, but only from close by: hitting it stays a skill shot.
-    if (def.magnet) {
-      for (const seg of segs) {
-        const star = seg.warpStar;
-        if (!star || star.taken) continue;
-        const dist = Math.hypot(p.x - star.x, p.y - star.y) || 1;
-        if (dist > STAR_PULL) continue;
-        const k = Math.min(dist, 380 * sim) / dist;
-        star.x += (p.x - star.x) * k;
-        star.y += (p.y - star.y) * k;
-        this.checkWarpStar(star);
-      }
-    }
+    // (Magnets leave the warp star alone: pulling it in made a warp ~2-6x as
+    // likely for magnet skins, and hitting it should stay a skill shot.)
   }
 
   /**

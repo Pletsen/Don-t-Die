@@ -114,7 +114,7 @@ Evnerne er afbalanceret efter sjældenhed og målt med test-botten (evnen tændt
 - **Epic:** stærk og flot, men du kan stadig dø. Højst +30.
 - **Legendary:** den bedste og mest spektakulære, men du spiller stadig selv. Kun én (Phoenix) har autopilot, og ingen evne gør dig udødelig. Højst +40.
 - Ingen evne bliver udødelig af, at du holder op med at trykke: "bounce" og "orbit" (der drejer for dig) blandes aldrig med fuld beskyttelse mod forhindringer.
-- Ænder: højst ca. 2×/2×/3×/4× de ænder, du ville have fået på samme stræk uden evne, også i Universe 2 og i DUCK POND. Magneter trækker aldrig den gyldne and, og warp-stjernen kun hvis du kommer helt tæt på (22 px).
+- Ænder: højst ca. 2×/2×/3×/4× de ænder, du ville have fået på samme stræk uden evne, også i Universe 2 og i DUCK POND. Magneter trækker aldrig den gyldne and eller warp-stjernen: de skal rammes.
 
 | Skin | Evne | Hvad den gør |
 |---|---|---|
@@ -123,7 +123,7 @@ Evnerne er afbalanceret efter sjældenhed og målt med test-botten (evnen tændt
 | Mint Chip | COOL HEAD | Et tryk lidt for tidligt venter på svinget. Alle sving er PERFECT. |
 | Bubblegum | BUBBLE | En boble tager ét slag for dig. |
 | Lemon | SQUEEZE | Du bliver presset lille og smutter forbi forhindringer. |
-| Grape | GRAPEVINE | Ranker trækker ænder til dig (og warp-stjernen, hvis du kommer helt tæt på). |
+| Grape | GRAPEVINE | Ranker trækker ænderne tæt på til dig. |
 | Tangerine | JUICE SQUIRT | Sprøjter juice på forhindringerne forude: de står bomstille, og bomber går ud. |
 | Frosty | DEEP FREEZE | Forhindringerne fryser. Tiden køler lidt ned. |
 | Blush | SO SHY | Forhindringer tæt på rødmer og skrumper ind. |
@@ -163,12 +163,12 @@ Evnerne er afbalanceret efter sjældenhed og målt med test-botten (evnen tændt
 | Fishbowl | TIDAL WAVE | Forhindringer skylles væk ved berøring. Under vand går tiden langsommere, og fisk henter ænder. |
 | UFO | ABDUCTION | En traktorstråle bortfører forhindringer forude og ænder. Et kraftfelt tager ét slag. |
 | Ninja | SHURIKEN | Otte shuriken skærer forhindringerne ned. Ninja-reflekser: for tidlige tryk venter. Alt PERFECT. |
-| Dragon | FIRE BREATH | Ild brænder forhindringerne på din linje. Hårde skæl tager ét slag. |
+| Dragon | FIRE BREATH | Ild brænder forhindringerne på din linje. Hårde skæl tager to slag. |
 | Storm Cloud | THUNDER | Lynet slår ned i forhindringerne forude, og vindstød blæser dig rundt i svingene. |
 | **Legendary** | | |
 | Golden Crown | ROYAL DECREE | Forhindringer bukker og skrumper, garden tager to slag, den røde løber klarer alle sving, ænder tæller dobbelt. |
-| Black Hole | EVENT HORIZON | Sluger alle forhindringer tæt på. Tiden bøjer i svingene, og ænder falder ind. |
-| Duck King | QUACK ARMY | De næste seks forhindringer bliver til ænder, og hver and, du rammer, bliver en vagt mod et slag eller et styrt (højst fire). |
+| Black Hole | EVENT HORIZON | Sluger alle forhindringer tæt på. Tiden bøjer i svingene, og intet slipper væk, heller ikke et for tidligt tryk. |
+| Duck King | QUACK ARMY | De næste fem forhindringer bliver til ænder, og hver and, du rammer, bliver en vagt mod et slag eller et styrt (højst fire). |
 | Phoenix | REBIRTH | Den eneste legendary med autopilot: flyver den sikre linje, alt PERFECT, og rejser sig fra ét styrt. |
 | Unicorn | RAINBOW ROAD | Hornet gennemborer forhindringer, regnbuer sænker tiden i svingene, for tidlige tryk venter, alt PERFECT. |
 | Supernova | SUPERNOVA | Eksploderer hvert sekund og udsletter alt i nærheden. For tidlige tryk venter, og styrter du, går du nova og kommer igen. |
