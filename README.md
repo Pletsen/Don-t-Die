@@ -41,7 +41,7 @@ Sværhedsgraden er justeret med bot-playtests (en bot med en "nybegynder", en "g
 | EASY 9–10 (åbner NORMAL) | 40–55 % | 83–92 % | 94–100 % |
 | EASY 11–20 | 10–75 % | 75–100 % | 70–100 % |
 | NORMAL 1–10 (åbner HARD) | 100 → 0 % | 100 → 50–75 % | 92–100 % |
-| NORMAL 11–20 | 0–25 % | 50–90 % | 60–100 % |
+| NORMAL 11–20 | 0–25 % | 40–90 % | 60–100 % |
 | HARD 1–10 | 85 → 0 % | 100 → 40–80 % | 92–100 % |
 | HARD 11–20 | 0–8 % | 70 → 8–30 % | 58–100 % |
 
