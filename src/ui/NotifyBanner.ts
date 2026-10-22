@@ -69,6 +69,8 @@ export class NotifyBanner {
     this.screenW = w;
     this.top = top;
     this.w = Math.min(w - 24, W_MAX);
+    // (A banner raised on boot is already up, drawn for the default width.)
+    if (this.current) this.draw(this.current);
     if (this.showing) this.root.setPosition(w / 2, this.restY());
   }
 
