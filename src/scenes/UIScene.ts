@@ -1513,7 +1513,8 @@ export class UIScene extends Phaser.Scene {
     const icon = this.add.image(-w / 2 + 34, 0, TEX.duck).setScale(0.42 / DUCK_RES);
     const title = this.text(-w / 2 + 64, -14, 'REACTOR READY!', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0, 0.5);
     this.spinBannerText = this.text(-w / 2 + 64, 10, '', { font: 'mono', size: 10, color: css.ink, spacing: 1 }).setOrigin(0, 0.5);
-    const go = this.text(w / 2 - 18, 10, 'CHARGE NOW', { size: 12, color: '#ffd21f', spacing: 2 }).setOrigin(1, 0.5);
+    // A big chevron says "tap me"; the text rows keep clear of it.
+    const go = this.text(w / 2 - 20, 0, '›', { size: 34, color: '#ffd21f' }).setOrigin(0.5);
     const hit = this.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => {
       sfx.click();
@@ -1523,10 +1524,10 @@ export class UIScene extends Phaser.Scene {
     this.spinBanner = this.add.container(0, 0, [bg, icon, title, this.spinBannerText, go, hit]).setVisible(false).setDepth(900);
   }
 
-  /** Pops up when you've got enough ducks for a pull on the slot machine. */
+  /** Pops up when you've got enough ducks for a charge of the QUACK REACTOR. */
   private maybeShowSpinBanner(delay = 900) {
     if (save.ducks < SPIN_COST) return;
-    this.spinBannerText.setText(`YOU HAVE ${save.ducks} DUCKS`);
+    this.spinBannerText.setText(`${save.ducks} DUCKS · TAP TO CHARGE`);
     this.placeSpinBanner();
     const b = this.spinBanner;
     this.tweens.killTweensOf(b);
