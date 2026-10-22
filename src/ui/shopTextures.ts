@@ -3,57 +3,85 @@ import { display } from '../game/display';
 import { fonts } from '../game/palette';
 import { RARITIES, RARITY_ORDER, SKINS, skinTexture, type Rarity } from '../game/skins';
 
-// Everything the DUCK-O-MATIC draws, painted once into canvas textures: the
-// machine, glass reels, soft light beams, glows, capsules, collection frames
-// and stickers. Glows are baked with canvas shadowBlur instead of using
-// Phaser filters, so the shop costs a handful of sprites per frame.
+// Everything the QUACK REACTOR draws, painted once into canvas textures: the
+// bay with its fuel counter and core gauge, the reactor housing, spinning
+// rings and armour petals, the conveyor belt, the energy shell, its cracks and
+// lightning, smoke, light beams, glows, collection frames and stickers. Glows
+// are baked with canvas shadowBlur instead of using Phaser filters, so the
+// show costs a few dozen pooled sprites per frame.
 
-/** Machine geometry (logical px, origin at the machine's centre). */
-export const M = {
-  W: 300,
-  H: 250,
-  R: 26,
-  reelW: 72,
-  reelH: 128,
-  reelGap: 9,
-  reelY: -8,
-  slotH: 56,
-  marqueeY: -96,
-  lcd: { x: -132, y: 66, w: 200, h: 42 },
-  coin: { x: 104, y: 87 },
-  bulbs: 14,
-  bulbY: 118,
-  pad: 30,
+/** Bay geometry (logical px, origin at the bay's centre). */
+export const BAY = {
+  W: 350,
+  H: 244,
+  R: 22,
+  pad: 26,
+  /** The reactor's centre. */
+  core: { x: 50, y: -24 },
+  housingR: 90,
+  ringOuterR: 73,
+  ringInnerR: 61,
+  chamberR: 50,
+  petalR: 47,
+  lampR: 84,
+  /** Steam vents on top of the housing (angles in degrees, 0 = right, 90 = down). */
+  vents: [236, 304],
+  /** Lamps round the housing (degrees), leaving room for the vents. */
+  lamps: [0, 30, 60, 90, 120, 150, 180, 210, 270, 330],
+  /** Fuel counter LCD. */
+  counter: { x: -165, y: -110, w: 92, h: 58 },
+  /** Core temperature gauge. */
+  dial: { x: -118, y: 16, r: 32 },
+  /** The conveyor: ducks walk on y = beltY from beltX0 into the intake at mouthX. */
+  beltY: 84,
+  beltX0: -170,
+  mouthX: -70,
+  /** Pity read-out along the bottom. */
+  strip: { x: -165, y: 94, w: 330, h: 23 },
 };
-export const reelX = (r: number) => (r - 1) * (M.reelW + M.reelGap);
+
+/** Gauge needle angle (radians) for a charge of 0..1: from lower left over the top to lower right. */
+export const dialAngle = (k: number) => ((200 + 140 * Math.max(0, Math.min(1, k))) * Math.PI) / 180;
 
 /** Collection tile frame: the texture's inner rect is TILE_IN of TILE_TEX pixels. */
 export const TILE_TEX = 128;
 export const TILE_IN = 112;
 
+/** Energy shell texture: SHELL_TEX px wide, the bright rim at radius SHELL_R. */
+export const SHELL_TEX = 200;
+export const SHELL_R = 88;
+/** Lightning arcs are painted round a circle of this radius (texture centre = circle centre). */
+export const BOLT_R = 94;
+export const BOLT_ARCS = 4;
+export const BOLT_STRIKES = 2;
+
 export const SHOP_TEX = {
-  machine: 'shop:machine',
-  glass: 'shop:glass',
-  reelGlow: 'shop:reelGlow',
-  payline: 'shop:payline',
-  bulb: 'shop:bulb',
+  bay: 'shop:bay',
+  housing: 'shop:housing',
+  ringOuter: 'shop:ringOuter',
+  ringInner: 'shop:ringInner',
+  petal: 'shop:petal',
+  seams: 'shop:seams',
+  lamp: 'shop:lamp',
+  belt: 'shop:belt',
+  mouth: 'shop:mouth',
+  needle: 'shop:needle',
+  shell: 'shop:shell',
+  cracks: 'shop:cracks',
+  /** Jagged arc hugging a circle of BOLT_R (rotate it round the shell). */
+  boltArc: (i: number) => `shop:boltArc:${i}`,
+  /** Jagged strike from the shell outwards (origin at the shell's centre). */
+  boltStrike: (i: number) => `shop:boltStrike:${i}`,
+  smoke: 'shop:smoke',
   beam: 'shop:beam',
   halo: 'shop:halo',
   ring: 'shop:ring',
-  seam: 'shop:seam',
-  capsuleBottom: 'shop:capsuleBottom',
-  capsuleTop: (r: Rarity) => `shop:capsuleTop:${r}`,
-  /** A whole capsule, the same size as a skin texture: the symbol on the reels' win line. */
-  capsuleIcon: (r: Rarity) => `shop:capsuleIcon:${r}`,
   tile: (r: Rarity) => `shop:tile:${r}`,
   tileLocked: 'shop:tileLocked',
   tileWorn: 'shop:tileWorn',
   sticker: 'shop:new',
-  knob: 'shop:knob',
   chip: 'shop:chip',
   silhouette: (id: string) => `skinsil:${id}`,
-  /** Vertically smeared copy of a reel symbol for motion blur. */
-  blur: (key: string) => `blur:${key}`,
 };
 
 /** Texture resolution: crisp on 3x phones, lighter on low-DPR screens. */
@@ -82,6 +110,15 @@ function rgba(color: number, a: number) {
   return `rgba(${(color >> 16) & 255},${(color >> 8) & 255},${color & 255},${a})`;
 }
 
+/** Small seeded random, so baked art (cracks, lightning) looks the same every boot. */
+function seeded(seed: number) {
+  let s = seed >>> 0 || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
 /** Height of the home-indicator area at the bottom of an iPhone (0 elsewhere). */
 export function safeBottom(): number {
   try {
@@ -97,233 +134,395 @@ export function safeBottom(): number {
 }
 
 export function ensureShopTextures(scene: Phaser.Scene) {
-  paintMachine(scene);
-  paintGlass(scene);
+  paintBay(scene);
+  paintReactor(scene);
+  paintShell(scene);
+  paintLightning(scene);
   paintGlows(scene);
-  paintCapsules(scene);
   paintTiles(scene);
-  paintDerived(scene);
+  paintSilhouettes(scene);
 }
 
-function paintMachine(scene: Phaser.Scene) {
-  const { W, H, pad } = M;
-  paint(scene, SHOP_TEX.machine, W + pad * 2, H + pad * 2, Q, (ctx) => {
+const NEON = 'rgba(255,47,158,0.85)';
+
+function paintBay(scene: Phaser.Scene) {
+  const { W, H, pad } = BAY;
+  paint(scene, SHOP_TEX.bay, W + pad * 2, H + pad * 2, Q, (ctx) => {
     ctx.translate(pad + W / 2, pad + H / 2);
     const x0 = -W / 2;
     const y0 = -H / 2;
-    // Neon halo round the cabinet (baked: no filter at runtime).
+    // Neon halo round the bay (baked: no filter at runtime).
     ctx.save();
-    ctx.shadowColor = 'rgba(255,47,158,0.85)';
-    ctx.shadowBlur = 24 * Q;
-    rr(ctx, x0, y0, W, H, M.R);
-    ctx.fillStyle = '#1a0b24';
+    ctx.shadowColor = NEON;
+    ctx.shadowBlur = 22 * Q;
+    rr(ctx, x0, y0, W, H, BAY.R);
+    ctx.fillStyle = '#0a0f1a';
     ctx.fill();
     ctx.restore();
-    // Cabinet: deep plum lacquer with a glossy top.
+    // Blue steel with a faint hex floor.
     const body = ctx.createLinearGradient(0, y0, 0, y0 + H);
-    body.addColorStop(0, '#45185e');
-    body.addColorStop(0.3, '#2a0e3c');
-    body.addColorStop(1, '#13061d');
-    rr(ctx, x0, y0, W, H, M.R);
+    body.addColorStop(0, '#16213a');
+    body.addColorStop(0.45, '#0c1324');
+    body.addColorStop(1, '#070b14');
+    rr(ctx, x0, y0, W, H, BAY.R);
     ctx.fillStyle = body;
     ctx.fill();
     ctx.save();
-    rr(ctx, x0, y0, W, H, M.R);
+    rr(ctx, x0, y0, W, H, BAY.R);
     ctx.clip();
-    const gloss = ctx.createLinearGradient(0, y0, 0, y0 + 60);
-    gloss.addColorStop(0, 'rgba(255,255,255,0.16)');
+    ctx.strokeStyle = 'rgba(120,160,255,0.07)';
+    ctx.lineWidth = 1;
+    const hr = 11;
+    const hw = hr * Math.sqrt(3);
+    for (let row = 0, y = y0; y < y0 + H + hr; row++, y += hr * 1.5) {
+      for (let x = x0 - hw + (row % 2) * (hw / 2); x < x0 + W + hw; x += hw) {
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = Math.PI / 6 + (k * Math.PI) / 3;
+          ctx.lineTo(x + Math.cos(a) * hr, y + Math.sin(a) * hr);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+    const gloss = ctx.createLinearGradient(0, y0, 0, y0 + 70);
+    gloss.addColorStop(0, 'rgba(255,255,255,0.1)');
     gloss.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gloss;
-    ctx.fillRect(x0, y0, W, 60);
+    ctx.fillRect(x0, y0, W, 70);
     ctx.restore();
-    // Chrome-pink rim and a gold pinstripe.
+    // Rim: magenta chrome and an inner pinstripe.
     const rim = ctx.createLinearGradient(0, y0, 0, y0 + H);
     rim.addColorStop(0, '#ffd6f0');
-    rim.addColorStop(0.25, '#ff5cc0');
-    rim.addColorStop(0.6, '#9a1f66');
+    rim.addColorStop(0.3, '#ff5cc0');
+    rim.addColorStop(0.65, '#8a1f66');
     rim.addColorStop(1, '#ff6ac8');
-    rr(ctx, x0 + 1.5, y0 + 1.5, W - 3, H - 3, M.R - 1);
+    rr(ctx, x0 + 1.5, y0 + 1.5, W - 3, H - 3, BAY.R - 1);
     ctx.strokeStyle = rim;
     ctx.lineWidth = 3;
     ctx.stroke();
-    rr(ctx, x0 + 9, y0 + 9, W - 18, H - 18, M.R - 8);
-    ctx.strokeStyle = 'rgba(255,210,31,0.55)';
-    ctx.lineWidth = 1.2;
+    rr(ctx, x0 + 8, y0 + 8, W - 16, H - 16, BAY.R - 7);
+    ctx.strokeStyle = 'rgba(255,47,158,0.28)';
+    ctx.lineWidth = 1;
     ctx.stroke();
-    // Bulb sockets.
-    for (let i = 0; i < M.bulbs; i++) {
-      const bx = bulbX(i);
-      for (const by of [-M.bulbY, M.bulbY]) {
-        ctx.fillStyle = '#0d0612';
-        ctx.beginPath();
-        ctx.arc(bx, by, 4.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // Marquee plate.
-    rr(ctx, x0 + 22, M.marqueeY - 16, W - 44, 32, 12);
-    const plate = ctx.createLinearGradient(0, M.marqueeY - 16, 0, M.marqueeY + 16);
-    plate.addColorStop(0, '#0e0414');
-    plate.addColorStop(1, '#1c0a26');
-    ctx.fillStyle = plate;
+
+    // Fuel counter LCD.
+    const c = BAY.counter;
+    lcd(ctx, c.x, c.y, c.w, c.h, 10);
+
+    // Core temperature gauge: green, amber and red zones over the top.
+    const d = BAY.dial;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.r + 6, Math.PI * 1.03, Math.PI * 1.97);
+    ctx.lineTo(d.x + d.r * 0.5, d.y + 7);
+    ctx.lineTo(d.x - d.r * 0.5, d.y + 7);
+    ctx.closePath();
+    ctx.fillStyle = '#05080e';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,210,31,0.45)';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(160,170,200,0.5)';
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    // Reel bay and the three windows with chrome bezels.
-    rr(ctx, x0 + 14, M.reelY - M.reelH / 2 - 10, W - 28, M.reelH + 20, 16);
-    ctx.fillStyle = '#08030c';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(120,60,140,0.8)';
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-    for (let r = 0; r < 3; r++) {
-      const x = reelX(r) - M.reelW / 2;
-      const y = M.reelY - M.reelH / 2;
-      const win = ctx.createLinearGradient(0, y, 0, y + M.reelH);
-      win.addColorStop(0, '#05070c');
-      win.addColorStop(0.5, '#141d2b');
-      win.addColorStop(1, '#05070c');
-      rr(ctx, x, y, M.reelW, M.reelH, 11);
-      ctx.fillStyle = win;
-      ctx.fill();
-      const bez = ctx.createLinearGradient(0, y, 0, y + M.reelH);
-      bez.addColorStop(0, '#f0f4ff');
-      bez.addColorStop(0.5, '#6a7488');
-      bez.addColorStop(1, '#d8deea');
-      rr(ctx, x - 1.5, y - 1.5, M.reelW + 3, M.reelH + 3, 12);
-      ctx.strokeStyle = bez;
-      ctx.lineWidth = 2;
+    ctx.restore();
+    const zones: [number, number, string][] = [
+      [0, 0.5, '#3dff8a'],
+      [0.5, 0.78, '#ffd21f'],
+      [0.78, 1, '#ff2d55'],
+    ];
+    ctx.lineWidth = 4;
+    for (const [a, b, col] of zones) {
+      ctx.strokeStyle = col;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r - 3, dialAngle(a) + 0.02, dialAngle(b) - 0.02);
       ctx.stroke();
     }
-    // Win-line arrows.
-    ctx.fillStyle = '#ffd21f';
-    for (const s of [-1, 1]) {
-      const tip = s * (reelX(2) + M.reelW / 2 + 4);
+    ctx.strokeStyle = 'rgba(234,246,255,0.5)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 10; i++) {
+      const a = dialAngle(i / 10);
+      const r0 = i % 5 === 0 ? d.r - 14 : d.r - 10;
       ctx.beginPath();
-      ctx.moveTo(tip, M.reelY);
-      ctx.lineTo(tip + s * 9, M.reelY - 7);
-      ctx.lineTo(tip + s * 9, M.reelY + 7);
+      ctx.moveTo(d.x + Math.cos(a) * r0, d.y + Math.sin(a) * r0);
+      ctx.lineTo(d.x + Math.cos(a) * (d.r - 7), d.y + Math.sin(a) * (d.r - 7));
+      ctx.stroke();
+    }
+
+    // Intake duct and the reactor's pedestal.
+    const { beltY, mouthX, core } = BAY;
+    const top = beltY - 30;
+    const duct = ctx.createLinearGradient(0, top, 0, beltY);
+    duct.addColorStop(0, '#3a4766');
+    duct.addColorStop(0.5, '#1d263a');
+    duct.addColorStop(1, '#0d1220');
+    rr(ctx, mouthX, top, core.x - mouthX, beltY - top + 2, 6);
+    ctx.fillStyle = duct;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,180,220,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(core.x - 66, beltY - 40);
+    ctx.lineTo(core.x + 66, beltY - 40);
+    ctx.lineTo(core.x + 86, beltY + 4);
+    ctx.lineTo(core.x - 86, beltY + 4);
+    ctx.closePath();
+    const ped = ctx.createLinearGradient(0, beltY - 40, 0, beltY + 4);
+    ped.addColorStop(0, '#2c3854');
+    ped.addColorStop(1, '#0c111d');
+    ctx.fillStyle = ped;
+    ctx.fill();
+    ctx.stroke();
+    // Hazard stripes along the pedestal's foot.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(core.x - 84, beltY - 6, 168, 7);
+    ctx.clip();
+    ctx.fillStyle = '#ffd21f';
+    ctx.fillRect(core.x - 84, beltY - 6, 168, 7);
+    ctx.fillStyle = '#141414';
+    for (let x = core.x - 96; x < core.x + 90; x += 12) {
+      ctx.beginPath();
+      ctx.moveTo(x, beltY + 1);
+      ctx.lineTo(x + 6, beltY - 6);
+      ctx.lineTo(x + 12, beltY - 6);
+      ctx.lineTo(x + 6, beltY + 1);
       ctx.closePath();
       ctx.fill();
     }
-    // LCD for the pity counters.
-    const { lcd, coin } = M;
-    rr(ctx, lcd.x, lcd.y, lcd.w, lcd.h, 9);
-    const scr = ctx.createLinearGradient(0, lcd.y, 0, lcd.y + lcd.h);
-    scr.addColorStop(0, '#060a10');
-    scr.addColorStop(1, '#0c1420');
-    ctx.fillStyle = scr;
+    ctx.restore();
+    // The intake mouth: a dark hole with a glowing lip (the front lip is a sprite over the ducks).
+    rr(ctx, mouthX, top + 3, 16, beltY - top - 3, 4);
+    const hole = ctx.createLinearGradient(mouthX, 0, mouthX + 16, 0);
+    hole.addColorStop(0, '#020306');
+    hole.addColorStop(1, '#14061a');
+    ctx.fillStyle = hole;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(160,170,200,0.55)';
-    ctx.lineWidth = 1.5;
+    // Belt bed with rollers under the moving belt.
+    rr(ctx, BAY.beltX0 - 3, beltY - 1, mouthX - BAY.beltX0 + 6, 10, 4);
+    ctx.fillStyle = '#0a0d14';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,180,220,0.35)';
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.025)';
-    for (let y = lcd.y + 3; y < lcd.y + lcd.h - 2; y += 3) ctx.fillRect(lcd.x + 3, y, lcd.w - 6, 1);
-    // Coin slot plate.
-    const cw = 52;
-    const ch = 42;
-    rr(ctx, coin.x - cw / 2, coin.y - ch / 2, cw, ch, 10);
-    const chrome = ctx.createLinearGradient(0, coin.y - ch / 2, 0, coin.y + ch / 2);
-    chrome.addColorStop(0, '#f4f6ff');
-    chrome.addColorStop(0.45, '#8a92a8');
-    chrome.addColorStop(0.55, '#5a6278');
-    chrome.addColorStop(1, '#c8cede');
-    ctx.fillStyle = chrome;
+    for (let x = BAY.beltX0 + 6; x < mouthX; x += 16) {
+      ctx.fillStyle = '#3a4560';
+      ctx.beginPath();
+      ctx.arc(x, beltY + 7, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Pity read-out strip.
+    const s = BAY.strip;
+    lcd(ctx, s.x, s.y, s.w, s.h, 8);
+  });
+}
+
+/** A dark LCD panel with scanlines. */
+function lcd(ctx: Ctx, x: number, y: number, w: number, h: number, r: number) {
+  rr(ctx, x, y, w, h, r);
+  const scr = ctx.createLinearGradient(0, y, 0, y + h);
+  scr.addColorStop(0, '#04070c');
+  scr.addColorStop(1, '#0b1320');
+  ctx.fillStyle = scr;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(160,170,200,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  for (let yy = y + 3; yy < y + h - 2; yy += 3) ctx.fillRect(x + 3, yy, w - 6, 1);
+}
+
+function paintReactor(scene: Phaser.Scene) {
+  const R = BAY.housingR;
+  const pad = 22;
+  const S = (R + pad) * 2;
+  paint(scene, SHOP_TEX.housing, S, S, Q, (ctx) => {
+    ctx.translate(S / 2, S / 2);
+    // Vent chimneys (behind the body).
+    for (const deg of BAY.vents) {
+      ctx.save();
+      ctx.rotate((deg * Math.PI) / 180);
+      rr(ctx, R - 14, -8, 26, 16, 4);
+      const v = ctx.createLinearGradient(0, -8, 0, 8);
+      v.addColorStop(0, '#5a6680');
+      v.addColorStop(1, '#1a2132');
+      ctx.fillStyle = v;
+      ctx.fill();
+      ctx.fillStyle = '#05070c';
+      ctx.fillRect(R + 7, -5, 4, 10);
+      ctx.restore();
+    }
+    // Neon halo and the steel body.
+    ctx.save();
+    ctx.shadowColor = NEON;
+    ctx.shadowBlur = 16 * Q;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a2234';
     ctx.fill();
-    rr(ctx, coin.x - 4, coin.y - 14, 8, 28, 4);
-    ctx.fillStyle = '#05030a';
+    ctx.restore();
+    const body = ctx.createRadialGradient(-R * 0.35, -R * 0.45, R * 0.1, 0, 0, R);
+    body.addColorStop(0, '#56627e');
+    body.addColorStop(0.55, '#2a3348');
+    body.addColorStop(1, '#141a28');
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fillStyle = body;
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    const rim = ctx.createLinearGradient(0, -R, 0, R);
+    rim.addColorStop(0, '#ffd6f0');
+    rim.addColorStop(0.4, '#ff5cc0');
+    rim.addColorStop(1, '#7a1a5a');
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // Lamp sockets.
+    for (const deg of BAY.lamps) {
+      const a = (deg * Math.PI) / 180;
+      ctx.fillStyle = '#07090f';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * BAY.lampR, Math.sin(a) * BAY.lampR, 3.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // The ring track: a dark channel the rings spin in.
+    ctx.beginPath();
+    ctx.arc(0, 0, BAY.ringOuterR + 6, 0, Math.PI * 2);
+    ctx.arc(0, 0, BAY.chamberR + 1, 0, Math.PI * 2, true);
+    ctx.fillStyle = '#060912';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(160,180,220,0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, BAY.ringOuterR + 6, 0, Math.PI * 2);
+    ctx.stroke();
+    // Core chamber: deep glass the energy glows in.
+    const ch = ctx.createRadialGradient(0, 0, 0, 0, 0, BAY.chamberR);
+    ch.addColorStop(0, '#1a0a1e');
+    ch.addColorStop(1, '#05030a');
+    ctx.beginPath();
+    ctx.arc(0, 0, BAY.chamberR, 0, Math.PI * 2);
+    ctx.fillStyle = ch;
+    ctx.fill();
+    const bez = ctx.createLinearGradient(0, -BAY.chamberR, 0, BAY.chamberR);
+    bez.addColorStop(0, '#f0f4ff');
+    bez.addColorStop(0.5, '#6a7488');
+    bez.addColorStop(1, '#d8deea');
+    ctx.strokeStyle = bez;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  });
+
+  // Rings: white line art, tinted and blended additively at runtime.
+  const ringTex = (key: string, r: number, draw: (ctx: Ctx) => void) => {
+    const s = (r + 10) * 2;
+    paint(scene, key, s, s, 2, (ctx) => {
+      ctx.translate(s / 2, s / 2);
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 5 * 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ffffff';
+      ctx.lineCap = 'round';
+      draw(ctx);
+    });
+  };
+  ringTex(SHOP_TEX.ringOuter, BAY.ringOuterR, (ctx) => {
+    const n = 12;
+    ctx.lineWidth = 3.2;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, BAY.ringOuterR, a + 0.07, a + (Math.PI * 2) / n - 0.07);
+      ctx.stroke();
+    }
+  });
+  ringTex(SHOP_TEX.ringInner, BAY.ringInnerR, (ctx) => {
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, BAY.ringInnerR, a, a + 1.5);
+      ctx.stroke();
+      // A bright dot leading each arc.
+      ctx.beginPath();
+      ctx.arc(Math.cos(a + 1.5) * BAY.ringInnerR, Math.sin(a + 1.5) * BAY.ringInnerR, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * (BAY.ringInnerR - 5), Math.sin(a) * (BAY.ringInnerR - 5));
+      ctx.lineTo(Math.cos(a) * (BAY.ringInnerR - 2), Math.sin(a) * (BAY.ringInnerR - 2));
+      ctx.stroke();
+    }
+  });
+
+  // Armour petal: a quarter of the core's lid, pointing right from the
+  // centre (origin at x = 0). Four of them, turned 90 degrees apart, close
+  // the core; the reactor blows them off when it bursts.
+  const pr = BAY.petalR;
+  paint(scene, SHOP_TEX.petal, pr + 2, pr * 1.5, Q, (ctx) => {
+    ctx.translate(0, (pr * 1.5) / 2);
+    const gap = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(gap * 1.5, 0);
+    ctx.arc(0, 0, pr, -Math.PI / 4 + gap / pr, Math.PI / 4 - gap / pr);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, -pr / 2, pr, pr / 2);
+    g.addColorStop(0, '#7a86a4');
+    g.addColorStop(0.5, '#3a4560');
+    g.addColorStop(1, '#1c2436');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(220,230,255,0.55)';
     ctx.lineWidth = 1;
     ctx.stroke();
-  });
-}
-
-export const bulbX = (i: number) => -M.W / 2 + 26 + (i * (M.W - 52)) / (M.bulbs - 1);
-
-function paintGlass(scene: Phaser.Scene) {
-  const { reelW: w, reelH: h } = M;
-  paint(scene, SHOP_TEX.glass, w, h, Q, (ctx) => {
+    // A hazard chevron and a rivet.
     ctx.save();
-    rr(ctx, 0, 0, w, h, 11);
     ctx.clip();
-    // The drum curves away: dark at the top and bottom.
-    const v = ctx.createLinearGradient(0, 0, 0, h);
-    v.addColorStop(0, 'rgba(2,3,8,0.95)');
-    v.addColorStop(0.24, 'rgba(2,3,8,0)');
-    v.addColorStop(0.76, 'rgba(2,3,8,0)');
-    v.addColorStop(1, 'rgba(2,3,8,0.95)');
-    ctx.fillStyle = v;
-    ctx.fillRect(0, 0, w, h);
-    // ... and at the sides.
-    const s = ctx.createLinearGradient(0, 0, w, 0);
-    s.addColorStop(0, 'rgba(0,0,0,0.45)');
-    s.addColorStop(0.2, 'rgba(0,0,0,0)');
-    s.addColorStop(0.8, 'rgba(0,0,0,0)');
-    s.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = s;
-    ctx.fillRect(0, 0, w, h);
-    // Gloss: a soft diagonal sheen and a crisp highlight near the top.
-    ctx.fillStyle = 'rgba(255,255,255,0.09)';
+    ctx.fillStyle = '#ffd21f';
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.08);
-    ctx.lineTo(w * 0.55, 0);
-    ctx.lineTo(w, 0);
-    ctx.lineTo(w, h * 0.04);
-    ctx.lineTo(0, h * 0.42);
+    ctx.arc(0, 0, pr - 3, -0.42, 0.42);
+    ctx.arc(0, 0, pr - 9, 0.42, -0.42, true);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.lineWidth = 1.5;
-    ctx.lineCap = 'round';
+    ctx.fillStyle = '#141414';
+    for (let k = -2; k <= 2; k++) {
+      const a = k * 0.17;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.04) * (pr - 2), Math.sin(a - 0.04) * (pr - 2));
+      ctx.lineTo(Math.cos(a + 0.05) * (pr - 2), Math.sin(a + 0.05) * (pr - 2));
+      ctx.lineTo(Math.cos(a - 0.02) * (pr - 10), Math.sin(a - 0.02) * (pr - 10));
+      ctx.lineTo(Math.cos(a - 0.11) * (pr - 10), Math.sin(a - 0.11) * (pr - 10));
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = '#c8d0e4';
     ctx.beginPath();
-    ctx.moveTo(8, 7);
-    ctx.quadraticCurveTo(w / 2, 3, w - 8, 7);
-    ctx.stroke();
-    ctx.restore();
-    // Inner shadow along the bezel.
-    ctx.save();
-    rr(ctx, 0, 0, w, h, 11);
-    ctx.clip();
-    ctx.shadowColor = 'rgba(0,0,0,0.9)';
-    ctx.shadowBlur = 6 * Q;
-    rr(ctx, -6, -6, w + 12, h + 12, 16);
-    ctx.lineWidth = 12;
-    ctx.strokeStyle = '#000';
-    ctx.stroke();
-    ctx.restore();
+    ctx.arc(pr * 0.5, 0, 2.2, 0, Math.PI * 2);
+    ctx.fill();
   });
-  // Soft glow round a reel window: flashes gold when that reel stops.
-  const g = 18;
-  paint(scene, SHOP_TEX.reelGlow, w + g * 2, h + g * 2, 2, (ctx) => {
+  // Energy leaking through the seams between the petals: an X with a hot centre.
+  paint(scene, SHOP_TEX.seams, 112, 112, 2, (ctx) => {
+    ctx.translate(56, 56);
     ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 12 * 2;
-    rr(ctx, g, g, w, h, 11);
-    ctx.lineWidth = 4;
+    ctx.shadowBlur = 7 * 2;
     ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-  });
-}
-
-function paintGlows(scene: Phaser.Scene) {
-  // Win line: a bright core with a soft halo that fades at both ends.
-  paint(scene, SHOP_TEX.payline, 260, 40, 2, (ctx) => {
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 10 * 2;
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 2.4;
+    for (const a of [Math.PI / 4, -Math.PI / 4]) {
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * -46, Math.sin(a) * -46);
+      ctx.lineTo(Math.cos(a) * 46, Math.sin(a) * 46);
+      ctx.stroke();
+    }
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(14, 18.5, 232, 3);
-    ctx.shadowBlur = 0;
-    ctx.globalCompositeOperation = 'destination-in';
-    const f = ctx.createLinearGradient(0, 0, 260, 0);
-    f.addColorStop(0, 'rgba(0,0,0,0)');
-    f.addColorStop(0.12, 'rgba(0,0,0,1)');
-    f.addColorStop(0.88, 'rgba(0,0,0,1)');
-    f.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = f;
-    ctx.fillRect(0, 0, 260, 40);
+    ctx.beginPath();
+    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+    ctx.fill();
   });
-  paint(scene, SHOP_TEX.bulb, 20, 20, 2, (ctx) => {
+  // Bulb.
+  paint(scene, SHOP_TEX.lamp, 20, 20, 2, (ctx) => {
     const g = ctx.createRadialGradient(10, 10, 0, 10, 10, 10);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(0.3, 'rgba(255,255,255,0.95)');
@@ -332,6 +531,189 @@ function paintGlows(scene: Phaser.Scene) {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 20, 20);
   });
+  // Conveyor belt tile (scrolled sideways at runtime).
+  paint(scene, SHOP_TEX.belt, 16, 7, Q, (ctx) => {
+    ctx.fillStyle = '#1e2638';
+    ctx.fillRect(0, 0, 16, 7);
+    ctx.fillStyle = '#3c4864';
+    ctx.fillRect(0, 0, 3, 7);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(0, 0, 16, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(0, 6, 16, 1);
+  });
+  // The intake's front lip, drawn over the ducks as they walk in.
+  paint(scene, SHOP_TEX.mouth, 12, 36, Q, (ctx) => {
+    ctx.save();
+    ctx.shadowColor = NEON;
+    ctx.shadowBlur = 5 * Q;
+    rr(ctx, 3, 2, 5, 32, 2.5);
+    ctx.fillStyle = '#ff5cc0';
+    ctx.fill();
+    ctx.restore();
+    rr(ctx, 4, 3, 2, 30, 1);
+    ctx.fillStyle = '#ffd6f0';
+    ctx.fill();
+  });
+  // Gauge needle: origin at the pivot (x = 5).
+  paint(scene, SHOP_TEX.needle, 36, 10, Q, (ctx) => {
+    ctx.fillStyle = '#ff3b4e';
+    ctx.beginPath();
+    ctx.moveTo(5, 2.5);
+    ctx.lineTo(34, 5);
+    ctx.lineTo(5, 7.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#eaf6ff';
+    ctx.beginPath();
+    ctx.arc(5, 5, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function paintShell(scene: Phaser.Scene) {
+  const S = SHELL_TEX;
+  const c = S / 2;
+  // Energy shell: a glass-like bubble, almost clear inside with a bright rim
+  // and a faint honeycomb. White: tinted per rarity.
+  paint(scene, SHOP_TEX.shell, S, S, 2, (ctx) => {
+    const g = ctx.createRadialGradient(c, c, 0, c, c, SHELL_R + 8);
+    g.addColorStop(0, 'rgba(255,255,255,0.05)');
+    g.addColorStop(0.6, 'rgba(255,255,255,0.1)');
+    g.addColorStop(0.82, 'rgba(255,255,255,0.32)');
+    g.addColorStop(0.92, 'rgba(255,255,255,1)');
+    g.addColorStop(0.97, 'rgba(255,255,255,0.35)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(c, c, SHELL_R - 3, 0, Math.PI * 2);
+    ctx.clip();
+    const hr = 13;
+    const hw = hr * Math.sqrt(3);
+    ctx.lineWidth = 1.2;
+    for (let row = 0, y = 0; y < S + hr; row++, y += hr * 1.5) {
+      for (let x = (row % 2) * (hw / 2); x < S + hw; x += hw) {
+        const d = Math.hypot(x - c, y - c) / SHELL_R;
+        ctx.strokeStyle = `rgba(255,255,255,${0.04 + 0.22 * d * d})`;
+        ctx.beginPath();
+        for (let k = 0; k < 6; k++) {
+          const a = Math.PI / 6 + (k * Math.PI) / 3;
+          ctx.lineTo(x + Math.cos(a) * (hr - 1.5), y + Math.sin(a) * (hr - 1.5));
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    // Highlight, upper left.
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(c, c, SHELL_R - 10, Math.PI * 1.08, Math.PI * 1.38);
+    ctx.stroke();
+  });
+  // Cracks: jagged lines from near the centre to the rim, with branches.
+  paint(scene, SHOP_TEX.cracks, S, S, 2, (ctx) => {
+    const rnd = seeded(7);
+    ctx.translate(c, c);
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 6 * 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      let a = (i / n) * Math.PI * 2 + rnd() * 0.5;
+      let r = 8 + rnd() * 14;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      while (r < SHELL_R + 2) {
+        r += 9 + rnd() * 10;
+        a += (rnd() - 0.5) * 0.5;
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        if (rnd() < 0.3 && r < SHELL_R - 20) {
+          // A short branch.
+          const ba = a + (rnd() < 0.5 ? -1 : 1) * (0.35 + rnd() * 0.3);
+          const br = r + 14 + rnd() * 12;
+          ctx.moveTo(Math.cos(ba) * br, Math.sin(ba) * br);
+          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+      }
+      ctx.stroke();
+    }
+  });
+}
+
+function paintLightning(scene: Phaser.Scene) {
+  const rnd = seeded(31);
+  const glowLine = (ctx: Ctx, pts: number[][], w: number) => {
+    for (const [width, blur, alpha] of [
+      [w * 2.6, 10, 0.45],
+      [w, 3, 1],
+    ]) {
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = blur * 2;
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      pts.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      ctx.stroke();
+    }
+  };
+  // Arcs that crawl round the shell.
+  const S = (BOLT_R + 24) * 2;
+  for (let i = 0; i < BOLT_ARCS; i++) {
+    paint(scene, SHOP_TEX.boltArc(i), S, S, 2, (ctx) => {
+      ctx.translate(S / 2, S / 2);
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      const span = 1.4 + rnd() * 0.8;
+      const steps = 12 + Math.floor(rnd() * 5);
+      const pts: number[][] = [];
+      for (let k = 0; k <= steps; k++) {
+        const a = -span / 2 + (span * k) / steps;
+        const r = BOLT_R + (k === 0 || k === steps ? 0 : (rnd() - 0.5) * 16);
+        pts.push([Math.cos(a) * r, Math.sin(a) * r]);
+      }
+      glowLine(ctx, pts, 1.8);
+      // One or two forks flicking outwards.
+      for (let f = 0; f < 2; f++) {
+        const k = 2 + Math.floor(rnd() * (steps - 4));
+        const [x, y] = pts[k];
+        const a = Math.atan2(y, x);
+        const fork = [
+          [x, y],
+          [x + Math.cos(a + 0.4) * 9, y + Math.sin(a + 0.4) * 9],
+          [x + Math.cos(a - 0.1) * 17, y + Math.sin(a - 0.1) * 17],
+        ];
+        glowLine(ctx, fork, 1.1);
+      }
+    });
+  }
+  // Strikes from the shell outwards: origin (x = 0) is the shell's centre.
+  for (let i = 0; i < BOLT_STRIKES; i++) {
+    paint(scene, SHOP_TEX.boltStrike(i), 210, 64, 2, (ctx) => {
+      ctx.translate(0, 32);
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      const pts: number[][] = [];
+      let y = 0;
+      for (let x = BOLT_R - 6; x < 200; x += 9 + rnd() * 8) {
+        pts.push([x, y]);
+        y = Math.max(-22, Math.min(22, y + (rnd() - 0.5) * 18));
+      }
+      glowLine(ctx, pts, 2);
+      const k = Math.floor(pts.length / 2);
+      glowLine(ctx, [pts[k], [pts[k][0] + 14, pts[k][1] + 12], [pts[k][0] + 26, pts[k][1] + 9]], 1.1);
+    });
+  }
+}
+
+function paintGlows(scene: Phaser.Scene) {
   // A soft light beam: narrow at the bottom (origin), wide and faded at the
   // top. The blur is a shadow cast from a shape drawn off-canvas, which works
   // on every browser (ctx.filter doesn't on Safari).
@@ -377,29 +759,20 @@ function paintGlows(scene: Phaser.Scene) {
     ctx.arc(128, 128, 104, 0, Math.PI * 2);
     ctx.stroke();
   });
-  // Light leaking out of the capsule's seam.
-  paint(scene, SHOP_TEX.seam, 160, 40, 2, (ctx) => {
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 9 * 2;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.ellipse(80, 20, 62, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  // The lever's knob.
-  paint(scene, SHOP_TEX.knob, 30, 30, Q, (ctx) => {
-    const g = ctx.createRadialGradient(11, 10, 1, 15, 15, 14);
-    g.addColorStop(0, '#ffd0dc');
-    g.addColorStop(0.35, '#ff3a64');
-    g.addColorStop(1, '#8a0a2a');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(15, 15, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.8)';
-    ctx.beginPath();
-    ctx.ellipse(10.5, 9, 4, 2.5, -0.6, 0, Math.PI * 2);
-    ctx.fill();
+  // Smoke / steam puff: a few soft overlapping blobs (tinted, normal blend).
+  paint(scene, SHOP_TEX.smoke, 64, 64, 1, (ctx) => {
+    const rnd = seeded(5);
+    for (let i = 0; i < 6; i++) {
+      const x = 32 + (rnd() - 0.5) * 22;
+      const y = 32 + (rnd() - 0.5) * 18;
+      const r = 13 + rnd() * 8;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.42)');
+      g.addColorStop(0.6, 'rgba(255,255,255,0.2)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 64);
+    }
   });
   // Balance chip.
   paint(scene, SHOP_TEX.chip, 104, 32, Q, (ctx) => {
@@ -410,76 +783,6 @@ function paintGlows(scene: Phaser.Scene) {
     ctx.lineWidth = 1.5;
     ctx.stroke();
   });
-}
-
-const CAPSULE_COLORS: Record<Rarity, [string, string, string]> = {
-  common: ['#eef4fa', '#9fb3c8', '#4a5a6c'],
-  rare: ['#e6fdff', '#2be8ff', '#0a6f8a'],
-  epic: ['#f2e6ff', '#b36bff', '#4a1a8a'],
-  legendary: ['#fffbe0', '#ffd21f', '#9a6a00'],
-};
-
-function capsuleHalf(ctx: Ctx, cx: number, cy: number, r: number, top: boolean, colors: [string, string, string]) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, top ? Math.PI : 0, top ? Math.PI * 2 : Math.PI);
-  ctx.closePath();
-  ctx.clip();
-  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.45, r * 0.05, cx, cy, r * 1.05);
-  g.addColorStop(0, colors[0]);
-  g.addColorStop(0.45, colors[1]);
-  g.addColorStop(1, colors[2]);
-  ctx.fillStyle = g;
-  ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
-  if (top) {
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.beginPath();
-    ctx.ellipse(cx - r * 0.38, cy - r * 0.55, r * 0.26, r * 0.13, -0.6, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-function paintCapsules(scene: Phaser.Scene) {
-  const r = 46;
-  const w = 104;
-  const bottom: [string, string, string] = ['#ffffff', '#dfe6f0', '#7a8698'];
-  paint(scene, SHOP_TEX.capsuleBottom, w, 56, Q, (ctx) => {
-    capsuleHalf(ctx, w / 2, 4, r, false, bottom);
-    ctx.fillStyle = 'rgba(20,24,34,0.55)';
-    ctx.fillRect(w / 2 - r, 3, r * 2, 4);
-  });
-  for (const rarity of RARITY_ORDER) {
-    const colors = CAPSULE_COLORS[rarity];
-    paint(scene, SHOP_TEX.capsuleTop(rarity), w, 56, Q, (ctx) => {
-      capsuleHalf(ctx, w / 2, 52, r, true, colors);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(w / 2 - r, 49, r * 2, 3);
-    });
-    // Reel symbol: a closed capsule with a question mark, 128 px like a skin.
-    paint(scene, SHOP_TEX.capsuleIcon(rarity), 128, 128, 1, (ctx) => {
-      ctx.save();
-      ctx.shadowColor = rgba(RARITIES[rarity].color, 0.9);
-      ctx.shadowBlur = 16;
-      ctx.fillStyle = rgba(RARITIES[rarity].color, 0.5);
-      ctx.beginPath();
-      ctx.arc(64, 64, 42, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      capsuleHalf(ctx, 64, 64, 44, true, colors);
-      capsuleHalf(ctx, 64, 64, 44, false, bottom);
-      ctx.fillStyle = 'rgba(20,24,34,0.6)';
-      ctx.fillRect(20, 62, 88, 4);
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.lineWidth = 4;
-      ctx.font = `700 34px ${fonts.display}`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.strokeText('?', 64, 44);
-      ctx.fillText('?', 64, 44);
-    });
-  }
 }
 
 function paintTiles(scene: Phaser.Scene) {
@@ -567,9 +870,8 @@ function paintTiles(scene: Phaser.Scene) {
   });
 }
 
-/** Silhouettes (for skins not found yet) and motion-blurred reel symbols. */
-function paintDerived(scene: Phaser.Scene) {
-  const reelSymbols = [...SKINS.map((s) => skinTexture(s.id)), ...RARITY_ORDER.map((r) => SHOP_TEX.capsuleIcon(r))];
+/** Silhouettes for skins not found yet. */
+function paintSilhouettes(scene: Phaser.Scene) {
   for (const skin of SKINS) {
     const src = scene.textures.exists(skinTexture(skin.id)) ? scene.textures.get(skinTexture(skin.id)).getSourceImage() : null;
     if (!src) continue;
@@ -581,19 +883,6 @@ function paintDerived(scene: Phaser.Scene) {
       g.addColorStop(1, '#8a8a8a');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, 128, 128);
-    });
-  }
-  // Half resolution and taller: several faint copies stacked vertically.
-  for (const key of reelSymbols) {
-    if (!scene.textures.exists(key)) continue;
-    const src = scene.textures.get(key).getSourceImage() as CanvasImageSource;
-    paint(scene, SHOP_TEX.blur(key), 64, 104, 1, (ctx) => {
-      const n = 9;
-      for (let i = 0; i < n; i++) {
-        const t = i / (n - 1);
-        ctx.globalAlpha = 0.16 + 0.22 * Math.sin(t * Math.PI);
-        ctx.drawImage(src, 0, t * 40, 64, 64);
-      }
     });
   }
 }
