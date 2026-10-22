@@ -597,7 +597,7 @@ export class DailyScreen {
     drawPlate(g, left, y, W, MISSIONS_H);
     setIfChanged(
       this.missionsNote,
-      progress.missions.bonusPaid ? 'ALL DONE · BONUS PAID' : `${done} / 3 DONE · ALL 3: +${ALL_DONE_BONUS}`,
+      progress.missions.bonusPaid ? 'ALL DONE · PAID' : `${done}/3 · ALL 3: +${ALL_DONE_BONUS}`,
     );
     const canReroll = progress.missions.rerollsLeft > 0;
     this.rows.forEach((r, i) => {
