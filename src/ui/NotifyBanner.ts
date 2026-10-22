@@ -75,6 +75,22 @@ export class NotifyBanner {
   /** Compact, tap-through banners below the HUD while playing. */
   setInRun(on: boolean) {
     this.inRun = on;
+    this.holdIf(on || this.paused);
+  }
+
+  /**
+   * Hold banners without the in-run look (e.g. while the QUACK REACTOR shows
+   * a reveal: an achievement shouldn't cover the orb before the card is in).
+   */
+  setPaused(on: boolean) {
+    if (on === this.paused) return;
+    this.paused = on;
+    this.holdIf(on || this.inRun);
+  }
+
+  private paused = false;
+
+  private holdIf(on: boolean) {
     if (on) {
       // Anything still queued from the menu waits for the run to end too.
       this.held.push(...this.queue.filter((n) => !n.live));
@@ -96,7 +112,7 @@ export class NotifyBanner {
   push(n: NotifyData) {
     // Mid-run only the live ones (a new record, a daily milestone) show; the
     // rest would just cover the track, so they wait for the run to end.
-    if (this.inRun && !n.live) {
+    if ((this.inRun || this.paused) && !n.live) {
       this.held.push(n);
       return;
     }

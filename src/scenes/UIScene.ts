@@ -1656,6 +1656,7 @@ export class UIScene extends Phaser.Scene {
 
     if (this.mode === 'select') this.select.update(time);
     if (this.mode === 'skins') this.shop.update(time);
+    this.banner.setPaused(this.mode === 'skins' && this.shop.revealing);
     if (this.mode === 'daily') this.daily.update(time);
     if (this.mode === 'records') this.records.update(time);
     if (this.mode === 'howto') this.howTo.update(time);

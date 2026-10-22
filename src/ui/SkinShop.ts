@@ -97,6 +97,10 @@ export class SkinShop {
   private ducks: Phaser.GameObjects.Image[] = [];
 
   private phase: 'idle' | 'show' | 'card' = 'idle';
+  /** A reveal is playing (banners wait until the card is in). */
+  get revealing() {
+    return this.phase === 'show';
+  }
   private plan: Plan | null = null;
   /** Show clock (ms since the charge); only runs while the screen is on, so a show pauses with it. */
   private t = 0;

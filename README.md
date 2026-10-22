@@ -99,6 +99,8 @@ Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`).
 - Pity: mindst epic inden for 15 ladninger, legendary inden for 60. Tælleren står på skærmen.
 - Dit allerførste træk er mindst rare, så den første smagsprøve er en figur med en rigtig evne.
 
+**Showet** (`src/ui/QuackReactor.ts`, `ReactorReveal.ts`): 16 ænder marcherer ad et transportbånd ind i reaktoren, mens tælleren løber fra 100 til 0 (en gratis ladning sender én gylden and ind). Ringene spinner op, lamperne blinker, nålen går i rødt, gnister og damp, og så sprænges låget, og en kugle i en energiskal svæver frem. Skallens farve viser sjældenheden: grå (rolig), blå (blå lyn og røg), lilla (kraftigere lyn, gnistregn, mørkere skærm, rystelse) og guld (hele skærmen ryster, slowmotion, 12 lysstråler, guldregn og fanfare). I 20 % af rare-eller-bedre starter skallen ét trin lavere og flammer op til den rigtige farve. Skallen knækker, skinnet popper frem med navn og super power, og dets egen lyd spiller. En dublet sprænges til ænder, der flyver ind i tælleren (refusionen). Showet varer 3–6 sekunder; efter to set showets kan det springes over med et tryk (kortet vises altid). Beskeder (achievements osv.) venter, til kortet er fremme.
+
 Der er 50 skins: 18 common, 16 rare, 10 epic og 6 legendary. Samlingen under reaktoren er et gitter på 10 × 5.
 
 | Sjældenhed | Chance | Skins |
