@@ -1,0 +1,821 @@
+{
+ "version": 1,
+ "basePath": "sfx/",
+ "events": {
+  "step_grass": {
+   "files": [
+    "step_grass_1.ogg",
+    "step_grass_2.ogg",
+    "step_grass_3.ogg",
+    "step_grass_4.ogg",
+    "step_grass_5.ogg"
+   ],
+   "volume": 0.45,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "step_leaves": {
+   "files": [
+    "step_leaves_1.ogg",
+    "step_leaves_2.ogg",
+    "step_leaves_3.ogg",
+    "step_leaves_4.ogg"
+   ],
+   "volume": 0.4,
+   "category": "sfx",
+   "pitchVar": 0.1
+  },
+  "step_snow": {
+   "files": [
+    "step_snow_1.ogg",
+    "step_snow_2.ogg",
+    "step_snow_3.ogg"
+   ],
+   "volume": 0.45,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "step_wood": {
+   "files": [
+    "step_wood_1.ogg",
+    "step_wood_2.ogg",
+    "step_wood_3.ogg"
+   ],
+   "volume": 0.45,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "breath_sprint": {
+   "files": [
+    "breath_sprint.ogg"
+   ],
+   "volume": 0.35,
+   "category": "sfx",
+   "loop": true
+  },
+  "jump": {
+   "files": [
+    "jump_1.ogg",
+    "jump_2.ogg",
+    "jump_3.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx",
+   "pitchVar": 0.05
+  },
+  "land": {
+   "files": [
+    "land_1.ogg",
+    "land_2.ogg",
+    "land_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "roll": {
+   "files": [
+    "roll_1.ogg",
+    "roll_2.ogg",
+    "roll_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "hurt": {
+   "files": [
+    "hurt_1.ogg",
+    "hurt_2.ogg",
+    "hurt_3.ogg",
+    "hurt_4.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "pitchVar": 0.05
+  },
+  "death": {
+   "files": [
+    "death_1.ogg",
+    "death_2.ogg"
+   ],
+   "volume": 0.9,
+   "category": "sfx"
+  },
+  "heartbeat_slow": {
+   "files": [
+    "heartbeat_slow.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "loop": true,
+   "note": "loop under low health; crossfade to heartbeat_fast below 20% hp"
+  },
+  "heartbeat_fast": {
+   "files": [
+    "heartbeat_fast.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "loop": true
+  },
+  "eat": {
+   "files": [
+    "eat_1.ogg",
+    "eat_2.ogg",
+    "eat_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "pitchVar": 0.06
+  },
+  "weapon_switch": {
+   "files": [
+    "weapon_switch_1.ogg",
+    "weapon_switch_2.ogg",
+    "weapon_switch_3.ogg"
+   ],
+   "volume": 0.45,
+   "category": "sfx"
+  },
+  "bow_draw": {
+   "files": [
+    "bow_draw_1.ogg",
+    "bow_draw_2.ogg",
+    "bow_draw_3.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx"
+  },
+  "bow_release": {
+   "files": [
+    "bow_release_1.ogg",
+    "bow_release_2.ogg",
+    "bow_release_3.ogg",
+    "bow_release_4.ogg"
+   ],
+   "volume": 0.85,
+   "category": "sfx",
+   "pitchVar": 0.05
+  },
+  "arrow_whoosh": {
+   "files": [
+    "arrow_whoosh_1.ogg",
+    "arrow_whoosh_2.ogg",
+    "arrow_whoosh_3.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.08
+  },
+  "hit_flesh": {
+   "files": [
+    "hit_flesh_1.ogg",
+    "hit_flesh_2.ogg",
+    "hit_flesh_3.ogg",
+    "hit_flesh_4.ogg",
+    "hit_flesh_5.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.08,
+   "note": "arrow/knife/axe/stone into an animal; layer gore_splat on kills"
+  },
+  "gore_splat": {
+   "files": [
+    "gore_splat_1.ogg",
+    "gore_splat_2.ogg",
+    "gore_splat_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "bone_crunch": {
+   "files": [
+    "bone_crunch_1.ogg",
+    "bone_crunch_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "spatial": true
+  },
+  "hit_wood": {
+   "files": [
+    "hit_wood_1.ogg",
+    "hit_wood_2.ogg",
+    "hit_wood_3.ogg",
+    "hit_wood_4.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.08
+  },
+  "hit_ground": {
+   "files": [
+    "hit_ground_1.ogg",
+    "hit_ground_2.ogg",
+    "hit_ground_3.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.1
+  },
+  "hit_stone": {
+   "files": [
+    "hit_stone_1.ogg",
+    "hit_stone_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.08
+  },
+  "throw_light": {
+   "files": [
+    "throw_light_1.ogg",
+    "throw_light_2.ogg",
+    "throw_light_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "throw_heavy": {
+   "files": [
+    "throw_heavy_1.ogg",
+    "throw_heavy_2.ogg",
+    "throw_heavy_3.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "pitchVar": 0.06
+  },
+  "throw_spin": {
+   "files": [
+    "throw_spin_1.ogg",
+    "throw_spin_2.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx",
+   "spatial": true,
+   "note": "spinning axe/knife in flight"
+  },
+  "melee_swing": {
+   "files": [
+    "melee_swing_1.ogg",
+    "melee_swing_2.ogg",
+    "melee_swing_3.ogg",
+    "melee_swing_4.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "pitchVar": 0.07
+  },
+  "knife_stab": {
+   "files": [
+    "knife_stab_1.ogg",
+    "knife_stab_2.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "pitchVar": 0.06
+  },
+  "axe_chop": {
+   "files": [
+    "axe_chop_1.ogg",
+    "axe_chop_2.ogg"
+   ],
+   "volume": 0.75,
+   "category": "sfx",
+   "spatial": true
+  },
+  "sling_whirl": {
+   "files": [
+    "sling_whirl.ogg"
+   ],
+   "volume": 0.45,
+   "category": "sfx",
+   "loop": true
+  },
+  "sling_release": {
+   "files": [
+    "sling_release_1.ogg",
+    "sling_release_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "pitchVar": 0.08
+  },
+  "trap_set": {
+   "files": [
+    "trap_set_1.ogg",
+    "trap_set_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx"
+  },
+  "snare_set": {
+   "files": [
+    "snare_set_1.ogg",
+    "snare_set_2.ogg"
+   ],
+   "volume": 0.55,
+   "category": "sfx"
+  },
+  "snare_snap": {
+   "files": [
+    "snare_snap_1.ogg",
+    "snare_snap_2.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "spatial": true
+  },
+  "beartrap_clamp": {
+   "files": [
+    "beartrap_clamp_1.ogg",
+    "beartrap_clamp_2.ogg",
+    "beartrap_clamp_3.ogg"
+   ],
+   "volume": 0.9,
+   "category": "sfx",
+   "spatial": true
+  },
+  "bait_place": {
+   "files": [
+    "bait_place.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx"
+  },
+  "ammo_pickup": {
+   "files": [
+    "ammo_pickup_1.ogg",
+    "ammo_pickup_2.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx"
+  },
+  "wolf_howl": {
+   "files": [
+    "wolf_howl_1.ogg",
+    "wolf_howl_2.ogg",
+    "wolf_howl_3.ogg"
+   ],
+   "volume": 0.7,
+   "category": "ambience",
+   "spatial": true,
+   "pitchVar": 0.04,
+   "refDistance": 40,
+   "note": "distant howls at dusk/night and when a wolf gets your scent"
+  },
+  "wolf_pack_distant": {
+   "files": [
+    "wolf_pack_distant.ogg"
+   ],
+   "volume": 0.45,
+   "category": "ambience",
+   "note": "non-spatial far-away chorus, night levels"
+  },
+  "wolf_growl": {
+   "files": [
+    "wolf_growl_1.ogg",
+    "wolf_growl_2.ogg",
+    "wolf_growl_3.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "wolf_attack": {
+   "files": [
+    "wolf_attack_1.ogg",
+    "wolf_attack_2.ogg"
+   ],
+   "volume": 0.85,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "wolf_hurt": {
+   "files": [
+    "wolf_hurt_1.ogg",
+    "wolf_hurt_2.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "bear_roar": {
+   "files": [
+    "bear_roar_1.ogg",
+    "bear_roar_2.ogg",
+    "bear_roar_3.ogg"
+   ],
+   "volume": 0.9,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.05,
+   "refDistance": 15
+  },
+  "bear_growl": {
+   "files": [
+    "bear_growl_1.ogg",
+    "bear_growl_2.ogg"
+   ],
+   "volume": 0.85,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "boar_grunt": {
+   "files": [
+    "boar_grunt_1.ogg",
+    "boar_grunt_2.ogg",
+    "boar_grunt_3.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.1
+  },
+  "boar_squeal": {
+   "files": [
+    "boar_squeal_1.ogg",
+    "boar_squeal_2.ogg"
+   ],
+   "volume": 0.8,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "deer_call": {
+   "files": [
+    "deer_call_1.ogg",
+    "deer_call_2.ogg"
+   ],
+   "volume": 0.7,
+   "category": "ambience",
+   "spatial": true,
+   "pitchVar": 0.05,
+   "refDistance": 30,
+   "note": "red deer stag (kronhjort) / white stag call; real recording is a wapiti elk bugle"
+  },
+  "deer_roar": {
+   "files": [
+    "deer_roar.ogg"
+   ],
+   "volume": 0.85,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.04,
+   "note": "kronhjort attack/rut roar (elk bugle pitched down)"
+  },
+  "moose_grunt": {
+   "files": [
+    "moose_grunt_1.ogg",
+    "moose_grunt_2.ogg"
+   ],
+   "volume": 0.85,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.05,
+   "note": "stand-in: American bison grunts"
+  },
+  "moose_bellow": {
+   "files": [
+    "moose_bellow_1.ogg",
+    "moose_bellow_2.ogg"
+   ],
+   "volume": 0.9,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.04,
+   "note": "stand-in: bison rut bellow, pitched down"
+  },
+  "fox_bark": {
+   "files": [
+    "fox_bark_1.ogg",
+    "fox_bark_2.ogg",
+    "fox_bark_3.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06
+  },
+  "bird_flush": {
+   "files": [
+    "bird_flush_1.ogg",
+    "bird_flush_2.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06,
+   "note": "pheasant takes off (wing whirr + leaves)"
+  },
+  "hare_squeal": {
+   "files": [
+    "hare_squeal_1.ogg",
+    "hare_squeal_2.ogg"
+   ],
+   "volume": 0.5,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.1,
+   "note": "weak stand-in (creature pack); consider synth"
+  },
+  "animal_flee": {
+   "files": [
+    "animal_flee_1.ogg",
+    "animal_flee_2.ogg",
+    "animal_flee_3.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.1,
+   "note": "brush rustle when prey bolts"
+  },
+  "animal_alert": {
+   "files": [
+    "animal_alert_1.ogg",
+    "animal_alert_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.06,
+   "note": "sniff/snort when an animal gets your scent"
+  },
+  "animal_hurt": {
+   "files": [
+    "animal_hurt_1.ogg",
+    "animal_hurt_2.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.12,
+   "note": "generic fallback for species without own hurt sound"
+  },
+  "animal_death_fall": {
+   "files": [
+    "animal_death_fall_1.ogg",
+    "animal_death_fall_2.ogg"
+   ],
+   "volume": 0.7,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.1
+  },
+  "boss_wolf_howl": {
+   "files": [
+    "boss_wolf_howl.ogg"
+   ],
+   "volume": 1.0,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.02,
+   "refDistance": 60
+  },
+  "boss_wolf_snarl": {
+   "files": [
+    "boss_wolf_snarl_1.ogg",
+    "boss_wolf_snarl_2.ogg"
+   ],
+   "volume": 1.0,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.03
+  },
+  "boss_moose_bellow": {
+   "files": [
+    "boss_moose_bellow_1.ogg",
+    "boss_moose_bellow_2.ogg"
+   ],
+   "volume": 1.0,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.03,
+   "refDistance": 50
+  },
+  "boss_bear_roar": {
+   "files": [
+    "boss_bear_roar_1.ogg",
+    "boss_bear_roar_2.ogg"
+   ],
+   "volume": 1.0,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.03,
+   "refDistance": 60
+  },
+  "boss_charge": {
+   "files": [
+    "boss_charge_1.ogg",
+    "boss_charge_2.ogg",
+    "boss_charge_3.ogg"
+   ],
+   "volume": 0.9,
+   "category": "sfx",
+   "spatial": true,
+   "pitchVar": 0.08,
+   "note": "heavy hoof/paw thud, play per stride while a boss charges"
+  },
+  "pickup_meat": {
+   "files": [
+    "pickup_meat_1.ogg",
+    "pickup_meat_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "sfx"
+  },
+  "pickup_shards": {
+   "files": [
+    "pickup_shards_1.ogg",
+    "pickup_shards_2.ogg"
+   ],
+   "volume": 0.55,
+   "category": "sfx"
+  },
+  "pickup_trophy": {
+   "files": [
+    "pickup_trophy.ogg"
+   ],
+   "volume": 0.7,
+   "category": "ui"
+  },
+  "ui_click": {
+   "files": [
+    "ui_click_1.ogg",
+    "ui_click_2.ogg"
+   ],
+   "volume": 0.5,
+   "category": "ui"
+  },
+  "ui_hover": {
+   "files": [
+    "ui_hover.ogg"
+   ],
+   "volume": 0.3,
+   "category": "ui"
+  },
+  "ui_buy": {
+   "files": [
+    "ui_buy_1.ogg",
+    "ui_buy_2.ogg"
+   ],
+   "volume": 0.6,
+   "category": "ui"
+  },
+  "ui_error": {
+   "files": [
+    "ui_error.ogg"
+   ],
+   "volume": 0.5,
+   "category": "ui"
+  },
+  "level_complete": {
+   "files": [
+    "level_complete.ogg"
+   ],
+   "volume": 0.8,
+   "category": "ui"
+  },
+  "death_sting": {
+   "files": [
+    "death_sting.ogg"
+   ],
+   "volume": 0.8,
+   "category": "ui",
+   "note": "same tongue drum, slowed and darkened"
+  },
+  "amb_day": {
+   "files": [
+    "amb_day.ogg"
+   ],
+   "volume": 0.5,
+   "category": "ambience",
+   "loop": true,
+   "tod": [
+    0,
+    0.45
+   ]
+  },
+  "amb_dusk": {
+   "files": [
+    "amb_dusk.ogg"
+   ],
+   "volume": 0.4,
+   "category": "ambience",
+   "loop": true,
+   "tod": [
+    0.3,
+    0.7
+   ],
+   "note": "thinner bird chorus; dawn chorus recording reused for dusk"
+  },
+  "amb_night": {
+   "files": [
+    "amb_night.ogg"
+   ],
+   "volume": 0.45,
+   "category": "ambience",
+   "loop": true,
+   "tod": [
+    0.55,
+    1
+   ]
+  },
+  "amb_wind": {
+   "files": [
+    "amb_wind.ogg"
+   ],
+   "volume": 0.4,
+   "category": "ambience",
+   "loop": true,
+   "note": "gain/lowpass follow Wind.strength"
+  },
+  "amb_fire": {
+   "files": [
+    "amb_fire.ogg"
+   ],
+   "volume": 0.7,
+   "category": "ambience",
+   "loop": true,
+   "spatial": true,
+   "refDistance": 4,
+   "note": "campfire in front of the cave"
+  },
+  "owl_hoot": {
+   "files": [
+    "owl_hoot.ogg"
+   ],
+   "volume": 0.5,
+   "category": "ambience",
+   "spatial": true,
+   "pitchVar": 0.05,
+   "refDistance": 30,
+   "note": "random one-shot at night, place 30-60 m away"
+  },
+  "raven_call": {
+   "files": [
+    "raven_call.ogg"
+   ],
+   "volume": 0.4,
+   "category": "ambience",
+   "spatial": true,
+   "pitchVar": 0.05,
+   "refDistance": 30,
+   "note": "random one-shot afternoon/dusk"
+  },
+  "tree_creak": {
+   "files": [
+    "tree_creak.ogg"
+   ],
+   "volume": 0.35,
+   "category": "ambience",
+   "spatial": true,
+   "pitchVar": 0.1,
+   "refDistance": 10,
+   "note": "random one-shot in strong wind"
+  },
+  "music_explore": {
+   "files": [
+    "music_explore.ogg"
+   ],
+   "volume": 0.35,
+   "category": "music",
+   "loop": true,
+   "note": "calm layer; author says it loops seamlessly"
+  },
+  "music_tension": {
+   "files": [
+    "music_tension.ogg"
+   ],
+   "volume": 0.4,
+   "category": "music",
+   "loop": true,
+   "note": "fades in when a predator has your scent / is chasing"
+  },
+  "music_boss": {
+   "files": [
+    "music_boss.ogg"
+   ],
+   "volume": 0.45,
+   "category": "music",
+   "loop": true,
+   "note": "dark string pads for boss levels 10/20/30"
+  }
+ }
+}

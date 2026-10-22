@@ -300,6 +300,43 @@ export class World {
     return false;
   }
 
+  /**
+   * First hit of the segment a→b against tree/rock colliders (xz circles, solid below their height).
+   * Returns the fraction 0..1 along the segment, or 1 if nothing is hit. `pad` widens every collider.
+   */
+  raycastColliders(a: THREE.Vector3, b: THREE.Vector3, pad = 0): number {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    const steps = Math.max(1, Math.ceil(len / 2));
+    let best = 1;
+    const seen = new Set<Collider>();
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      for (const c of this.nearby(a.x + dx * t, a.z + dz * t)) {
+        if (seen.has(c)) continue;
+        seen.add(c);
+        const r = c.r + pad;
+        // ray/circle in xz
+        const fx = a.x - c.x;
+        const fz = a.z - c.z;
+        const A = dx * dx + dz * dz;
+        if (A < 1e-9) continue;
+        const B = 2 * (fx * dx + fz * dz);
+        const C = fx * fx + fz * fz - r * r;
+        const disc = B * B - 4 * A * C;
+        if (disc < 0) continue;
+        let h = (-B - Math.sqrt(disc)) / (2 * A);
+        if (C < 0) h = 0; // starts inside
+        if (h < 0 || h > best) continue;
+        const y = a.y + (b.y - a.y) * h;
+        if (y > this.height(c.x, c.z) + c.h) continue;
+        best = h;
+      }
+    }
+    return best;
+  }
+
   isFree(x: number, z: number, r: number): boolean {
     for (let dx = -1; dx <= 1; dx++)
       for (let dz = -1; dz <= 1; dz++) {

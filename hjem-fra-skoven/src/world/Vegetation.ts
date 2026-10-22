@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Rng } from '../game/rng';
 import type { LevelDef } from '../data/levels';
-import { LITE } from '../game/quality';
+import { qualityProfile } from '../game/settings';
 import { barkTexture, fernTexture, grainTexture, grassTexture } from './textures';
 
 export interface WindUniforms {
@@ -345,7 +345,8 @@ export function buildVegetation(c: VegCtx) {
   })();
   const grassMat = new THREE.MeshStandardMaterial({ map: grassTexture(), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 });
   addSway(grassMat, uniforms, 0.06, 1.6);
-  const nGrass = Math.min(LITE ? 9000 : 26000, Math.round(area * (LITE ? 0.3 : 0.8)));
+  const veg = qualityProfile().vegetation;
+  const nGrass = Math.min(Math.round(26000 * veg), Math.round(area * 0.8 * veg));
   const grass = inst(grassGeo, grassMat, nGrass, false);
   let gi = 0;
   for (let i = 0; i < nGrass * 1.3 && gi < nGrass; i++) {
@@ -382,7 +383,7 @@ export function buildVegetation(c: VegCtx) {
   })();
   const fernMat = new THREE.MeshStandardMaterial({ map: fernTexture(), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.95 });
   addSway(fernMat, uniforms, 0.05, 1.5);
-  const nFern = Math.round(area * (LITE ? 0.012 : 0.035));
+  const nFern = Math.round(area * 0.035 * veg);
   const ferns = inst(fernGeo, fernMat, nFern, false);
   for (let i = 0; i < nFern; i++) {
     const x = rng.range(-half - 5, half + 5);
@@ -400,7 +401,7 @@ export function buildVegetation(c: VegCtx) {
 
   const bushGeo = mergeGeometries([blob(0.8, 0, 0.5, 0, 31, 0.8, 1), blob(0.6, 0.6, 0.4, 0.2, 32, 0.8, 1), blob(0.55, -0.5, 0.4, -0.3, 33, 0.8, 1)])!;
   const bushMat = crownMat(0.02);
-  const nBush = Math.round(count * (LITE ? 0.2 : 0.5));
+  const nBush = Math.round(count * 0.5 * Math.max(0.4, veg));
   const bushes = inst(bushGeo, bushMat, nBush, false);
   for (let i = 0; i < nBush; i++) {
     const x = rng.range(-half - 6, half + 6);

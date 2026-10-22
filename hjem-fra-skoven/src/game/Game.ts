@@ -24,7 +24,7 @@ import { Bursts } from './Burst';
 import { buildHeldModel } from '../player/Held';
 import { Drops, DROP_LABEL } from './Drops';
 import { Input } from './Input';
-import { LITE } from './quality';
+import { qualityProfile } from './settings';
 import { freshSave, loadSave, writeSave, type Save } from './save';
 
 const MIN_POWER = 0.12; // a tap on the button
@@ -68,7 +68,7 @@ export class Game {
 
   constructor(root: HTMLElement, ui: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(LITE ? 1 : Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, qualityProfile().pixelRatioMax));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -100,11 +100,11 @@ export class Game {
   private setupPost() {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: LITE ? 0 : 4 });
+    const target = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, samples: qualityProfile().msaa });
     this.composer = new EffectComposer(this.renderer, target);
     this.renderPass = new RenderPass(new THREE.Scene(), this.camera);
     this.composer.addPass(this.renderPass);
-    if (!LITE) this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.65, 0.88));
+    if (qualityProfile().bloom) this.composer.addPass(new UnrealBloomPass(new THREE.Vector2(w, h), 0.32, 0.65, 0.88));
     this.gradePass = new ShaderPass({
       uniforms: { tDiffuse: { value: null }, vig: { value: 0.4 }, tint: { value: new THREE.Vector3(1, 1, 1) }, sat: { value: 1.1 } },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -757,7 +757,7 @@ export class Game {
   }
 
   /** One frame. Public so tests can step the game deterministically. */
-  step(dt: number) {
+  step(dt: number, render = true) {
     this.time += dt;
     if (this.state === 'playing') {
       this.updatePlaying(dt);
@@ -796,7 +796,7 @@ export class Game {
     this.fireflies?.update(dt, focus, this.time, this.world.height(focus.x, focus.z));
     this.world.setWind(this.wind.dx, this.wind.dz, this.wind.strength);
     this.sound.setWind(this.wind.strength, this.time);
-    this.renderer.render(this.scene, this.camera);
+    if (render) this.composer.render(dt);
     this.input.endFrame();
   }
 
