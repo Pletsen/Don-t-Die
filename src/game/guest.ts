@@ -4,12 +4,12 @@ import { read, write } from './persist';
 import { hashString, todayKey } from './daily';
 
 // TODAY'S GUEST: every day one skin you don't own yet is lent to you for the
-// Daily Run, super power included, as a taste of what the DUCK-O-MATIC has.
+// Daily Run, super power included, as a taste of what the QUACK REACTOR has.
 // Your own equipped skin is never changed.
 //
 // The guest is picked by the date from the skins you don't own (any skin
 // once you own them all), then pinned for the rest of the UTC day, so a
-// spin on the DUCK-O-MATIC doesn't swap it for another one mid-day.
+// charge of the QUACK REACTOR doesn't swap it for another one mid-day.
 
 const KEY = 'dontdie_guest';
 

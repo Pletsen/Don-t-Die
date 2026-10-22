@@ -375,7 +375,7 @@ export class HowToPlay {
       this.cards.push({
         title: 'GET SKINS',
         color: 0xffd21f,
-        body: `${SPIN_COST} ducks = 1 spin on the DUCK-O-MATIC.\nEvery skin has its own super power.`,
+        body: `Feed ${SPIN_COST} ducks to the QUACK REACTOR\nfor a new skin, each with a super power.`,
         note: 'RARER SKINS HAVE STRONGER POWERS.\nCHOOSE YOUR SKIN UNDER SKINS IN THE MENU.',
         images: [duck, ...skins],
         words: [cost, count],

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DON'T DIE's settings on top of the iOS project that `npx cap add ios` makes.
+# DUCKWISE's settings on top of the iOS project that `npx cap add ios` makes.
 # Runs on macOS (a Mac or a GitHub Actions macOS runner), from anywhere:
 #
 #   npx cap add ios && bash store/ios/configure-ios.sh && npx cap sync ios
@@ -38,7 +38,7 @@ set_list() {
 }
 
 echo "Info.plist"
-set_key CFBundleDisplayName string "DON'T DIE"
+set_key CFBundleDisplayName string "DUCKWISE"
 # Portrait only. iPhone only for v1 (see configure-xcode.rb), so iPads run it
 # in iPhone mode; the iPad list is portrait too in case that ever changes.
 set_list UISupportedInterfaceOrientations UIInterfaceOrientationPortrait

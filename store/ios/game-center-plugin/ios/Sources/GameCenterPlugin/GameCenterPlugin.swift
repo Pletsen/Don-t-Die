@@ -2,7 +2,7 @@ import Foundation
 import Capacitor
 import GameKit
 
-/// Game Center for DON'T DIE, as small as it can be: the player is signed in
+/// Game Center for DUCKWISE, as small as it can be: the player is signed in
 /// quietly at launch, scores go to a leaderboard, and the leaderboard sheet
 /// can be shown. The web game calls it through src/native/bridge.ts:
 ///   GameCenter.submitScore({ leaderboardId, score })

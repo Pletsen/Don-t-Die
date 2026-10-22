@@ -1,4 +1,4 @@
-# DON'T DIE on iOS: the plan
+# DUCKWISE on iOS: the plan
 
 Status: **prepared, not built.** The owner wants the game finished first. Nothing
 here runs until someone starts step 1. No Mac is needed at any point: the app
@@ -11,7 +11,7 @@ What is ready in the repo:
 |---|---|
 | `src/native/bridge.ts` | The only place the game talks to iOS. Registers the plugins the app has; every call is a no-op on the web. Haptics, save backup, share, Game Center, Daily Run / streak reminders, the rating prompt. |
 | `store/ios/capacitor.config.ts` | Capacitor settings (copy to the repo root in step 2). |
-| `store/ios/configure-ios.sh` + `configure-xcode.rb` | Turns a fresh `npx cap add ios` into the DON'T DIE app: Info.plist, icon, launch art, entitlements, privacy manifest, iPhone only. Tested on Capacitor 8.5's template. |
+| `store/ios/configure-ios.sh` + `configure-xcode.rb` | Turns a fresh `npx cap add ios` into the DUCKWISE app: Info.plist, icon, launch art, entitlements, privacy manifest, iPhone only. Tested on Capacitor 8.5's template. |
 | `store/ios/game-center-plugin/` | A small Swift plugin (`GameCenter`): quiet sign-in, scores, leaderboard sheet. |
 | `store/ios/App.entitlements`, `PrivacyInfo.xcprivacy`, `ExportOptions.plist` | Copied in by the scripts / used by the upload. |
 | `store/ios/testflight.yml` | The GitHub Actions workflow (inactive until copied to `.github/workflows/`). |
@@ -63,8 +63,8 @@ the game imports none of these packages; they only bring their native code.
 
 | Key | Value | Why |
 |---|---|---|
-| `appId` | `dk.dontdie.game` (proposal) | The bundle ID. Decide before the first upload; it can never change afterwards. |
-| `appName` | `DON'T DIE` | |
+| `appId` | `dk.duckwise.game` (proposal) | The bundle ID. Decide before the first upload; it can never change afterwards. |
+| `appName` | `DUCKWISE` | |
 | `webDir` | `dist` | `npm run build` output |
 | `backgroundColor`, `ios.backgroundColor` | `#05070a` | no white flash |
 | `ios.contentInset` | `never` | edge to edge; the game handles safe areas itself |
@@ -81,7 +81,7 @@ rely on that).
 
 | Setting | Value |
 |---|---|
-| `CFBundleDisplayName` | `DON'T DIE` (home screen name) |
+| `CFBundleDisplayName` | `DUCKWISE` (home screen name) |
 | `UISupportedInterfaceOrientations` | Portrait only (**portrait lock**) |
 | `UISupportedInterfaceOrientations~ipad` | Portrait, upside down |
 | `UIRequiresFullScreen` | `YES` |
@@ -118,9 +118,9 @@ end of each run by `game/progress.ts`):
 
 | ID | What | Score | App Store Connect setup |
 |---|---|---|---|
-| `dontdie.survival` | best Survival distance | metres, integer | Classic, high to low, "Integer", suffix " M" |
-| `dontdie.daily` | today's Daily Run | metres, integer | **Recurring**: starts 00:00 UTC, lasts 1 day, repeats daily (the Daily Run flips at midnight UTC) |
-| `dontdie.stars` | total stars (normal + HARD) | count | Classic, high to low |
+| `duckwise.survival` | best Survival distance | metres, integer | Classic, high to low, "Integer", suffix " M" |
+| `duckwise.daily` | today's Daily Run | metres, integer | **Recurring**: starts 00:00 UTC, lasts 1 day, repeats daily (the Daily Run flips at midnight UTC) |
+| `duckwise.stars` | total stars (normal + HARD) | count | Classic, high to low |
 
 Set them up under App Store Connect > the app > Services > Game Center.
 Scores are already submitted, but **no screen opens the leaderboards yet**:
@@ -156,12 +156,12 @@ One-time setup, about an hour, all in a browser:
 1. **Apple Developer Program**: enrol at developer.apple.com (99 USD a year;
    as an individual or as a company with a D-U-N-S number). Wait for the
    approval mail (usually a day or two).
-2. **Bundle ID**: decide it (proposal `dk.dontdie.game`). developer.apple.com >
+2. **Bundle ID**: decide it (proposal `dk.duckwise.game`). developer.apple.com >
    Certificates, Identifiers & Profiles > Identifiers > + > App IDs > App.
    Enter the ID, tick **Game Center** (on by default). Push Notifications is
    *not* needed (reminders are local).
 3. **App record**: appstoreconnect.apple.com > Apps > + > New App. Platform
-   iOS, name `DON'T DIE: One Tap` (store/listing.md), primary language English,
+   iOS, name `DUCKWISE` (store/listing.md), primary language English,
    the bundle ID from step 2, SKU e.g. `dontdie-ios`. This also reserves the
    name.
 4. **API key for CI**: App Store Connect > Users and Access > Integrations >

@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
   s.summary = package['description']
   s.license = 'UNLICENSED'
   s.homepage = 'https://github.com/'
-  s.author = "DON'T DIE"
+  s.author = "DUCKWISE"
   s.source = { :path => '.' }
   s.source_files = 'ios/Sources/**/*.swift'
   s.ios.deployment_target = '15.0'

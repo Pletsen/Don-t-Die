@@ -1,12 +1,12 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// The Capacitor settings for the DON'T DIE iPhone app. Not active yet: when
+// The Capacitor settings for the DUCKWISE iPhone app. Not active yet: when
 // the iOS build starts, copy this file to the repo root (store/ios-plan.md).
 const config: CapacitorConfig = {
   // Decide before the first upload: it can never change after release (and
   // the web view's save lives under it).
-  appId: 'dk.dontdie.game',
-  appName: "DON'T DIE",
+  appId: 'dk.duckwise.game',
+  appName: "DUCKWISE",
   webDir: 'dist',
   // The game's background, so no white flash between launch screen and game.
   backgroundColor: '#05070a',

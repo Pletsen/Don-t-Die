@@ -43,6 +43,8 @@ const LEVEL_TIPS: Record<number, number> = {
   6: HowToPlay.CARD.danger,
 };
 const TIPS_KEY = 'dontdie_tips_seen';
+/** The one-time "your skins live in the REACTOR" bubble on the menu. */
+const REACTOR_TIP_KEY = 'dontdie_tip_reactor';
 
 /** Bright party colours that all read well on black (no deep blue). */
 const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
@@ -120,7 +122,7 @@ export class UIScene extends Phaser.Scene {
   private timeText!: Phaser.GameObjects.Text;
   private bestText!: Phaser.GameObjects.Text;
   private flavorText!: Phaser.GameObjects.Text;
-  /** After a Daily Run: "LIKE <GUEST>? SPIN THE DUCK-O-MATIC", opens the shop. */
+  /** After a Daily Run: "LIKE <GUEST>? FIRE UP THE REACTOR", opens the shop. */
   private guestLink!: Phaser.GameObjects.Text;
   // CONTINUE on the death card (levels only: GameScene decides when it's on offer).
   private continueBtn!: Button;
@@ -546,7 +548,7 @@ export class UIScene extends Phaser.Scene {
 
   private buildTitle() {
     const make = (color: string, alpha: number) =>
-      this.text(0, 0, "DON'T DIE", { size: 72, color, glow: color === css.ink }).setOrigin(0.5).setAlpha(alpha);
+      this.text(0, 0, 'DUCKWISE', { size: 72, color, glow: color === css.ink }).setOrigin(0.5).setAlpha(alpha);
     // Three copies of the title: magenta and cyan ghosts behind a white one.
     // Nudging the ghosts apart now and then gives a chromatic "glitch".
     const magenta = make(css.magenta, 0.75).setBlendMode(Phaser.BlendModes.ADD);
@@ -555,7 +557,7 @@ export class UIScene extends Phaser.Scene {
     main.setShadow(0, 0, css.cyan, 24, false, true);
     this.titleLayers = [magenta, cyan, main];
 
-    this.subtitle = this.text(0, 0, 'ONE TAP. ONE RULE.', { font: 'mono', size: 12, color: '#8fa3b5', spacing: 4 }).setOrigin(0.5);
+    this.subtitle = this.text(0, 0, 'ONE TAP. ALWAYS RIGHT.', { font: 'mono', size: 12, color: '#8fa3b5', spacing: 4 }).setOrigin(0.5);
     this.statsLine = this.text(0, 0, '', { font: 'mono', size: 11, color: '#8fa3b5', spacing: 1.2 }).setOrigin(0.5);
 
     // Main menu: the game opens here. The demo run plays in the top half,
@@ -572,8 +574,9 @@ export class UIScene extends Phaser.Scene {
       color: 0xff9a2e,
       onPress: () => this.play(null),
     });
+    // The QUACK REACTOR: new skins come out of it, and your collection lives in it.
     this.skinsBtn = makeButton(this, {
-      label: 'SKINS',
+      label: 'REACTOR',
       icon: 'sparkle',
       width: 146,
       height: 46,
@@ -648,6 +651,7 @@ export class UIScene extends Phaser.Scene {
   /** Fade out every screen (before showing another one). */
   private hideScreens() {
     this.hideSpinBanner();
+    this.hideReactorTip();
     for (const c of [this.title, this.select.root, this.shop.root, this.howTo.root, this.daily.root, this.records.root, this.over, this.hud]) {
       this.fadeOut(c);
     }
@@ -875,6 +879,55 @@ export class UIScene extends Phaser.Scene {
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
     this.statsLine.setText(parts.join('   ·   '));
     this.calmSoon();
+    this.maybeShowReactorTip();
+  }
+
+  // --- "Your skins live in the REACTOR" ----------------------------------------
+
+  private reactorTip: Phaser.GameObjects.Container | null = null;
+
+  /**
+   * Once: a bubble over the REACTOR button saying that's where the skins are
+   * (the menu used to have a SKINS button). Not on the very first launch:
+   * only once the player has a run behind them.
+   */
+  private maybeShowReactorTip() {
+    if (readJSON<boolean>(REACTOR_TIP_KEY, false) || this.reactorTip) return;
+    if (progress.stats().runs < 1 && save.skins.size <= 1) return;
+    writeJSON(REACTOR_TIP_KEY, true);
+    const { w } = display.size(this);
+    const bw = 262;
+    const bh = 84;
+    const bx = this.skinsBtn.x;
+    const by = this.skinsBtn.y - 23 - 14 - bh / 2;
+    const cx = Phaser.Math.Clamp(bx, 12 + bw / 2, w - 12 - bw / 2);
+    const g = this.add.graphics();
+    g.fillStyle(0x140f02, 0.96).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 16);
+    g.lineStyle(2, 0xffd21f, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 16);
+    // The point, aimed at the button.
+    const px = bx - cx;
+    g.fillStyle(0x140f02, 0.96).fillTriangle(px - 10, bh / 2 - 1, px + 10, bh / 2 - 1, px, bh / 2 + 12);
+    g.lineStyle(2, 0xffd21f, 1).lineBetween(px - 10, bh / 2, px, bh / 2 + 12).lineBetween(px + 10, bh / 2, px, bh / 2 + 12);
+    const title = this.text(0, -24, 'NEW: THE QUACK REACTOR', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0.5);
+    const body = this.text(0, 2, 'YOUR SKINS LIVE IN HERE NOW.\nFEED IT DUCKS FOR NEW ONES.', { font: 'mono', size: 11, color: css.ink, spacing: 0.5 })
+      .setOrigin(0.5)
+      .setAlign('center');
+    const hint = this.text(0, 30, 'TAP TO CLOSE', { font: 'mono', size: 9, color: '#8fa3b5', spacing: 1.5 }).setOrigin(0.5);
+    const tip = this.add.container(cx, by, [g, title, body, hint]).setDepth(900).setAlpha(0).setScale(0.8);
+    this.reactorTip = tip;
+    this.tweens.add({ targets: tip, alpha: 1, scale: 1, delay: 500, duration: 300, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: tip, y: by - 4, delay: 800, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // Any tap closes it (and still reaches the button underneath). Armed a
+    // moment later, so the tap that opened the menu doesn't close it.
+    this.time.delayedCall(500, () => this.reactorTip === tip && this.input.once('pointerdown', () => this.hideReactorTip()));
+  }
+
+  private hideReactorTip() {
+    const tip = this.reactorTip;
+    if (!tip) return;
+    this.reactorTip = null;
+    this.tweens.killTweensOf(tip);
+    this.tweens.add({ targets: tip, alpha: 0, scale: 0.9, duration: 160, onComplete: () => tip.destroy() });
   }
 
   /** Native app: a waiting system prompt (rating, reminders) may show if the player stays here. */
@@ -1196,7 +1249,7 @@ export class UIScene extends Phaser.Scene {
     // The Daily Run was played with today's guest skin: here's where to get it.
     const guest = this.runMode === 'daily' ? todaysGuest() : null;
     const showGuest = !!guest && !save.skins.has(guest.id);
-    this.guestLink.setText(showGuest ? `LIKE ${guest!.name}? SPIN THE DUCK-O-MATIC  ›` : '').setVisible(showGuest);
+    this.guestLink.setText(showGuest ? `LIKE ${guest!.name}? FIRE UP THE REACTOR  ›` : '').setVisible(showGuest);
 
     // CONTINUE: buy the crash back for a few seconds (see GameScene.continueOffer).
     this.offer = null;
@@ -1457,9 +1510,9 @@ export class UIScene extends Phaser.Scene {
     bg.fillStyle(0x1c1404, 0.95).fillRoundedRect(-w / 2, -h / 2, w, h, 20);
     bg.lineStyle(2, 0xffd21f, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, 20);
     const icon = this.add.image(-w / 2 + 34, 0, TEX.duck).setScale(0.42 / DUCK_RES);
-    const title = this.text(-w / 2 + 64, -14, 'DUCK-O-MATIC READY!', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0, 0.5);
+    const title = this.text(-w / 2 + 64, -14, 'REACTOR READY!', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0, 0.5);
     this.spinBannerText = this.text(-w / 2 + 64, 10, '', { font: 'mono', size: 10, color: css.ink, spacing: 1 }).setOrigin(0, 0.5);
-    const go = this.text(w / 2 - 18, 10, 'SPIN NOW', { size: 12, color: '#ffd21f', spacing: 2 }).setOrigin(1, 0.5);
+    const go = this.text(w / 2 - 18, 10, 'CHARGE NOW', { size: 12, color: '#ffd21f', spacing: 2 }).setOrigin(1, 0.5);
     const hit = this.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
     hit.on('pointerdown', () => {
       sfx.click();
@@ -1526,7 +1579,7 @@ export class UIScene extends Phaser.Scene {
         sub: `${d.seconds.toFixed(1)} SEC  ·  PERFECT ${d.perfects}/${d.turns}`,
         color: hexColor(WORLDS[level.world].color),
       },
-      text: `I cleared ${name} in DON'T DIE with ${d.stars} ${d.stars === 1 ? 'star' : 'stars'} ${'★'.repeat(d.stars)}. One tap. One rule.`,
+      text: `I cleared ${name} in DUCKWISE with ${d.stars} ${d.stars === 1 ? 'star' : 'stars'} ${'★'.repeat(d.stars)}. One tap. Always right.`,
     };
   }
 
@@ -1539,19 +1592,19 @@ export class UIScene extends Phaser.Scene {
       const pct = Math.floor(Math.min(1, d.meters / d.goal) * 100);
       return {
         info: { kicker: `${levelName(level.id)} · ${WORLDS[level.world].name}`, big: `${pct}%`, sub: `${m} / ${d.goal.toFixed(0)} M`, color: hexColor(WORLDS[level.world].color) },
-        text: `I got ${pct}% of ${levelName(level.id)} in DON'T DIE. So close. One tap. One rule.`,
+        text: `I got ${pct}% of ${levelName(level.id)} in DUCKWISE. So close. One tap. Always right.`,
       };
     }
     if (this.runMode === 'daily') {
       const run = progress.daily.run();
       return {
         info: { kicker: `DAILY RUN · ${run.modifier.name}`, big: `${m} M`, sub: `${run.key}  ·  BEST ${run.best.toFixed(0)} M`, color: hexColor(run.modifier.color) },
-        text: `Today's DON'T DIE Daily Run (${run.modifier.name}): ${m} m. Same track for everyone today. Can you beat it?`,
+        text: `Today's DUCKWISE Daily Run (${run.modifier.name}): ${m} m. Same track for everyone today. Can you beat it?`,
       };
     }
     return {
       info: { kicker: 'SURVIVAL', big: `${m} M`, sub: `BEST ${Math.max(d.best, d.meters).toFixed(0)} M  ·  ${d.seconds.toFixed(1)} SEC`, color: css.orange },
-      text: `I survived ${m} m in DON'T DIE. Beat that!`,
+      text: `I survived ${m} m in DUCKWISE. Beat that!`,
     };
   }
 

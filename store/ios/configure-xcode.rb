@@ -1,4 +1,4 @@
-# The few Xcode build settings DON'T DIE changes on the App target, done with
+# The few Xcode build settings DUCKWISE changes on the App target, done with
 # the xcodeproj gem (it comes with CocoaPods) instead of by hand in Xcode.
 #   ruby store/ios/configure-xcode.rb ios/App/App.xcodeproj
 require 'xcodeproj'

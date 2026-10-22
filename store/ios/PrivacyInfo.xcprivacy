@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- The app's privacy manifest. DON'T DIE tracks nothing and collects
+<!-- The app's privacy manifest. DUCKWISE tracks nothing and collects
      nothing. The one "required reason" API is UserDefaults, used by
      @capacitor/preferences (the save backup) and local notifications, for
      the app's own data only (reason CA92.1). Added to the app bundle by

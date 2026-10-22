@@ -273,7 +273,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     check: (c) => c.skins >= SKINS.length,
     progress: (c) => [c.skins, SKINS.length],
   }),
-  a({ id: 'legendary', name: 'LEGENDARY', desc: 'Win a legendary skin.', ducks: 20, glyph: 'crown', check: (c) => c.stats.legendaries >= 1 }),
+  a({ id: 'legendary', name: 'LEGENDARY', desc: 'Get a legendary skin from the reactor.', ducks: 20, glyph: 'crown', check: (c) => c.stats.legendaries >= 1 }),
   a({
     id: 'ability10',
     name: 'POWER USER',

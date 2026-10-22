@@ -1,11 +1,11 @@
-# DON'T DIE: App Store listing (v1.0)
+# DUCKWISE: App Store listing (v1.0)
 
 Everything App Store Connect asks for on the app's page, in English (primary
 language) and Danish. Character counts are checked against Apple's limits
 (name and subtitle 30, promotional text 170, keywords 100, description 4000).
 
 Before submitting, check the facts against the build you upload: the skin
-count (written as **50** here; the game has 32 until the new skins are merged),
+count (**50**),
 Game Center leaderboards (only if the plugin ships in 1.0 and a screen opens
 them; today scores are sent but no button shows them), and any
 features added since (CONTINUE, ghost run, guest skin). Words in the listing
@@ -15,20 +15,20 @@ must match the app, or review rejects it (guideline 2.3).
 
 ## 1. App name
 
+Decided by the owner (22 Oct 2026): the game is called **DUCKWISE** ("duck" +
+"clockwise": the ball only ever turns right, and ducks are the currency).
+
 | Option | Length | Verdict |
 |---|---|---|
-| `DON'T DIE` | 9 | **Risky.** The App Store already has "Don't Die - Bryan Johnson" (Continuance LLC, a well-known health brand), "Don't Die™" (a utility that claims the mark), a game called "Dont Die" and "Don't Die: SurvivalAutoBattler" (checked on the US and Danish stores, 20 Oct 2026). App Store Connect may accept the exact string, but search would bury it and a trademark complaint could pull the app. |
-| **`DON'T DIE: One Tap`** | 18 | **Recommended.** Distinct, says what the game is, keeps the logo name. |
-| `DON'T DIE: Neon Tap` | 19 | Fallback if the first is taken. |
-| `Don't Die – One Tap Arcade` | 26 | Second fallback. |
+| **`DUCKWISE`** | 8 | **Chosen.** A web search (22 Oct 2026) found no game or app with this name. |
+| `DUCKWISE: One Tap` | 17 | Fallback if App Store Connect reports the bare name as taken. |
+| `Duckwise – Neon Tap` | 19 | Second fallback. |
 
-- The name under the icon on the home screen stays **DON'T DIE** (Xcode's
-  display name, set by store/ios/configure-ios.sh). Apple allows a short home
-  screen name when it matches the store name.
+- Home screen name: **DUCKWISE** (Xcode's display name, set by
+  store/ios/configure-ios.sh).
 - Danish storefront: same name (names are not translated).
-- Do a quick trademark search (EUIPO, USPTO, DKPTO) for "DON'T DIE" in class 9
-  (games software) and 41 (entertainment) before launch. "Don't Die" is a
-  registered brand of Bryan Johnson's company in other classes.
+- Before launch, a quick trademark search (EUIPO, USPTO, DKPTO) for "DUCKWISE"
+  in class 9 (games software) and 41 (entertainment).
 - Reserve the name early: creating the app record in App Store Connect holds
   the name (Apple releases it if no build follows within about 180 days).
 
@@ -58,7 +58,7 @@ Alternatives: EN `One-tap neon arcade runner` (26), `One rule: never touch a wal
 ### EN (1,773 characters)
 
 ```
-ONE TAP. ONE RULE. DON'T DIE.
+ONE TAP. ALWAYS RIGHT.
 
 You are a ball of light racing down a neon corridor that spirals tighter and tighter. Every tap turns you 90 degrees. Turn inside the corner, hit the middle for a PERFECT, and keep the combo alive. Touch a wall, a saw or a bomb and it's over.
 
@@ -82,8 +82,8 @@ Tap 4 times fast to spin, and your skin's power kicks in for 10 seconds: slow ti
 • DUCKS!
 Collect rubber ducks, chase the red ones that run away, and catch the rare golden duck for a DUCK FRENZY where every tap is a duck.
 
-• THE DUCK-O-MATIC
-Spend your ducks on new skins. Fair by design: no repeats until you own every skin of a rarity, guaranteed epics and legendaries, and the odds are printed on the machine.
+• THE QUACK REACTOR
+Feed it 100 ducks and watch it overload: out comes a glowing orb, grey, blue, purple or (screen-shaking) gold, with a new skin inside. Fair by design: no repeats until you own every skin of a rarity, guaranteed epics and legendaries, and the odds are shown on screen.
 
 • SECRETS
 A tiny rainbow star hides late in some levels. Find it and warp to UNIVERSE 2.
@@ -93,13 +93,13 @@ A tiny rainbow star hides late in some levels. Find it and warp to UNIVERSE 2.
 FREE AND FAIR
 No ads. No in-app purchases. No tracking. No account. Ducks are earned by playing and can never be bought. Your progress stays on your iPhone, and the game works offline.
 
-Now tap. And don't die.
+Now tap. And stay right.
 ```
 
 ### DA (1,826 characters)
 
 ```
-ÉT TRYK. ÉN REGEL. DON'T DIE.
+ÉT TRYK. ALTID TIL HØJRE.
 
 Du er en lyskugle, der suser gennem en neonkorridor, som snor sig tættere og tættere. Hvert tryk drejer dig 90 grader. Drej inde i hjørnet, ram midten for et PERFECT, og hold combo'en i live. Rører du en væg, en sav eller en bombe, er det slut.
 
@@ -123,8 +123,8 @@ Tryk 4 gange hurtigt for at snurre rundt, så tænder dit skins kraft i 10 sekun
 • ÆNDER!
 Saml gummiænder, jag de røde, der løber væk, og fang den sjældne gyldne and til en DUCK FRENZY, hvor hvert tryk er en and.
 
-• DUCK-O-MATIC
-Brug dine ænder på nye skins. Fair fra start: ingen gentagelser, før du har alle skins af en sjældenhed, garanterede epic- og legendary-skins, og chancerne står på maskinen.
+• QUACK REACTOR
+Fodr den med 100 ænder, og se den koge over: ud kommer en glødende kugle, grå, blå, lilla eller (så hele skærmen ryster) guld, med et nyt skin indeni. Fair fra start: ingen gentagelser, før du har alle skins af en sjældenhed, garanterede epic- og legendary-skins, og chancerne står på skærmen.
 
 • HEMMELIGHEDER
 En lillebitte regnbuestjerne gemmer sig sent på nogle baner. Find den, og warp til UNIVERSE 2.
@@ -134,13 +134,13 @@ En lillebitte regnbuestjerne gemmer sig sent på nogle baner. Find den, og warp 
 GRATIS OG FAIR
 Ingen reklamer. Ingen køb i appen. Ingen sporing. Ingen konto. Ænder tjenes ved at spille og kan aldrig købes. Dine fremskridt bliver på din iPhone, og spillet virker uden internet.
 
-Tryk nu. Og don't die.
+Tryk nu. Og hold til højre.
 ```
 
 ## 5. Keywords (max 100, comma separated, no spaces)
 
 Apple already indexes the name, subtitle and category, so these don't repeat
-"don't", "die", "neon", "arcade", "runner" or "one tap".
+"duckwise", "neon", "arcade", "runner" or "one tap".
 
 | | Keywords | Length |
 |---|---|---|
@@ -158,7 +158,7 @@ Apple already indexes the name, subtitle and category, so these don't repeat
 
 Apple's current questionnaire (App Store Connect > App Information > Age
 Rating). The answers below are honest for the game as it is now; one of them
-depends on a decision about the DUCK-O-MATIC.
+reflect the QUACK REACTOR (the slot machine is gone).
 
 | Section | Question | Answer | Why |
 |---|---|---|---|
@@ -176,36 +176,29 @@ depends on a decision about the DUCK-O-MATIC.
 | Violence | Cartoon or fantasy violence | **None** (or Infrequent, see below) | An abstract orb bursts into light when it hits a wall, saw or bomb. No characters are hurt, no blood. If you'd rather be extra safe, "Infrequent" is also defensible; it makes the rating 9+. |
 | | Realistic violence, graphic violence, weapons | None | |
 | Chance-based | Gambling (real money) | No | Nothing can be bought or cashed out. |
-| | **Simulated gambling** | **Decision needed** | See below. |
+| | **Simulated gambling** | **None** | The QUACK REACTOR has no reels, payline, lever or "win" wording (see below). |
 | | Contests | Infrequent | Leaderboards and the shared Daily Run let players compare scores (4+). |
 | | Loot boxes | No | Apple defines them as random items "for purchase". Ducks are only earned by playing; there is no purchase of any kind. |
 
-**The DUCK-O-MATIC decision.** The skin machine looks like a slot machine
-(three reels, a payline, a lever, coins, and duplicates pay ducks back). Apple
-defines simulated gambling as "betting or wagering without using real money".
-A reviewer may well see a slot machine, and an age rating that is too low gets
-the app rejected.
+**The skin machine.** The old DUCK-O-MATIC looked like a slot machine (reels, a
+payline, a lever), which would have meant Simulated gambling = Infrequent and a
+13+ rating (R 18+ in Australia). The owner chose to replace it: the QUACK
+REACTOR is fed ducks and bursts open to reveal a skin in an orb whose colour
+shows the rarity, like a pack opening. No reels, payline, lever, coins or "win"
+wording, and duplicates show their fixed refund. So Simulated gambling =
+*None* and the game is **4+** (9+ if violence is answered Infrequent).
 
-- **Option A, keep the slot machine look:** answer Simulated gambling =
-  *Infrequent*. Rating **13+** worldwide, **R 18+ in Australia** (restricted
-  there), A12 in Brazil.
-- **Option B, recommended:** re-theme it as a capsule toy machine (the capsule
-  reveal is already there): no reels or payline, a crank instead of a lever,
-  no "win" wording, and duplicates turn into something other than a duck
-  payout (or a fixed refund shown up front). Then Simulated gambling = *None*
-  and the game is **4+** (9+ if violence is answered Infrequent).
-
-Either way, keep the odds printed on the machine (already there).
+Keep the odds shown on the reactor screen (they are).
 
 ## 8. What's new in 1.0
 
 **EN**
 
-> The first release of DON'T DIE! 20 levels in 4 worlds, HARD MODE, endless Survival, a new Daily Run every day and 50 skins with super powers. Tap to turn. Don't die.
+> The first release of DUCKWISE! 20 levels in 4 worlds, HARD MODE, endless Survival, a new Daily Run every day and 50 skins with super powers. Tap to turn. Always right.
 
 **DA**
 
-> Den første udgave af DON'T DIE! 20 levels i 4 verdener, HARD MODE, uendelig Survival, en ny Daily Run hver dag og 50 skins med superkræfter. Tryk for at dreje. Don't die.
+> Den første udgave af DUCKWISE! 20 levels i 4 verdener, HARD MODE, uendelig Survival, en ny Daily Run hver dag og 50 skins med superkræfter. Tryk for at dreje. Altid til højre.
 
 ## 9. URLs
 
@@ -223,16 +216,16 @@ privacy.html). To publish: copy `store/site/*` to a `docs/` folder on `main`
 and turn on GitHub Pages (Settings > Pages > Deploy from a branch > `main` /
 `docs`). Before that, replace `[CONTACT EMAIL]` in both pages with a support
 address (a dedicated one, e.g. a new Gmail or a domain alias, rather than a
-personal inbox: it will be public). A custom domain (e.g. dontdie.dk) can be
+personal inbox: it will be public). A custom domain (e.g. duckwise.dk) can be
 pointed at the same pages later without changing the app.
 
 ## 10. App Review notes (paste into "Notes" for the reviewer)
 
 ```
-DON'T DIE is a one-tap arcade game. Tap anywhere to turn the ball 90° right; touch a wall, saw or bomb and the run ends.
+DUCKWISE is a one-tap arcade game. Tap anywhere to turn the ball 90° right; touch a wall, saw or bomb and the run ends.
 
 - No account, no login, no network: everything works offline.
-- No ads, no in-app purchases. "Ducks" are an in-game currency earned only by playing; they cannot be bought or exchanged for anything outside the game. The DUCK-O-MATIC spends earned ducks on cosmetic skins and shows its odds on screen.
+- No ads, no in-app purchases. "Ducks" are an in-game currency earned only by playing; they cannot be bought or exchanged for anything outside the game. The QUACK REACTOR spends earned ducks on cosmetic skins and shows its odds on screen.
 - Game Center (optional) is used only for leaderboards.
 - Local notifications (optional, asked after the first Daily Run): a reminder when a new Daily Run is out and when a streak is about to end.
 - Quick tour: PLAY starts level 1, which teaches itself. SURVIVAL is endless. DAILY has today's run. Tapping 4 times fast fires the skin's super power (from level 3).

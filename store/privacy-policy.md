@@ -1,4 +1,4 @@
-# DON'T DIE: privacy
+# DUCKWISE: privacy
 
 This file has the privacy policy to publish (English and Danish), the answers
 for App Store Connect's App Privacy section, and the export compliance answer.
@@ -15,10 +15,10 @@ native storage (`src/native/bridge.ts`, `src/game/persist.ts`).
 
 ## Privacy policy (English)
 
-**DON'T DIE: Privacy Policy**
+**DUCKWISE: Privacy Policy**
 Effective [DATE]
 
-DON'T DIE is a game. It does not collect, store or share any personal data.
+DUCKWISE is a game. It does not collect, store or share any personal data.
 
 - **No data collection.** The game has no account, no login, no analytics, no
   advertising and no tracking. It does not use your contacts, photos, location,
@@ -49,10 +49,10 @@ DON'T DIE is a game. It does not collect, store or share any personal data.
 
 ## Privatlivspolitik (dansk)
 
-**DON'T DIE: Privatlivspolitik**
+**DUCKWISE: Privatlivspolitik**
 Gælder fra [DATE]
 
-DON'T DIE er et spil. Det indsamler, gemmer og deler ingen personoplysninger.
+DUCKWISE er et spil. Det indsamler, gemmer og deler ingen personoplysninger.
 
 - **Ingen dataindsamling.** Spillet har ingen konto, intet login, ingen
   statistik, ingen reklamer og ingen sporing. Det bruger ikke dine kontakter,

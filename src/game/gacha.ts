@@ -2,7 +2,7 @@ import { read, readJSON, writeJSON } from './persist';
 import { save } from './storage';
 import { PITY, RARITIES, RARITY_ORDER, REFUND, SPIN_COST, SKINS, rollRarity, skinsOf, type Rarity, type Skin } from './skins';
 
-// The DUCK-O-MATIC's rules, kept apart from its looks (ui/SkinShop.ts).
+// The QUACK REACTOR's rules, kept apart from its looks (ui/SkinShop.ts).
 //
 // - Odds per rarity are in RARITIES (65 / 25 / 8 / 2 %).
 // - Pity: an epic-or-better is guaranteed within PITY.epic spins, a

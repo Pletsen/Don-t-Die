@@ -290,13 +290,13 @@ function paintAll() {
     orbWithRing(ctx, k * 1.6, c, c, R, 1.7);
   }
 
-  /** The DON'T DIE wordmark as on the menu: magenta and cyan ghosts behind white. */
+  /** The DUCKWISE wordmark as on the menu: magenta and cyan ghosts behind white. */
   function wordmark(ctx, k, cx, cy, size) {
     ctx.save();
     ctx.font = `700 ${size}px "Chakra Petch"`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const text = "DON'T DIE";
+    const text = "DUCKWISE";
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = 0.75;
     ctx.fillStyle = '#ff2f9e';
@@ -363,7 +363,7 @@ function paintAll() {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#8fa3b5';
     ctx.letterSpacing = `${10 * k}px`;
-    ctx.fillText('ONE TAP. ONE RULE.', cx + 5 * k, top + 830 * k);
+    ctx.fillText('ONE TAP. ALWAYS RIGHT.', cx + 5 * k, top + 830 * k);
     ctx.restore();
   }
 

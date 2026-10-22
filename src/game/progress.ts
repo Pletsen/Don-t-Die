@@ -728,7 +728,7 @@ class Progress {
       if (total < at || this.data.starRoad.includes(at)) continue;
       this.data.starRoad.push(at);
       save.addFreeSpins(1);
-      this.notify({ title: `STAR ROAD · ${at} STARS`, subtitle: 'FREE SPIN ON THE DUCK-O-MATIC', color: 0xffd21f });
+      this.notify({ title: `STAR ROAD · ${at} STARS`, subtitle: 'FREE CHARGE FOR THE QUACK REACTOR', color: 0xffd21f });
       this.dirty();
     }
   }

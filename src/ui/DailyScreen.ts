@@ -558,7 +558,7 @@ export class DailyScreen {
       const cy = y + 74;
       const r = Math.min(19, step / 2 - 3);
       const value = this.dayValue[i];
-      setIfChanged(value, d.spins ? 'SPIN' : String(d.ducks));
+      setIfChanged(value, d.spins ? 'FREE' : String(d.ducks));
       value.setFontSize(d.spins ? 11 : 13);
       if (d.state === 'claimed') {
         dg.fillStyle(GOLD, 1).fillCircle(x, cy, r);
@@ -582,7 +582,7 @@ export class DailyScreen {
     });
 
     this.claim.setVisible(st.canClaim);
-    if (st.canClaim) this.claim.setLabel(st.reward.spins ? 'CLAIM FREE SPIN' : `CLAIM +${st.reward.ducks} DUCKS`);
+    if (st.canClaim) this.claim.setLabel(st.reward.spins ? 'CLAIM FREE CHARGE' : `CLAIM +${st.reward.ducks} DUCKS`);
     this.claimedNote.setVisible(!st.canClaim);
   }
 

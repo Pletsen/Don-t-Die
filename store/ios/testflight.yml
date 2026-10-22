@@ -1,4 +1,4 @@
-# Build the DON'T DIE iPhone app on a GitHub macOS runner and upload it to
+# Build the DUCKWISE iPhone app on a GitHub macOS runner and upload it to
 # TestFlight. No Mac needed.
 #
 # NOT ACTIVE: GitHub only runs workflows from .github/workflows/. When the

@@ -1,7 +1,7 @@
 {
   "name": "dontdie-game-center",
   "version": "1.0.0",
-  "description": "Game Center for DON'T DIE: quiet sign-in, leaderboard scores and the leaderboard sheet. A Capacitor plugin, iOS only. src/native/bridge.ts calls it as GameCenter.",
+  "description": "Game Center for DUCKWISE: quiet sign-in, leaderboard scores and the leaderboard sheet. A Capacitor plugin, iOS only. src/native/bridge.ts calls it as GameCenter.",
   "private": true,
   "license": "UNLICENSED",
   "files": [

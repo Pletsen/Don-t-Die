@@ -1,4 +1,4 @@
-# DON'T DIE: launch checklist
+# DUCKWISE: launch checklist
 
 Everything left between "the game is done" and "Submit for Review". In order;
 tick as you go. Details live in `store/ios-plan.md` (build), `store/listing.md`
@@ -6,12 +6,11 @@ tick as you go. Details live in `store/ios-plan.md` (build), `store/listing.md`
 
 ## A. Decisions for the owner (before anything is uploaded)
 
-- [ ] **Store name**: `DON'T DIE: One Tap` recommended (the bare name is
-      crowded and close to Bryan Johnson's "Don't Die" brand). Quick trademark
-      search in class 9 / 41.
-- [ ] **Bundle ID**: `dk.dontdie.game` or another; it can never change later.
-- [ ] **DUCK-O-MATIC look**: keep the slot machine (age rating 13+, R 18+ in
-      Australia) or re-theme it as a capsule machine (4+). listing.md §7.
+- [x] **Store name**: **DUCKWISE** (decided 22 Oct 2026; fallback
+      `DUCKWISE: One Tap`). Still to do: a quick trademark search in class 9 / 41.
+- [ ] **Bundle ID**: `dk.duckwise.game` (proposal) or another; it can never change later.
+- [x] **Skin machine**: the slot machine is replaced by the QUACK REACTOR
+      (no simulated gambling, so 4+). listing.md §7.
 - [ ] **Developer account type**: individual (your own name shows as the
       seller) or company (needs a D-U-N-S number, shows the company name).
 - [ ] **Support e-mail**: a dedicated public address for the support and
@@ -40,8 +39,8 @@ tick as you go. Details live in `store/ios-plan.md` (build), `store/listing.md`
 - [ ] App ID with Game Center (ios-plan.md §6 step 2).
 - [ ] App record created (reserves the name).
 - [ ] App Store Connect API key (Admin) + the four GitHub secrets.
-- [ ] Game Center: the three leaderboards (`dontdie.survival`,
-      `dontdie.daily` recurring daily at 00:00 UTC, `dontdie.stars`).
+- [ ] Game Center: the three leaderboards (`duckwise.survival`,
+      `duckwise.daily` recurring daily at 00:00 UTC, `duckwise.stars`).
 - [ ] GitHub Pages on (`store/site` → `docs/`), `[CONTACT EMAIL]` and `[DATE]`
       filled in; open the privacy and support URLs on a phone.
 

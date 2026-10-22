@@ -2,7 +2,7 @@ import { palette } from './palette';
 
 // All player skins as data. How each one looks is painted in
 // fx/skinTextures.ts under the texture key `skin:<id>`. Each skin's ability
-// is a recipe in game/abilities.ts, and the DUCK-O-MATIC rules live in
+// is a recipe in game/abilities.ts, and the QUACK REACTOR rules live in
 // game/gacha.ts.
 
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary';

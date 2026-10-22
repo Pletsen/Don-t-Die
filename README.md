@@ -1,4 +1,6 @@
-# DON'T DIE
+# DUCKWISE
+
+*One tap. Always right.* (Spillet hed tidligere DON'T DIE; navnet er "duck" + "clockwise", fordi kuglen kun drejer til højre, og ænder er valutaen. Interne nøgler som `dontdie_*` i den gemte data og repo-navnet er uændrede, så ingen mister deres fremskridt.)
 
 Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, som drejer i en spiral. Hvert tryk drejer dig 90° med uret. Rammer du væggen, en savklinge eller en bombe, er det slut.
 
@@ -7,7 +9,7 @@ Et one-tap arcade-spil i neon. Du er en lyskugle, der suser gennem en korridor, 
 **Hovedmenuen** viser en demo: spillet spiller sig selv bag logoet, mens knapperne sidder på en mørk "dock" nederst:
 
 - **PLAY · LEVEL n** starter direkte det næste level, du ikke har klaret.
-- **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **SKINS** er spillemaskinen DUCK-O-MATIC, og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
+- **LEVELS** åbner level-kortet, **SURVIVAL** er den uendelige bane, **REACTOR** er QUACK REACTOR, hvor nye skins kommer fra, og hvor din samling ligger (første gang menuen vises efter en tur, peger en lille boble på knappen: "YOUR SKINS LIVE IN HERE NOW"), og **DAILY** er dagens udfordringer (en guldprik betyder, at noget venter).
 - Ikoner øverst: **?** (HOW TO PLAY), **pokal** (RECORDS) og til højre **musik**, **lyd** og **effekter**. Musik og lydeffekter slås fra hver for sig og huskes (`dontdie_music` og `dontdie_sound`). Havde man slået al lyd fra i en ældre version, starter begge slukket.
 
 Første gang man spiller, lærer level 1 én at styre: de første tre sving går i slowmotion med en pulserende "TAP!"-ring, og et tryk der kommer for tidligt bliver ignoreret ("WAIT…") i stedet for at slå én ihjel. Korte tip-kort dukker op én gang, lige før det bliver relevant (PERFECT før level 2, super power før level 3, ænder før level 4, forhindringer før level 6). HOW TO PLAY med 7 animerede kort ligger altid bag ?-knappen (`src/ui/HowToPlay.ts`).
@@ -63,7 +65,7 @@ Slår du din rekord midt i en tur, siger spillet det med det samme (**NEW RECORD
 ### Dagligt: DAILY
 
 - **Daily Run:** samme bane for alle i dag, med et twist efter ugedagen (CLASSIC, SAW STORM, TIGHTROPE, DUCK HUNT, FAST LANE, BOMB PARTY, UNIVERSE 2). Når du når 250/600/1000 m, får du +5/+10/+15 ænder, én gang om dagen.
-- **Dagens gæst (TODAY'S GUEST):** hver dag låner du ét skin, du ikke har endnu. Det vælges ud fra datoen blandt dem, du mangler (har du dem alle, kan det være hvilket som helst), og ligger så fast resten af dagen. DAILY-skærmen viser det med navn og super power, og Daily Run spilles med det, evnen inklusive. Dit eget skin bliver ikke skiftet. Efter turen har resultatkortet et lille link, "LIKE FROGGY? SPIN THE DUCK-O-MATIC", der går direkte til spillemaskinen (`src/game/guest.ts`).
+- **Dagens gæst (TODAY'S GUEST):** hver dag låner du ét skin, du ikke har endnu. Det vælges ud fra datoen blandt dem, du mangler (har du dem alle, kan det være hvilket som helst), og ligger så fast resten af dagen. DAILY-skærmen viser det med navn og super power, og Daily Run spilles med det, evnen inklusive. Dit eget skin bliver ikke skiftet. Efter turen har resultatkortet et lille link, "LIKE FROGGY? FIRE UP THE REACTOR", der går direkte til reaktoren (`src/game/guest.ts`).
 - **3 daglige missioner** (let/medium/svær, +5/+10/+15, +10 for alle tre) fra en pulje på 26. Én kan skiftes ud om dagen.
 - **Streak:** kom igen hver dag for 5, 5, 10, 10, 15, 15 ænder og et gratis spin på dag 7. Ét "skjold" redder en glemt dag.
 
@@ -89,15 +91,15 @@ Fra level 4 ligger der også ænder på de almindelige baner, flere jo sværere 
 
 Lydene er rigtige optagelser af ænder (CC0, se `public/sfx/CREDITS.md`).
 
-### Skins og DUCK-O-MATIC
+### Skins og QUACK REACTOR
 
-Ænder er valuta, og de fleste samler du selv på banen; første gennemførsel og nye stjerner giver lidt ekstra (2–6 og 2 pr. stjerne). Ét træk i DUCK-O-MATIC koster 100 ænder (eller et gratis spin fra streaks og "Star Road": 20/40/60 stjerner). Spillemaskinen er fair:
+Ænder er valuta, og de fleste samler du selv på banen; første gennemførsel og nye stjerner giver lidt ekstra (2–6 og 2 pr. stjerne). Én ladning (CHARGE) af QUACK REACTOR koster 100 ænder (eller en gratis ladning fra streaks og "Star Road": 20/40/60 stjerner). Reaktoren er fair:
 
 - Du får ikke det samme skin igen, før du har alle af den sjældenhed. Derefter giver dubletter 10/20/40/70 ænder tilbage.
-- Pity: mindst epic inden for 15 spin, legendary inden for 60. Tælleren står på maskinen.
+- Pity: mindst epic inden for 15 ladninger, legendary inden for 60. Tælleren står på skærmen.
 - Dit allerførste træk er mindst rare, så den første smagsprøve er en figur med en rigtig evne.
 
-Der er 50 skins: 18 common, 16 rare, 10 epic og 6 legendary. Samlingen under maskinen er et gitter på 10 × 5.
+Der er 50 skins: 18 common, 16 rare, 10 epic og 6 legendary. Samlingen under reaktoren er et gitter på 10 × 5.
 
 | Sjældenhed | Chance | Skins |
 |---|---|---|
@@ -233,7 +235,7 @@ src/
 │   └── UIScene.ts        Menuen, HUD, pause, resultatkort og skift mellem skærmene
 ├── ui/
 │   ├── LevelSelect.ts    Level-kortet
-│   ├── SkinShop.ts       SKINS: spillemaskinen DUCK-O-MATIC og samlingen (+ shopTextures, shopSfx)
+│   ├── SkinShop.ts       REACTOR: QUACK REACTOR og samlingen (+ shopTextures, shopSfx)
 │   ├── ClearScreen.ts    "LEVEL CLEAR" med guldstjerner og ænder der flyver ind
 │   ├── DailyScreen.ts    DAILY: dagens tur, streak og missioner
 │   ├── RecordsScreen.ts  RECORDS: statistik og achievements
@@ -248,7 +250,7 @@ src/
 │   ├── Track.ts          Banen: spiral-segmenter, porte, forhindringer og mållinje
 │   ├── rng.ts            Tilfældige tal med fast frø, så et level altid er ens
 │   ├── skins.ts          ⭐ Alle 50 skins og chancerne for hver sjældenhed
-│   ├── gacha.ts          Fair spillemaskine: ingen dubletter for tidligt, pity
+│   ├── gacha.ts          Reaktorens regler: ingen dubletter for tidligt, pity
 │   ├── abilities.ts      ⭐ Hvert skins særlige evne
 │   ├── progress.ts       Statistik, rekorder, belønninger og bannere
 │   ├── missions.ts       ⭐ De daglige missioner

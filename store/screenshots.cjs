@@ -73,8 +73,8 @@ const SHOTS = [
   {
     id: 'one-tap',
     accent: CYAN,
-    en: { title: ['ONE TAP.', 'ONE RULE.'], sub: "TAP TO TURN. DON'T TOUCH ANYTHING." },
-    da: { title: ['ÉT TRYK.', 'ÉN REGEL.'], sub: 'TRYK FOR AT DREJE. RØR INGENTING.' },
+    en: { title: ['ONE TAP.', 'ALWAYS RIGHT.'], sub: "TAP TO TURN RIGHT. DON'T TOUCH ANYTHING." },
+    da: { title: ['ÉT TRYK.', 'ALTID TIL HØJRE.'], sub: 'TRYK FOR AT DREJE. RØR INGENTING.' },
     seed: { stars: range(1, 2, 3) },
     run: async () => {
       S.hideBanners();
@@ -88,8 +88,8 @@ const SHOTS = [
   {
     id: 'dont-die',
     accent: CRIMSON,
-    en: { title: ["DON'T DIE."], sub: 'SAWS, BOMBS AND ZERO MERCY' },
-    da: { title: ["DON'T DIE."], sub: 'SAVKLINGER, BOMBER OG NUL NÅDE' },
+    en: { title: ['ZERO MERCY.'], sub: 'SAWS, BOMBS AND WALLS' },
+    da: { title: ['NUL NÅDE.'], sub: 'SAVKLINGER, BOMBER OG VÆGGE' },
     seed: { stars: range(1, 17, 3) },
     run: async () => {
       S.hideBanners();

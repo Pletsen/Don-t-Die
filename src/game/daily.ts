@@ -425,7 +425,7 @@ export class Daily {
     this.hooks.notify({
       title: `DAY ${s.count} STREAK`,
       subtitle: reward.spins
-        ? `FREE SPIN ON THE DUCK-O-MATIC${usedShield ? ' · SHIELD USED' : ''}`
+        ? `FREE CHARGE FOR THE REACTOR${usedShield ? ' · SHIELD USED' : ''}`
         : usedShield
           ? 'SHIELD SAVED YOUR STREAK'
           : 'COME BACK TOMORROW FOR MORE',

@@ -8,7 +8,7 @@ import type { Rarity } from '../game/skins';
 //
 //   <id>.mp3        "hello": short and quiet. A run starts with the skin, or
 //                   it's picked in the skins screen or comes out of the
-//                   DUCK-O-MATIC.
+//                   QUACK REACTOR.
 //   <id>-power.mp3  "power": a fuller take, on top of the power-up whoosh,
 //                   when the 4-tap super power fires.
 //
@@ -113,7 +113,7 @@ export const skinVoices = {
     say(id, 'hello', LEVEL.preview);
   },
 
-  /** A new skin pops out of the DUCK-O-MATIC capsule. */
+  /** A new skin pops out of the QUACK REACTOR. */
   reveal(id: string, rarity: Rarity) {
     say(id, 'hello', LEVEL.reveal, REVEAL_DELAY[rarity]);
   },

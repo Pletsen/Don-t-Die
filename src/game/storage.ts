@@ -67,7 +67,7 @@ export const save = {
     write(KEYS.ducks, String(this.ducks));
     duckListeners.forEach((fn) => fn(n, source));
   },
-  /** Free spins on the DUCK-O-MATIC (rewards from streaks, stars, missions). */
+  /** Free charges of the QUACK REACTOR (rewards from streaks, stars, missions). */
   freeSpins: parseInt(read(KEYS.freeSpins) ?? '0', 10) || 0,
   addFreeSpins(n: number) {
     this.freeSpins = Math.max(0, this.freeSpins + n);

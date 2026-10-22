@@ -139,7 +139,7 @@ export async function share(text: string, image?: Blob): Promise<ShareResult> {
     }
     const native = plugins()?.Share;
     if (native) {
-      await native.share({ title: "DON'T DIE", text });
+      await native.share({ title: 'DUCKWISE', text });
       return 'shared';
     }
     await navigator.clipboard.writeText(text);
@@ -156,9 +156,9 @@ export type Board = 'survival' | 'daily' | 'stars';
 
 /** Game Center leaderboard ids (set up in App Store Connect). */
 const BOARD_IDS: Record<Board, string> = {
-  survival: 'dontdie.survival',
-  daily: 'dontdie.daily',
-  stars: 'dontdie.stars',
+  survival: 'duckwise.survival',
+  daily: 'duckwise.daily',
+  stars: 'duckwise.stars',
 };
 
 /** True when there are real leaderboards to show (the native app). */

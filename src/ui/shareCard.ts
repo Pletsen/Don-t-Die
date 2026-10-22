@@ -77,8 +77,8 @@ export async function renderCard(info: CardInfo): Promise<Blob | null> {
   ctx.textBaseline = 'middle';
 
   // Logo.
-  glowText(ctx, "DON'T DIE", W / 2, 190, `700 150px ${fonts.display}`, '#ffffff', css.cyan, 30);
-  spaced(ctx, 'ONE TAP. ONE RULE.', W / 2, 300, `500 34px ${fonts.mono}`, css.inkDim, 10);
+  glowText(ctx, 'DUCKWISE', W / 2, 190, `700 150px ${fonts.display}`, '#ffffff', css.cyan, 30);
+  spaced(ctx, 'ONE TAP. ALWAYS RIGHT.', W / 2, 300, `500 34px ${fonts.mono}`, css.inkDim, 10);
 
   // The result.
   spaced(ctx, info.kicker, W / 2, 470, `700 44px ${fonts.mono}`, info.color, 6);
