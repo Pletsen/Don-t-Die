@@ -117,6 +117,7 @@ export class SkinShop {
   private bayY = 0;
   /** During a show the reactor lives in the reveal, on the stage. */
   private staged = false;
+  private pageShown = true;
   private screenW = 390;
   private screenH = 844;
   private seen = Math.max(0, parseInt(read(SEEN_KEY) ?? '0', 10) || 0);
@@ -375,8 +376,8 @@ export class SkinShop {
     const free = save.freeSpins;
     setText(this.freeNote, free > 0 ? `+${free} FREE CHARGE${free > 1 ? 'S' : ''}` : '');
     const useFree = free > 0;
-    this.freePull.setVisible(useFree);
-    this.pull.setVisible(!useFree);
+    this.freePull.setVisible(useFree && this.pageShown);
+    this.pull.setVisible(!useFree && this.pageShown);
     if (useFree) this.freePull.setLabel(free > 1 ? `FREE CHARGE  ·  ${free} LEFT` : 'FREE CHARGE');
     this.pull.setAlpha(save.ducks >= SPIN_COST || this.phase !== 'idle' ? 1 : 0.5);
     if (this.phase === 'idle') this.setRule();
@@ -550,6 +551,18 @@ export class SkinShop {
     r.setScale(this.bayScale).setPosition(0, this.bayY).setAlpha(1);
     this.reveal.setScale(this.revealScale);
     this.staged = false;
+    this.showPage(true);
+  }
+
+  /** The page under the stage: hidden while the dim covers it anyway (fewer sprites to draw). */
+  private showPage(on: boolean) {
+    if (this.pageShown === on) return;
+    this.pageShown = on;
+    for (const o of [this.pull, this.freePull, ...this.odds, this.rule, this.message, this.collectionLabel, this.rarityDots, ...this.rarityCounts, this.infoTitle, this.infoBody])
+      o.setVisible(on);
+    for (const t of this.tiles) t.root.setVisible(on);
+    // The buttons' and the free note's own rules.
+    if (on) this.refresh();
   }
 
   /**
@@ -578,7 +591,10 @@ export class SkinShop {
     const cy = cy0 + (h * 0.05 - cy0) * k;
     const x = cx - BAY.core.x * sc;
     const y = cy - BAY.core.y * sc;
-    r.setScale(sc).setPosition(x, y).setAlpha(1 - 0.72 * gone);
+    // ... and when the shell cracks it fades out of the way of the card.
+    const out = p ? Math.min(1, Math.max(0, (t - p.crack) / 350)) : 0;
+    r.setScale(sc).setPosition(x, y).setAlpha((1 - 0.72 * gone) * (1 - out));
+    this.showPage(k0 < 1);
     this.reactor.setStage(k, (-w / 2 - x) / sc, (-h / 2 - y) / sc, (w / 2 - x) / sc, (h / 2 - y) / sc, sc);
     this.reveal.setScale(this.revealScale * (1 + this.fx.kick));
   }

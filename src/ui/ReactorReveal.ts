@@ -38,7 +38,7 @@ const EDGE_HOLD = [0, 0.12, 0.24, 0.38];
 const KICK = [0.025, 0.04, 0.055, 0.075];
 const ORBITERS = [3, 5, 7, 10];
 /** How dark the screen goes behind the reactor while it charges. */
-const STAGE_DIM = 0.86;
+const STAGE_DIM = 0.9;
 /** Shell size on screen (texture scale). */
 const SHELL_SCALE = 0.95;
 /** The shell's rim radius on screen. */
@@ -106,6 +106,7 @@ export class ReactorReveal {
   private nextBolt = 0;
   private nextZap = 0;
   private nextSmoke = 0;
+  private nextRumble = 0;
   private rainDebt = 0;
   private fountainDebt = 0;
   private cracked = false;
@@ -230,6 +231,13 @@ export class ReactorReveal {
     const slow = t < this.slowUntil ? 0.22 : 1;
     const s = (dt / 1000) * slow;
 
+    // Epic and legendary overloads rumble the whole screen as they build.
+    const u = overloadAt(p, t);
+    if (u > 0.4 && t < p.blast - 140 && rankOf(p.first) >= 2 && !quiet && !reduced && this.clock >= this.nextRumble) {
+      this.nextRumble = this.clock + 90;
+      const k = (u - 0.4) / 0.6;
+      this.scene.cameras.main.shake(110, (rankOf(p.first) === 3 ? 0.006 : 0.003) * k * k);
+    }
     if (crossed(p.blast, prev, now)) this.onset(p.first, quiet, reduced, true);
     if (p.tease && t >= p.upgrade - TEASE_BUILD && t < p.upgrade) {
       // Tease: the shell trembles and light of the next colour leaks through cracks.
@@ -316,11 +324,12 @@ export class ReactorReveal {
   }
 
   private stepAll(s: number, dt: number) {
-    for (const f of this.flashes) this.stepTimed(f, s);
+    // Flashes run on real time (a slow-motion flash would just wash the screen out).
+    for (const f of this.flashes) this.stepTimed(f, dt / 1000);
     this.stepTimed(this.flare, s);
     for (const r of this.waves) this.stepTimed(r, s);
     if (this.screenFlash.visible) {
-      this.screenFlashAge += s;
+      this.screenFlashAge += dt / 1000;
       const k = this.screenFlashAge / this.screenFlashLife;
       if (k >= 1) this.screenFlash.setVisible(false);
       else this.screenFlash.setAlpha(this.screenFlashA * (1 - k) * (1 - k));
@@ -329,7 +338,12 @@ export class ReactorReveal {
     if (this.kick < 0.0005) this.kick = 0;
     // Bolts are short-lived flickers.
     for (let i = 0; i < this.bolts.length; i++) if (this.bolts[i].visible && this.clock >= this.boltUntil[i]) this.bolts[i].setVisible(false);
-    for (const p of [this.smoke, this.debris, this.rain, this.lines, this.sparks, this.shards]) p.update(s);
+    this.smoke.update(s);
+    this.debris.update(s);
+    this.rain.update(s);
+    this.lines.update(s);
+    this.sparks.update(s);
+    this.shards.update(s);
   }
 
   /**
@@ -411,7 +425,7 @@ export class ReactorReveal {
     const at = blast ? this.from : { x: this.orb.x, y: this.orb.y };
     const fx = reduced ? 0.5 : 1;
     const hot = mixColor(0xffffff, color, 0.35);
-    this.flashAt(at.x, at.y, [2.6, 3.2, 3.9, 5.2][rank], FLASH[rank] * fx, blast ? 0.45 : 0.55, hot, rank >= 1 && !reduced);
+    this.flashAt(at.x, at.y, [2.6, 3.2, 3.9, 4.6][rank], FLASH[rank] * fx, blast ? 0.45 : 0.5, hot, rank >= 1 && !reduced);
     // Shockwaves: a thick soft one first, then thinner, faster rings, staggered.
     for (let i = 0; i < WAVES[rank]; i++) {
       this.wave(at.x, at.y, 0.2, 1.6 + i * 0.75 + rank * 0.25, 0.55 + i * 0.12, i === 0 ? hot : i % 2 ? color : 0xffffff, i * 0.07, i % 2 ? 0.8 : -0.8);
@@ -471,7 +485,7 @@ export class ReactorReveal {
     }
     if (rank === 3) {
       cam.shake(reduced ? 300 : 850, reduced ? 0.003 : 0.015);
-      this.screenFlashOn(0xfff2c0, reduced ? 0.18 : 0.65, 0.75);
+      this.screenFlashOn(0xfff2c0, reduced ? 0.15 : 0.45, 0.6);
       shopSfx.slowmo();
     }
     if (blast) shopSfx.blast(r);

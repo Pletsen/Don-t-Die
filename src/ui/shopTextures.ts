@@ -813,17 +813,17 @@ function paintGlows(scene: Phaser.Scene) {
   paint(scene, SHOP_TEX.edge, 128, 256, 1, (ctx) => {
     const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
       const g = ctx.createLinearGradient(x0, y0, x1, y1);
-      g.addColorStop(0, 'rgba(255,255,255,0.95)');
-      g.addColorStop(0.3, 'rgba(255,255,255,0.32)');
-      g.addColorStop(0.7, 'rgba(255,255,255,0.06)');
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.25, 'rgba(255,255,255,0.4)');
+      g.addColorStop(0.6, 'rgba(255,255,255,0.08)');
       g.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(rx, ry, rw, rh);
     };
-    edge(0, 0, 40, 0, 0, 0, 40, 256);
-    edge(128, 0, 88, 0, 88, 0, 40, 256);
-    edge(0, 0, 0, 44, 0, 0, 128, 44);
-    edge(0, 256, 0, 212, 0, 212, 128, 44);
+    edge(0, 0, 24, 0, 0, 0, 24, 256);
+    edge(128, 0, 104, 0, 104, 0, 24, 256);
+    edge(0, 0, 0, 30, 0, 0, 128, 30);
+    edge(0, 256, 0, 226, 0, 226, 128, 30);
   });
   // Energy swirling inside the shell: three glowing spiral arms (2x, like the shell).
   paint(scene, SHOP_TEX.swirl, SHELL_TEX, SHELL_TEX, 2, (ctx) => {

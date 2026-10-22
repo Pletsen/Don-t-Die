@@ -122,7 +122,7 @@ const RIM_SQUASH = 80;
 /** Sprites for the ducks in the air at once (each duck reuses slot i % POOL). */
 const POOL = 80;
 /** A flying duck's size on screen (texture scale at zoom 1). */
-const FLY_SCALE = 0.27 / DUCK_RES;
+const FLY_SCALE = 0.3 / DUCK_RES;
 
 /** Same numbers every show, so stepping or skipping looks the same. */
 const hash = (i: number, k: number) => {
@@ -143,7 +143,7 @@ const GOLD_CROUCH = 1090;
 const GOLD_LEAP = 1200;
 const GOLD_IN = 1600;
 const GOLD_SCALE = 0.5 / DUCK_RES;
-const GOLD_STAGE_SCALE = 0.8 / DUCK_RES;
+const GOLD_STAGE_SCALE = 1 / DUCK_RES;
 
 // --- The machine (idle belt) -----------------------------------------------------
 
