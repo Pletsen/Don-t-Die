@@ -119,7 +119,7 @@ export const ABILITIES: Record<string, AbilityDef> = {
   melon: { name: 'THICK RIND', desc: 'A tough rind takes two hits for you.', shield: 2, word: 'SPLAT' },
   cookie: { name: 'CRUMBS', desc: 'Every duck counts double.', duckMult: 2 },
   cherry: { name: 'CHERRY PIT', desc: 'Spit pits at the next two hazards in your path.', zap: { kind: 'pit', range: 230, every: 0.4, ammo: 2, lane: true }, word: 'PTOO' },
-  marble: { name: 'SLOW ROLL', desc: 'Time slows right down in every corner.', cornerSlow: 0.75 },
+  marble: { name: 'SLOW ROLL', desc: 'Time slows down in every corner.', cornerSlow: 0.85 },
   tennis: { name: 'TOPSPIN', desc: 'Bounce clean over the next two hazards.', hop: 2 },
   eightball: { name: 'OUTLOOK GOOD', desc: 'The 8-ball marks the safe spot to turn in every corner. Time slows a touch.', guide: true, slow: 0.85 },
   egg: { name: 'EGGSHELL', desc: "A hazard only cracks your shell, and you're safe for a second.", shield: 1, shieldGrace: 1.2, word: 'CRACK' },

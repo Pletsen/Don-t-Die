@@ -132,7 +132,7 @@ Evnerne er afbalanceret efter sjældenhed og målt med test-botten (evnen tændt
 | Watermelon | THICK RIND | Skrællen tager to slag. |
 | Cookie | CRUMBS | Hver and tæller dobbelt. |
 | Cherry | CHERRY PIT | Spytter kerner efter de næste to forhindringer på din linje. |
-| Marble | SLOW ROLL | Tiden går ned i fart i hvert sving. |
+| Marble | SLOW ROLL | Tiden går lidt langsommere i hvert sving. |
 | Tennis | TOPSPIN | Hopper rent over de næste to forhindringer. |
 | 8-Ball | OUTLOOK GOOD | Viser det sikre sted at dreje i hvert sving. Tiden går en anelse langsommere. |
 | Eggy | EGGSHELL | En forhindring knækker kun skallen, og så er du sikker et sekund. |
