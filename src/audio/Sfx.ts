@@ -420,25 +420,6 @@ class SfxEngine {
     );
   }
 
-  // --- Slot machine -------------------------------------------------------
-
-  leverPull() {
-    this.burst({ filterType: 'lowpass', filterFreq: 700, duration: 0.18, gain: 0.25 });
-    this.tone({ freq: 300, glideTo: 120, duration: 0.2, type: 'square', gain: 0.05 });
-    this.thump(80, 0.3, 0.2, 0.12);
-  }
-
-  /** Reels whirring past. */
-  spinTick() {
-    this.tone({ freq: 1800 + Math.random() * 300, duration: 0.025, type: 'square', gain: 0.03 });
-  }
-
-  /** A reel clunks to a stop; each one a little higher. */
-  reelStop(index: number) {
-    this.thump(140, 0.3, 0.12);
-    this.stab([220 * Math.pow(2, (index * 4) / 12)], 0.2, 0.08, 1800);
-  }
-
   /** Prize reveal: bigger fanfares for rarer skins. */
   reveal(rarity: 'common' | 'rare' | 'epic' | 'legendary') {
     const steps = { common: [0, 7], rare: [0, 4, 7], epic: [0, 4, 7, 12], legendary: [0, 4, 7, 12, 16, 19, 24] }[rarity];
@@ -458,42 +439,209 @@ class SfxEngine {
     this.denied();
   }
 
-  // --- DUCK-O-MATIC (called through src/ui/shopSfx.ts) --------------------
+  // --- QUACK REACTOR (called through src/ui/shopSfx.ts) -------------------
+  // `rank` is the rarity as a number: 0 common, 1 rare, 2 epic, 3 legendary.
 
-  /** A duck drops into the coin slot: a short metallic clink, rising. */
-  shopCoin(i: number) {
-    const f = 1568 * Math.pow(2, (i % 6) / 12);
-    this.tone({ freq: f, duration: 0.05, type: 'square', gain: 0.025 });
-    this.tone({ freq: f * 1.5, duration: 0.09, type: 'triangle', gain: 0.03, delay: 0.015 });
+  /** The reactor's charge-up drone, while it plays. */
+  private hum: { nodes: AudioScheduledSourceNode[]; out: GainNode } | null = null;
+  /** Steady white noise for the drone's steam hiss (the shared noise buffer decays, so it can't loop). */
+  private hiss: AudioBuffer | null = null;
+
+  /** A duck waddles into the intake: a soft plop that climbs as the tank fills (k = 0..1). */
+  reactorFeed(k: number) {
+    const f = 300 * Math.pow(2, k * 1.2);
+    this.tone({ freq: f * 2, glideTo: f, duration: 0.06, type: 'sine', gain: 0.09 });
+    this.tone({ freq: f * 4, duration: 0.03, type: 'triangle', gain: 0.02 });
   }
 
-  /** The last reel creeps: a rising shimmer that builds suspense. */
-  shopTease() {
-    this.tone({ freq: 392, glideTo: 784, duration: 0.45, type: 'triangle', gain: 0.05 });
-    this.burst({ filterType: 'highpass', filterFreq: 4000, duration: 0.4, gain: 0.03 });
+  /** Now and then a little quack from the queue (k = 0..1, higher as the tank fills). */
+  reactorQuack(k: number) {
+    if (!this.sample('blip', { rate: 1.1 + k * 0.5, gain: LEVEL.blip * 0.6, group: 'blip', maxVoices: 2 })) this.synthQuack(1.4 + k * 0.4);
   }
 
-  /** Three reels down: the payline flashes. */
-  shopWin() {
-    [0, 4, 7].forEach((st, i) => this.tone({ freq: 659 * Math.pow(2, st / 12), duration: 0.14, type: 'triangle', gain: 0.07, delay: i * 0.05 }));
-    this.thump(110, 0.2, 0.12);
+  /** The golden duck (a free charge) jumps in. */
+  reactorGolden() {
+    if (!this.sample('golden', { rate: 1.08, gain: LEVEL.golden * 0.7, group: 'golden', maxVoices: 1 })) this.synthQuack(0.8);
+    [0, 4, 7, 12].forEach((st, i) =>
+      this.tone({ freq: 1046 * Math.pow(2, st / 12), duration: 0.18, type: 'triangle', gain: 0.05, delay: 0.12 + i * 0.05 }),
+    );
   }
 
-  /** The capsule jumps out of the machine. */
-  shopCapsule() {
-    this.tone({ freq: 220, glideTo: 660, duration: 0.18, type: 'sine', gain: 0.12 });
+  /**
+   * The reactor overloads for `seconds`: a detuned drone that slides up while
+   * its filter opens and a tremolo speeds up, with rising steam hiss. A higher
+   * `rank` builds higher and louder. Cut by reactorChargeStop (the burst).
+   */
+  reactorCharge(seconds: number, rank: number) {
+    this.reactorChargeStop(0.03);
+    const c = this.ctx;
+    if (!c || !this.master) return;
+    if (!this.hiss) {
+      const len = c.sampleRate;
+      this.hiss = c.createBuffer(1, len, c.sampleRate);
+      const d = this.hiss.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t0 = c.currentTime;
+    const t1 = t0 + Math.max(0.2, seconds);
+    const out = c.createGain();
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.exponentialRampToValueAtTime(0.05, t0 + 0.15);
+    out.gain.exponentialRampToValueAtTime(0.11 + rank * 0.025, t1);
+    out.connect(this.master);
+    // Tremolo: a gain wobbled by an LFO that speeds up.
+    const trem = c.createGain();
+    trem.gain.value = 0.75;
+    const lfo = c.createOscillator();
+    lfo.frequency.setValueAtTime(4, t0);
+    lfo.frequency.exponentialRampToValueAtTime(18 + rank * 5, t1);
+    const depth = c.createGain();
+    depth.gain.value = 0.25;
+    lfo.connect(depth).connect(trem.gain);
+    trem.connect(out);
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 7;
+    lp.frequency.setValueAtTime(240, t0);
+    lp.frequency.exponentialRampToValueAtTime(1500 + rank * 700, t1);
+    lp.connect(trem);
+    const nodes: AudioScheduledSourceNode[] = [lfo];
+    const f0 = 55;
+    const f1 = f0 * Math.pow(2, 1 + rank * 0.25);
+    for (const [type, mul, det] of [
+      ['sawtooth', 1, -9],
+      ['sawtooth', 1, 9],
+      ['square', 0.5, 0],
+    ] as const) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.detune.value = det;
+      o.frequency.setValueAtTime(f0 * mul, t0);
+      o.frequency.exponentialRampToValueAtTime(f1 * mul, t1);
+      o.connect(lp);
+      nodes.push(o);
+    }
+    // Steam: band-passed hiss rising in pitch.
+    const n = c.createBufferSource();
+    n.buffer = this.hiss;
+    n.loop = true;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(900, t0);
+    bp.frequency.exponentialRampToValueAtTime(5000, t1);
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(0.25 + rank * 0.08, t1);
+    n.connect(bp).connect(ng).connect(out);
+    nodes.push(n);
+    for (const node of nodes) {
+      node.start(t0);
+      // A safety stop in case nothing cuts it (the screen was left mid-charge).
+      node.stop(t1 + 0.6);
+    }
+    this.hum = { nodes, out };
   }
 
-  /** Each shake of the capsule: a knock, higher every time. */
-  shopShake(i: number) {
-    this.thump(160 + i * 30, 0.22, 0.08);
-    this.tone({ freq: 880 + i * 120, duration: 0.05, type: 'square', gain: 0.02 });
+  /** Cut the charge drone (with a short fade, no click). */
+  reactorChargeStop(fade = 0.06) {
+    const h = this.hum;
+    if (!h || !this.ctx) return;
+    this.hum = null;
+    const now = this.ctx.currentTime;
+    h.out.gain.cancelScheduledValues(now);
+    h.out.gain.setValueAtTime(Math.max(0.0001, h.out.gain.value), now);
+    h.out.gain.exponentialRampToValueAtTime(0.0001, now + fade);
+    for (const node of h.nodes) {
+      try {
+        node.stop(now + fade + 0.02);
+      } catch {
+        // Already stopped.
+      }
+    }
   }
 
-  /** The capsule pops open. */
-  shopPop() {
-    this.burst({ filterType: 'bandpass', filterFreq: 1800, duration: 0.12, gain: 0.18 });
-    this.thump(90, 0.3, 0.15);
+  /** A spark jumps off the reactor: a dry electric crackle. */
+  reactorSpark() {
+    this.burst({ filterType: 'highpass', filterFreq: 3500 + Math.random() * 2500, duration: 0.04, gain: 0.07 });
+    this.tone({ freq: 2400 + Math.random() * 1800, duration: 0.02, type: 'square', gain: 0.012 });
+  }
+
+  /** Overload warning beep; climbs with k (0..1). */
+  reactorAlarm(k: number) {
+    this.tone({ freq: 880 * Math.pow(2, k * 0.5), duration: 0.06, type: 'square', gain: 0.025 });
+  }
+
+  /** The reactor takes a breath just before it bursts: everything sucks in. */
+  reactorInhale() {
+    this.tone({ freq: 900, glideTo: 120, duration: 0.14, type: 'sine', gain: 0.05 });
+  }
+
+  /** The reactor bursts open: a soft whump for a common, a deep blast for a legendary. */
+  reactorBlast(rank: number) {
+    this.reactorChargeStop(0.03);
+    this.burst({ filterType: 'lowpass', filterFreq: 900 + rank * 500, duration: 0.35 + rank * 0.25, gain: 0.25 + rank * 0.1, rate: 0.7 - rank * 0.08 });
+    this.thump(90 - rank * 15, 0.3 + rank * 0.07, 0.25 + rank * 0.15);
+    if (rank >= 1) this.tone({ freq: 1600, glideTo: 300, duration: 0.25, type: 'sawtooth', gain: 0.035 + rank * 0.01 });
+    if (rank >= 2) {
+      this.tone({ freq: 55, glideTo: 28, duration: 0.9, type: 'sine', gain: 0.35 });
+      this.stab([65, 98, 131], 0.9, 0.1, 1200);
+    }
+    if (rank >= 3) this.burst({ filterType: 'highpass', filterFreq: 2500, duration: 1.4, gain: 0.08 });
+  }
+
+  /** Lightning crackling round the shell: thin and bright for a rare, thick and low for an epic. */
+  reactorZap(rank: number) {
+    const base = rank >= 2 ? 700 : 1400;
+    for (let i = 0; i < 3; i++) {
+      this.tone({ freq: base * (1 + Math.random() * 1.5), duration: 0.025, type: 'sawtooth', gain: 0.022 + rank * 0.006, delay: i * 0.03 });
+    }
+    this.burst({ filterType: 'bandpass', filterFreq: rank >= 2 ? 1800 : 3200, duration: 0.09, gain: 0.08 + rank * 0.02, rate: 1.4 });
+  }
+
+  /** Legendary slow motion: the whole world drops deep and slow. */
+  reactorSlowmo() {
+    this.tone({ freq: 240, glideTo: 50, duration: 0.9, type: 'sawtooth', gain: 0.05 });
+    this.burst({ filterType: 'lowpass', filterFreq: 500, duration: 0.9, gain: 0.2, rate: 0.35 });
+  }
+
+  /** Time snaps back: light beams burst out under a big major chord. */
+  reactorBeams() {
+    this.thump(55, 0.5, 0.7);
+    this.stab([196, 247, 294, 392], 1.4, 0.13, 5000);
+    [0, 4, 7, 12, 16, 19, 24].forEach((st, i) =>
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'square', gain: 0.035, delay: 0.05 + i * 0.05 }),
+    );
+    this.burst({ filterType: 'highpass', filterFreq: 3500, duration: 1.2, gain: 0.09 });
+  }
+
+  /** Upgrade tease: the shell flares up into the next rarity. */
+  reactorUpgrade(rank: number) {
+    this.tone({ freq: 200, glideTo: 1600 + rank * 300, duration: 0.35, type: 'sawtooth', gain: 0.06 });
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 0.45, gain: 0.08 });
+    this.thump(80, 0.35, 0.3, 0.3);
+    [0, 7, 12].forEach((st, i) =>
+      this.tone({ freq: 784 * Math.pow(2, st / 12), duration: 0.2, type: 'triangle', gain: 0.07, delay: 0.3 + i * 0.05 }),
+    );
+  }
+
+  /** The shell creaks before it breaks; higher each time (k = 0..1). */
+  reactorCreak(k: number) {
+    this.burst({ filterType: 'bandpass', filterFreq: 2400 + k * 2000, duration: 0.05, gain: 0.12 });
+    this.tone({ freq: 1800 + k * 900, duration: 0.03, type: 'square', gain: 0.02 });
+  }
+
+  /** The shell shatters (the rarity fanfare, reveal(), plays on top). */
+  reactorShatter(rank: number) {
+    this.burst({ filterType: 'highpass', filterFreq: 2600, duration: 0.3 + rank * 0.08, gain: 0.2 });
+    this.thump(110 - rank * 12, 0.3, 0.18);
+    for (let i = 0; i < 4; i++) this.tone({ freq: 2600 + Math.random() * 2400, duration: 0.08, type: 'sine', gain: 0.03, delay: 0.03 + i * 0.04 });
+  }
+
+  /** The reactor closes its lid again. */
+  reactorReset() {
+    this.thump(150, 0.15, 0.08);
+    this.burst({ filterType: 'bandpass', filterFreq: 700, duration: 0.08, gain: 0.07 });
   }
 
   /** A duplicate bursts into ducks. */

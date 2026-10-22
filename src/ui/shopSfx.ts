@@ -1,37 +1,56 @@
-import { sfx } from '../audio/Sfx';
-import type { Rarity } from '../game/skins';
+import { haptic, sfx } from '../audio/Sfx';
+import { RARITY_ORDER, type Rarity } from '../game/skins';
 
-// Sounds for the DUCK-O-MATIC. Each one first looks for a dedicated method on
-// sfx (so the sound designer can add e.g. `sfx.shopCoin(i)` without touching
-// the shop) and otherwise falls back to an existing sound.
+// Sounds (and haptics) for the QUACK REACTOR, in the order the show plays
+// them. The synths live in audio/Sfx.ts (the reactor* methods); this file
+// decides which one plays at each step and how hard the phone buzzes.
 
-type Hook = (...args: number[]) => void;
-const hooks = sfx as unknown as Record<string, Hook | undefined>;
-
-function play(name: string, fallback: () => void, ...args: number[]) {
-  const fn = hooks[name];
-  if (typeof fn === 'function') fn.apply(sfx, args);
-  else fallback();
-}
+const rank = (r: Rarity) => RARITY_ORDER.indexOf(r);
 
 export const shopSfx = {
-  /** A duck drops into the coin slot (i = 0, 1, 2 ...). */
-  coin: (i: number) => play('shopCoin', () => i % 2 === 0 && sfx.spinTick(), i),
-  lever: () => sfx.leverPull(),
-  tick: () => sfx.spinTick(),
-  reelStop: (r: number) => sfx.reelStop(r),
-  /** The last reel creeps towards the win line. */
-  tease: () => play('shopTease', () => sfx.starNear()),
-  /** All three reels landed: the win line flashes. */
-  win: () => play('shopWin', () => sfx.star(2)),
-  capsule: () => play('shopCapsule', () => sfx.boing()),
-  shake: (i: number) => play('shopShake', () => sfx.near(), i),
-  pop: (rarity: Rarity) => {
-    play('shopPop', () => sfx.pop());
-    sfx.reveal(rarity);
+  /** A duck walks into the intake (k = 0..1: how full the tank is). */
+  feed: (k: number) => sfx.reactorFeed(k),
+  /** A little quack from the queue. */
+  quack: (k: number) => sfx.reactorQuack(k),
+  /** The golden duck of a free charge jumps in. */
+  golden: () => {
+    sfx.reactorGolden();
+    haptic(10);
   },
+  /** The overload starts: a drone that builds for `seconds`. */
+  charge: (seconds: number, r: Rarity) => sfx.reactorCharge(seconds, rank(r)),
+  /** Cut the drone (leaving the screen, skipping). */
+  chargeStop: () => sfx.reactorChargeStop(),
+  spark: () => sfx.reactorSpark(),
+  alarm: (k: number) => sfx.reactorAlarm(k),
+  inhale: () => sfx.reactorInhale(),
+  /** The reactor bursts and the shell shows its colour. */
+  blast: (r: Rarity) => {
+    sfx.reactorBlast(rank(r));
+    haptic(r === 'legendary' ? [60, 40, 60, 40, 120] : [8, 16, 40][rank(r)]);
+  },
+  zap: (r: Rarity) => sfx.reactorZap(rank(r)),
+  slowmo: () => sfx.reactorSlowmo(),
+  /** Legendary: time snaps back and the light beams shoot out. */
+  beams: () => {
+    sfx.reactorBeams();
+    haptic(50);
+  },
+  /** Upgrade tease: the shell flares up into `r`. */
+  upgrade: (r: Rarity) => {
+    sfx.reactorUpgrade(rank(r));
+    haptic(r === 'legendary' ? [60, 40, 60, 40, 120] : 30);
+  },
+  creak: (k: number) => sfx.reactorCreak(k),
+  /** The shell breaks open: shatter plus the rarity fanfare. */
+  shatter: (r: Rarity) => {
+    sfx.reactorShatter(rank(r));
+    sfx.reveal(r);
+    if (r !== 'common') haptic(12);
+  },
+  reset: () => sfx.reactorReset(),
   /** A duplicate bursts into ducks. */
-  burst: () => play('shopBurst', () => sfx.quack(1.25)),
+  burst: () => sfx.shopBurst(),
   /** A refunded duck lands in the counter. */
-  duckIn: (i: number) => play('shopDuckIn', () => i % 2 === 0 && sfx.spinTick(), i),
+  duckIn: (i: number) => sfx.shopDuckIn(i),
 };
