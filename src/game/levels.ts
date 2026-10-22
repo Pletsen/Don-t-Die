@@ -79,17 +79,17 @@ export const LEVELS: LevelDef[] = [
 
   // World 3: bombs, and the corridor gets tight.
   { id: 11, world: 2, goal: 800, speed: [270, 310], width: [72, 68], arm: [210, 300], hazards: { chance: 0.45, kinds: bomb, placement: 'side' } },
-  { id: 12, world: 2, goal: 950, speed: [280, 330], width: [68, 62], arm: [200, 290], hazards: { chance: 0.48, kinds: both, placement: 'any' } },
-  { id: 13, world: 2, goal: 1100, speed: [290, 345], width: [63, 56], arm: [190, 280], hazards: { chance: 0.55, kinds: both, placement: 'any', moving: 0.25 } },
-  { id: 14, world: 2, goal: 1200, speed: [295, 355], width: [61, 54], arm: [185, 270], hazards: { chance: 0.5, kinds: both, placement: 'any', perSegment: 2 } },
-  { id: 15, world: 2, goal: 1350, speed: [300, 360], width: [60, 54], arm: [185, 265], hazards: { chance: 0.55, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 12, world: 2, goal: 950, speed: [280, 330], width: [68, 62], arm: [200, 290], hazards: { chance: 0.38, kinds: both, placement: 'any' } },
+  { id: 13, world: 2, goal: 1100, speed: [285, 340], width: [64, 57], arm: [190, 280], hazards: { chance: 0.44, kinds: both, placement: 'any', moving: 0.2 } },
+  { id: 14, world: 2, goal: 1200, speed: [290, 350], width: [62, 55], arm: [185, 270], hazards: { chance: 0.46, kinds: both, placement: 'any', perSegment: 2 } },
+  { id: 15, world: 2, goal: 1300, speed: [295, 355], width: [61, 55], arm: [185, 265], hazards: { chance: 0.44, kinds: both, placement: 'any', moving: 0.25, perSegment: 2 } },
 
   // World 4: everything, fast and moving.
-  { id: 16, world: 3, goal: 1200, speed: [305, 360], width: [66, 60], arm: [190, 270], hazards: { chance: 0.55, kinds: both, placement: 'any', moving: 0.3 } },
-  { id: 17, world: 3, goal: 1350, speed: [315, 375], width: [63, 57], arm: [185, 265], hazards: { chance: 0.6, kinds: both, placement: 'any', moving: 0.35, perSegment: 2 } },
-  { id: 18, world: 3, goal: 1500, speed: [320, 385], width: [62, 56], arm: [185, 260], hazards: { chance: 0.62, kinds: both, placement: 'any', moving: 0.4, perSegment: 2 } },
-  { id: 19, world: 3, goal: 1650, speed: [330, 395], width: [61, 55], arm: [180, 255], hazards: { chance: 0.65, kinds: both, placement: 'any', moving: 0.45, perSegment: 2 } },
-  { id: 20, world: 3, goal: 1800, speed: [340, 405], width: [60, 54], arm: [175, 250], hazards: { chance: 0.7, kinds: both, placement: 'any', moving: 0.5, perSegment: 2 } },
+  { id: 16, world: 3, goal: 1150, speed: [300, 355], width: [66, 60], arm: [190, 270], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.25 } },
+  { id: 17, world: 3, goal: 1300, speed: [305, 365], width: [64, 58], arm: [185, 265], hazards: { chance: 0.52, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 18, world: 3, goal: 1450, speed: [315, 375], width: [63, 57], arm: [185, 260], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 19, world: 3, goal: 1600, speed: [320, 385], width: [62, 56], arm: [180, 255], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 20, world: 3, goal: 1750, speed: [330, 395], width: [61, 55], arm: [175, 250], hazards: { chance: 0.55, kinds: both, placement: 'any', moving: 0.35, perSegment: 2 } },
 ];
 
 /** HARD MODE level ids are the normal id plus this (HARD 1 = 101). */
@@ -100,12 +100,12 @@ export const EASY_OFFSET = 200;
 /**
  * HARD MODE: every level remixed, unlocked by clearing NORMAL 10. A new track
  * (its own seed), about 16 % faster, 10 % narrower and 10 % longer, with more
- * and livelier hazards; world 1 gets saws too.
+ * and livelier hazards (two to a straight in world 4); world 1 gets saws too.
  */
 export const HARD_LEVELS: LevelDef[] = LEVELS.map((l) => {
   const h = l.hazards;
   const hazards: HazardRules = h
-    ? { ...h, chance: Math.min(0.92, h.chance + 0.15), moving: Math.min(0.9, (h.moving ?? 0) + 0.25), perSegment: l.world >= 2 ? 2 : h.perSegment }
+    ? { ...h, chance: Math.min(0.92, h.chance + 0.15), moving: Math.min(0.9, (h.moving ?? 0) + 0.25), perSegment: l.world >= 3 ? 2 : h.perSegment }
     : { chance: 0.3 + l.id * 0.06, kinds: saw, placement: 'any', moving: l.id >= 3 ? 0.2 : 0 };
   return {
     ...l,
@@ -142,23 +142,23 @@ export const EASY_LEVELS: LevelDef[] = [
   easy(4, 0, 450, [200, 235], [85, 79], [250, 330]),
   easy(5, 0, 540, [210, 250], [82, 76], [240, 320]),
   // World 2: a few saws, still ones by the walls first.
-  easy(6, 1, 420, [200, 225], [86, 82], [260, 340], { chance: 0.25, kinds: saw, placement: 'side' }),
-  easy(7, 1, 500, [205, 235], [84, 80], [250, 330], { chance: 0.35, kinds: saw, placement: 'side' }),
-  easy(8, 1, 580, [210, 245], [82, 77], [240, 320], { chance: 0.4, kinds: saw, placement: 'any' }),
-  easy(9, 1, 660, [220, 255], [80, 75], [235, 315], { chance: 0.45, kinds: saw, placement: 'any', moving: 0.1 }),
-  easy(10, 1, 760, [225, 265], [78, 72], [230, 310], { chance: 0.5, kinds: saw, placement: 'any', moving: 0.2 }),
+  easy(6, 1, 420, [200, 225], [86, 82], [260, 340], { chance: 0.2, kinds: saw, placement: 'side' }),
+  easy(7, 1, 500, [205, 235], [84, 80], [250, 330], { chance: 0.27, kinds: saw, placement: 'side' }),
+  easy(8, 1, 580, [210, 245], [82, 77], [240, 320], { chance: 0.3, kinds: saw, placement: 'side' }),
+  easy(9, 1, 660, [215, 250], [80, 75], [235, 315], { chance: 0.34, kinds: saw, placement: 'side' }),
+  easy(10, 1, 740, [220, 255], [78, 73], [230, 310], { chance: 0.32, kinds: saw, placement: 'any' }),
   // World 3: bombs.
-  easy(11, 2, 560, [215, 240], [82, 78], [250, 330], { chance: 0.3, kinds: bomb, placement: 'side' }),
-  easy(12, 2, 640, [220, 250], [80, 76], [240, 320], { chance: 0.4, kinds: both, placement: 'side' }),
-  easy(13, 2, 720, [225, 260], [78, 73], [235, 310], { chance: 0.45, kinds: both, placement: 'any' }),
-  easy(14, 2, 800, [230, 270], [76, 71], [230, 305], { chance: 0.5, kinds: both, placement: 'any', moving: 0.15 }),
-  easy(15, 2, 900, [240, 280], [74, 69], [225, 300], { chance: 0.55, kinds: both, placement: 'any', moving: 0.2 }),
+  easy(11, 2, 560, [215, 240], [82, 78], [250, 330], { chance: 0.28, kinds: bomb, placement: 'side' }),
+  easy(12, 2, 640, [220, 250], [80, 76], [240, 320], { chance: 0.34, kinds: both, placement: 'side' }),
+  easy(13, 2, 720, [225, 260], [78, 73], [235, 310], { chance: 0.38, kinds: both, placement: 'any' }),
+  easy(14, 2, 800, [230, 265], [76, 71], [230, 305], { chance: 0.38, kinds: both, placement: 'any', moving: 0.1 }),
+  easy(15, 2, 880, [235, 275], [75, 70], [225, 300], { chance: 0.45, kinds: both, placement: 'any', moving: 0.15 }),
   // World 4: everything, a bit faster.
-  easy(16, 3, 800, [245, 280], [76, 71], [230, 300], { chance: 0.5, kinds: both, placement: 'any', moving: 0.25 }),
-  easy(17, 3, 900, [250, 290], [74, 69], [225, 295], { chance: 0.55, kinds: both, placement: 'any', moving: 0.3 }),
-  easy(18, 3, 1000, [255, 300], [72, 67], [220, 290], { chance: 0.55, kinds: both, placement: 'any', moving: 0.35 }),
-  easy(19, 3, 1100, [260, 310], [71, 66], [215, 285], { chance: 0.6, kinds: both, placement: 'any', moving: 0.4 }),
-  easy(20, 3, 1200, [270, 320], [70, 64], [210, 280], { chance: 0.6, kinds: both, placement: 'any', moving: 0.45, perSegment: 2 }),
+  easy(16, 3, 760, [240, 275], [76, 71], [230, 300], { chance: 0.4, kinds: both, placement: 'any', moving: 0.15 }),
+  easy(17, 3, 840, [245, 285], [75, 70], [225, 295], { chance: 0.43, kinds: both, placement: 'any', moving: 0.2 }),
+  easy(18, 3, 920, [250, 290], [74, 69], [220, 290], { chance: 0.45, kinds: both, placement: 'any', moving: 0.25 }),
+  easy(19, 3, 1000, [255, 300], [73, 68], [215, 285], { chance: 0.42, kinds: both, placement: 'any', moving: 0.2 }),
+  easy(20, 3, 1100, [260, 310], [72, 66], [210, 280], { chance: 0.45, kinds: both, placement: 'any', moving: 0.25 }),
 ];
 
 export const ALL_LEVELS: LevelDef[] = [...EASY_LEVELS, ...LEVELS, ...HARD_LEVELS];
