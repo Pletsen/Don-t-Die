@@ -6,9 +6,11 @@ import { RARITIES, RARITY_ORDER, SKINS, skinTexture, type Rarity } from '../game
 // Everything the QUACK REACTOR draws, painted once into canvas textures: the
 // bay with its fuel counter and core gauge, the reactor housing, spinning
 // rings and armour petals, the conveyor belt, the energy shell, its cracks and
-// lightning, smoke, light beams, glows, collection frames and stickers. Glows
-// are baked with canvas shadowBlur instead of using Phaser filters, so the
-// show costs a few dozen pooled sprites per frame.
+// lightning (round the shell and over the lid), smoke, light beams, glows,
+// shockwaves, the screen-edge glow, swirls, star flares, collection frames and
+// stickers. Glows are baked with canvas shadowBlur instead of using Phaser
+// filters, so the show costs a couple of hundred pooled sprites per frame at
+// most, all simple textured quads.
 
 /** Bay geometry (logical px, origin at the bay's centre). */
 export const BAY = {

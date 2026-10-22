@@ -92,6 +92,10 @@ export class SkinShop {
   private revealDesc: Phaser.GameObjects.Text;
   private refundText: Phaser.GameObjects.Text;
   private skipHint: Phaser.GameObjects.Text;
+  /** The fuel counter on the stage (the bay's LCD fades out with the panel). */
+  private stageCount: Phaser.GameObjects.Text;
+  private stageLabel: Phaser.GameObjects.Text;
+  private stageFuel = -1;
   private revealEquip: Button;
   private revealOk: Button;
   private revealAgain: Button;
@@ -213,6 +217,8 @@ export class SkinShop {
       .setWordWrapWidth(300);
     this.refundText = makeText(scene, 0, PRIZE_Y, '', { size: 34, color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
     this.skipHint = makeText(scene, 0, 0, 'TAP TO SKIP', { font: 'mono', size: 10, weight: '700', color: css.inkDim, spacing: 2 }).setOrigin(0.5);
+    this.stageCount = makeText(scene, 0, 0, '', { font: 'mono', size: 44, weight: '700', color: '#ffd21f', glow: '#ff9a2e' }).setOrigin(0.5);
+    this.stageLabel = makeText(scene, 0, 0, '', { font: 'mono', size: 11, weight: '700', color: css.inkDim, spacing: 3 }).setOrigin(0.5);
     this.revealEquip = makeButton(scene, { label: 'WEAR IT', width: 150, onPress: () => this.closeReveal('wear') });
     this.revealOk = makeButton(scene, { label: 'NICE', width: 110, style: 'ghost', onPress: () => this.closeReveal('ok') });
     this.revealAgain = makeButton(scene, {
@@ -238,6 +244,8 @@ export class SkinShop {
         this.revealDesc,
         this.refundText,
         this.skipHint,
+        this.stageCount,
+        this.stageLabel,
         this.revealEquip,
         this.revealOk,
         this.revealAgain,
@@ -539,6 +547,7 @@ export class SkinShop {
     this.root.remove(r);
     this.reveal.addAt(r, 1);
     this.staged = true;
+    this.stageFuel = -1;
     this.placeStage(0);
   }
 
@@ -597,6 +606,11 @@ export class SkinShop {
     this.showPage(k0 < 1);
     this.reactor.setStage(k, (-w / 2 - x) / sc, (-h / 2 - y) / sc, (w / 2 - x) / sc, (h / 2 - y) / sc, sc);
     this.reveal.setScale(this.revealScale * (1 + this.fx.kick));
+    // The fuel counter hangs over the reactor while the ducks go in.
+    const fade = p ? Math.min(1, Math.max(0, (p.feedEnd + 300 - t) / 250)) : 0;
+    const top = cy - BAY.housingR * sc;
+    this.stageCount.setPosition(0, top - 58).setAlpha(k * fade).setVisible(k * fade > 0);
+    this.stageLabel.setPosition(0, top - 26).setAlpha(k * fade).setVisible(k * fade > 0);
   }
 
   /** A tap during the show: skips to the shell cracking, once the player has seen a couple of reveals. */
@@ -652,6 +666,14 @@ export class SkinShop {
     // The reactor is in the reveal, so its core is already in reveal coordinates.
     this.fx.update(dt, prev, to, this.reactor.coreWorld(), quiet, reduced);
     this.skipHint.setVisible(this.canSkip && to < p.crack - CREAK);
+    const fuel = this.reactor.fuel;
+    if (fuel !== this.stageFuel && this.stageCount.visible) {
+      const first = this.stageFuel < 0;
+      this.stageFuel = fuel;
+      this.stageCount.setText(p.free ? (fuel > 0 ? 'FREE' : 'GO!') : String(fuel)).setScale(first ? 1 : 1.18);
+      this.stageLabel.setText(p.free ? 'GOLDEN CHARGE' : fuel > 0 ? 'DUCKS TO GO' : 'FULL!');
+    }
+    if (this.stageCount.scale > 1) this.stageCount.setScale(Math.max(1, this.stageCount.scale - dt * 0.004));
     if (crossed(p.crack - CREAK, prev, to)) this.skipZone.input!.enabled = false;
     if (crossed(p.crack, prev, to)) this.crack();
     if (crossed(p.card, prev, to)) {

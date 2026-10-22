@@ -408,7 +408,7 @@ export class QuackReactor {
     for (const p of [this.motes, this.sparks, this.smoke]) p.clear();
     this.setStage(0, -200, -400, 200, 400, 1);
     this.lampStep = -1;
-    this.placeQueue(0);
+    this.placeQueue();
     if (!instant) shopSfx.reset();
   }
 
@@ -436,7 +436,7 @@ export class QuackReactor {
         shopSfx.inhale();
       }
       if (crossed(plan.blast, prev, now)) this.burst(plan.first, quiet, reduced);
-    } else this.placeQueue(dt);
+    } else this.placeQueue();
 
     // --- Lid: it irises open for the ducks and clunks shut before the overload
     const open = plan && this.blown < 0 ? Math.min(1, Math.max(0, (t - 180) / 260)) * Math.min(1, Math.max(0, (plan.feedEnd - 60 - t) / 140)) : 0;
@@ -1003,7 +1003,7 @@ export class QuackReactor {
   }
 
   /** Idle: the queue waits on the belt (the golden duck at the front when the next charge is free). */
-  private placeQueue(dt: number) {
+  private placeQueue() {
     const free = this.free;
     const { beltY, mouthX } = BAY;
     for (let i = 0; i < QUEUE; i++) {
@@ -1025,7 +1025,5 @@ export class QuackReactor {
         .setAlpha(0.55 + 0.15 * Math.sin(this.clock * 0.006))
         .setScale(0.7 + 0.05 * Math.sin(this.clock * 0.006));
     }
-    // The belt creeps along now and then.
-    if (dt > 0 && Math.sin(this.clock * 0.0011) > 0.6) this.belt.tilePositionX -= 0.02 * dt * Q;
   }
 }

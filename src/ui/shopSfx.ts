@@ -8,11 +8,11 @@ import { RARITY_ORDER, type Rarity } from '../game/skins';
 const rank = (r: Rarity) => RARITY_ORDER.indexOf(r);
 
 export const shopSfx = {
-  /** A duck walks into the intake (k = 0..1: how full the tank is). */
+  /** A duck dives into the core (k = 0..1: how full the tank is). */
   feed: (k: number) => sfx.reactorFeed(k),
-  /** A little quack from the queue. */
+  /** A little quack from the stream. */
   quack: (k: number) => sfx.reactorQuack(k),
-  /** The golden duck of a free charge jumps in. */
+  /** The golden duck of a free charge dives in. */
   golden: () => {
     sfx.reactorGolden();
     haptic(10);
