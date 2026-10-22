@@ -82,12 +82,12 @@ export const LEVELS: LevelDef[] = [
   { id: 12, world: 2, goal: 950, speed: [280, 330], width: [68, 62], arm: [200, 290], hazards: { chance: 0.38, kinds: both, placement: 'any' } },
   { id: 13, world: 2, goal: 1100, speed: [285, 340], width: [64, 57], arm: [190, 280], hazards: { chance: 0.44, kinds: both, placement: 'any', moving: 0.2 } },
   { id: 14, world: 2, goal: 1200, speed: [290, 350], width: [62, 55], arm: [185, 270], hazards: { chance: 0.46, kinds: both, placement: 'any', perSegment: 2 } },
-  { id: 15, world: 2, goal: 1300, speed: [295, 355], width: [61, 55], arm: [185, 265], hazards: { chance: 0.44, kinds: both, placement: 'any', moving: 0.25, perSegment: 2 } },
+  { id: 15, world: 2, goal: 1300, speed: [295, 355], width: [61, 55], arm: [185, 265], hazards: { chance: 0.4, kinds: both, placement: 'any', moving: 0.25, perSegment: 2 } },
 
   // World 4: everything, fast and moving.
   { id: 16, world: 3, goal: 1150, speed: [300, 355], width: [66, 60], arm: [190, 270], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.25 } },
-  { id: 17, world: 3, goal: 1300, speed: [305, 365], width: [64, 58], arm: [185, 265], hazards: { chance: 0.52, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
-  { id: 18, world: 3, goal: 1450, speed: [315, 375], width: [63, 57], arm: [185, 260], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 17, world: 3, goal: 1300, speed: [305, 365], width: [64, 58], arm: [185, 265], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
+  { id: 18, world: 3, goal: 1450, speed: [315, 375], width: [63, 57], arm: [185, 260], hazards: { chance: 0.46, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
   { id: 19, world: 3, goal: 1600, speed: [320, 385], width: [62, 56], arm: [180, 255], hazards: { chance: 0.5, kinds: both, placement: 'any', moving: 0.3, perSegment: 2 } },
   { id: 20, world: 3, goal: 1750, speed: [330, 395], width: [61, 55], arm: [175, 250], hazards: { chance: 0.55, kinds: both, placement: 'any', moving: 0.35, perSegment: 2 } },
 ];
