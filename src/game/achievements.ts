@@ -60,7 +60,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'world1',
     name: 'BASIC TRAINING',
-    desc: 'Clear every World 1 level.',
+    desc: 'Clear every NORMAL World 1 level.',
     ducks: 10,
     glyph: 'flag',
     check: (c) => clearedAll(c, 0),
@@ -69,7 +69,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'world2',
     name: 'SAW WHISPERER',
-    desc: 'Clear every World 2 level.',
+    desc: 'Clear every NORMAL World 2 level.',
     ducks: 10,
     glyph: 'flag',
     check: (c) => clearedAll(c, 1),
@@ -78,7 +78,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'world3',
     name: 'BOMB SQUAD',
-    desc: 'Clear every World 3 level.',
+    desc: 'Clear every NORMAL World 3 level.',
     ducks: 15,
     glyph: 'flag',
     check: (c) => clearedAll(c, 2),
@@ -109,7 +109,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'w1_stars',
     name: 'STARGAZER',
-    desc: '3 stars on every World 1 level.',
+    desc: '3 stars on every NORMAL World 1 level.',
     ducks: 10,
     glyph: 'star',
     check: (c) => worldIds(0).every((id) => c.starsFor(id) >= 3),
@@ -118,7 +118,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'stars30',
     name: 'STAR COLLECTOR',
-    desc: 'Earn 30 stars.',
+    desc: 'Earn 30 stars in NORMAL.',
     ducks: 10,
     glyph: 'star',
     check: (c) => c.totalStars >= 30,
@@ -127,7 +127,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   a({
     id: 'stars60',
     name: 'ALL THE STARS',
-    desc: 'Earn all 60 stars.',
+    desc: 'Earn all 60 NORMAL stars.',
     ducks: 40,
     glyph: 'star',
     big: true,

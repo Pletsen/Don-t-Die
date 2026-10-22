@@ -24,7 +24,7 @@ interface Tile {
 /** The set before this one: clearing its level 10 opens this one. */
 const PREV: Record<LevelSet, LevelSet | null> = { easy: null, normal: 'easy', hard: 'normal' };
 const SET_COLOR: Record<LevelSet, number> = { easy: 0x7cff6b, normal: palette.cyan, hard: palette.crimson };
-const SET_HEADER: Record<LevelSet, string> = { easy: 'EASY MODE', normal: 'LEVELS', hard: 'HARD MODE' };
+const SET_HEADER: Record<LevelSet, string> = { easy: 'EASY MODE', normal: 'NORMAL MODE', hard: 'HARD MODE' };
 
 /**
  * EASY is always open; EASY 10 opens NORMAL and NORMAL 10 opens HARD. A set
@@ -39,17 +39,18 @@ export const setUnlocked = (set: LevelSet): boolean => {
 export const isUnlocked = (id: number) => setUnlocked(setOf(id)) && (levelNumber(id) === 1 || save.starsFor(id - 1) > 0);
 
 /**
- * The next level to play: the first open level without stars in the hardest
- * open set (a newly opened set is where the game goes on), else in an easier
- * one; once everything open is cleared, the last open level of the hardest set.
+ * The next level to play: the first open level without stars on the main
+ * path. EASY until NORMAL opens; then NORMAL is the main game, HARD comes
+ * next and whatever is left of EASY last. Once everything open is cleared,
+ * the last open level of the hardest set.
  */
 export function nextLevelToPlay(): number {
-  const open = SETS.filter(setUnlocked).reverse();
-  for (const set of open) {
+  const order: LevelSet[] = setUnlocked('normal') ? ['normal', 'hard', 'easy'] : ['easy'];
+  for (const set of order.filter(setUnlocked)) {
     const fresh = LEVELS_OF[set].find((l) => isUnlocked(l.id) && save.starsFor(l.id) === 0);
     if (fresh) return fresh.id;
   }
-  const top = LEVELS_OF[open[0]].filter((l) => isUnlocked(l.id));
+  const top = LEVELS_OF[[...SETS].reverse().find(setUnlocked)!].filter((l) => isUnlocked(l.id));
   return top[top.length - 1].id;
 }
 

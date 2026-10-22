@@ -3,7 +3,7 @@ import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyDa
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
-import { LEVELS, SET_NAME, WORLDS, lastOfSet, levelById, levelName, levelNumber, setOf } from '../game/levels';
+import { LEVELS, SET_NAME, UNLOCK_AT, WORLDS, lastOfSet, levelById, levelId, levelName, levelNumber, setOf } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
@@ -46,6 +46,8 @@ const LEVEL_TIPS: Record<number, number> = {
 const TIPS_KEY = 'dontdie_tips_seen';
 /** The one-time "your skins live in the REACTOR" bubble on the menu. */
 const REACTOR_TIP_KEY = 'dontdie_tip_reactor';
+/** Saves from before EASY existed hear about it once. */
+const EASY_NEWS_KEY = 'dontdie_news_easy';
 
 /** Bright party colours that all read well on black (no deep blue). */
 const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
@@ -883,6 +885,15 @@ export class UIScene extends Phaser.Scene {
     this.statsLine.setText(parts.join('   ·   '));
     this.calmSoon();
     this.maybeShowReactorTip();
+    this.maybeEasyNews();
+  }
+
+  /** Once, for players who had levels cleared before EASY came: it's there now. */
+  private maybeEasyNews() {
+    if (readJSON<boolean>(EASY_NEWS_KEY, false)) return;
+    writeJSON(EASY_NEWS_KEY, true);
+    if (Object.keys(save.stars).length === 0 || save.easyStars() > 0) return;
+    progress.notify({ title: 'NEW: EASY MODE', subtitle: '20 GENTLER LEVELS · SEE LEVELS', color: 0x7cff6b });
   }
 
   // --- "Your skins live in the REACTOR" ----------------------------------------
@@ -1037,6 +1048,8 @@ export class UIScene extends Phaser.Scene {
 
   private nextLevel() {
     if (this.level === null || this.level >= lastOfSet(this.level)) this.showSelect();
+    // EASY 10 just opened NORMAL: that's where the game goes on.
+    else if (this.level === levelId('easy', UNLOCK_AT) && save.starsFor(levelId('normal', 1)) === 0) this.play(levelId('normal', 1));
     else this.play(this.level + 1);
   }
 

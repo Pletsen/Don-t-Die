@@ -176,9 +176,9 @@ export const isEasyLevel = (id: number) => setOf(id) === 'easy';
 export const levelNumber = (id: number) => id - OFFSET[setOf(id)];
 /** Level `n` (1..20) of a set. */
 export const levelId = (set: LevelSet, n: number) => OFFSET[set] + n;
-/** "EASY 7", "LEVEL 7" or "HARD 7". */
+/** "EASY 7", "NORMAL 7" or "HARD 7". */
 export const levelName = (id: number) => `${SET_NAME[setOf(id)]} ${levelNumber(id)}`;
-export const SET_NAME: Record<LevelSet, string> = { easy: 'EASY', normal: 'LEVEL', hard: 'HARD' };
+export const SET_NAME: Record<LevelSet, string> = { easy: 'EASY', normal: 'NORMAL', hard: 'HARD' };
 /** The last level of the set this one belongs to. */
 export const lastOfSet = (id: number) => OFFSET[setOf(id)] + LEVELS.length;
 /** The warp star hides in every level from this number on (its tip card comes right before). */

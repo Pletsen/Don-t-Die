@@ -728,9 +728,9 @@ class Progress {
     // (The death card shows NEW DAILY BEST.)
   }
 
-  /** A free spin for every Star Road threshold reached. */
+  /** A free spin for every Star Road threshold reached (EASY and NORMAL stars). */
   private checkStarRoad() {
-    const total = this.totalStars();
+    const total = this.totalStars() + save.easyStars();
     for (const at of ECONOMY.starRoad) {
       if (total < at || this.data.starRoad.includes(at)) continue;
       this.data.starRoad.push(at);

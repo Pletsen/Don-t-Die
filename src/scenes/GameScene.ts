@@ -455,7 +455,9 @@ export class GameScene extends Phaser.Scene {
     if (this.course.warped) this.setUniverse(true);
     // A first level, before any level was ever cleared: guide the first corners.
     this.guidedGates = level && levelNumber(level.id) === 1 && Object.keys(save.stars).length === 0 ? 3 : 0;
-    this.abilityLocked = !!level && !isHardLevel(level.id) && levelNumber(level.id) < ABILITY_FROM_LEVEL;
+    // The power waits for level 3 (its tip card), unless you've been that far in any set.
+    const reached = Object.keys(save.stars).some((id) => levelNumber(Number(id)) >= ABILITY_FROM_LEVEL - 1);
+    this.abilityLocked = !!level && !isHardLevel(level.id) && levelNumber(level.id) < ABILITY_FROM_LEVEL && !reached;
     if (this.abilityLocked) this.abilityCharges = 0;
     // Levels: race the ghost of your best attempt, and record this one.
     if (level && !req.daily) {
