@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { display } from '../game/display';
 import { sfx } from '../audio/Sfx';
-import { hexColor, makeButton, makeText, type Button } from './widgets';
+import { GLOW_PAD, hexColor, makeButton, makeText, type Button } from './widgets';
 
 /**
  * One-time introductions: a card that pops up over whatever is on screen
@@ -207,6 +207,8 @@ export class Coach {
     let y = 22;
     this.art!.root.setPosition(0, y + ART_H / 2).setScale(Math.min(1, cw / 330));
     y += ART_H + 12;
+    // A long title (HARD MODE UNLOCKED!) shrinks to fit inside the card.
+    this.title.setScale(Math.min(1, wrap / Math.max(1, this.title.width - GLOW_PAD * 2)));
     this.title.setPosition(0, y);
     y += this.title.displayHeight + 4;
     this.body.setPosition(0, y);
