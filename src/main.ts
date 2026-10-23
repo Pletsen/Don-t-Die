@@ -11,6 +11,12 @@ import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { UIScene } from './scenes/UIScene';
 import { display } from './game/display';
+import { save } from './game/storage';
+import { progress } from './game/progress';
+import { restoreBackup } from './native/bridge';
+import { skinVoices } from './audio/skinVoices';
+import { sfx } from './audio/Sfx';
+import { music } from './audio/Music';
 
 // Phaser has no built-in support for sharp rendering on high-density screens
 // (phones, retina laptops). We make the canvas `devicePixelRatio` times larger
@@ -58,13 +64,23 @@ async function start() {
   });
 
   // Handy for debugging in the browser console and for automated tests.
-  Object.assign(window, { game, glowFx });
+  Object.assign(window, { game, glowFx, save, progress, skinVoices, sfx, music });
 
+  // Native app: bring the save back if iOS cleared the web view's storage.
+  void restoreBackup();
+
+  // Resizes come in bursts (rotation, keyboard, browser bars): apply the last
+  // one on the next frame instead of rebuilding the canvas for each.
+  let pending = 0;
   window.addEventListener('resize', () => {
-    // Read the ratio each time: the game may have lowered it for speed.
-    const { w, h } = viewportSize();
-    game.scale.resize(Math.round(w * display.dpr), Math.round(h * display.dpr));
-    game.scale.setZoom(1 / display.dpr);
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      display.remeasure();
+      // Read the ratio each time: the quality ladder may have changed it.
+      const { w, h } = viewportSize();
+      game.scale.resize(Math.round(w * display.dpr), Math.round(h * display.dpr));
+      game.scale.setZoom(1 / display.dpr);
+    });
   });
 }
 

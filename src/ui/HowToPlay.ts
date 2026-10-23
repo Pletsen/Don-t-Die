@@ -44,13 +44,17 @@ export class HowToPlay {
   private next: Button;
   private cards: Card[] = [];
   private index = 0;
+  /** In single-card mode: what to do when the card is dismissed. */
+  private single: (() => void) | null = null;
   private openedAt = 0;
+  /** Text width the body and note wrap at (set by layout). */
+  private wrap = 360;
   /** Every ball image, so the equipped skin can be swapped in. */
   private balls: Phaser.GameObjects.Image[] = [];
 
   constructor(
     private scene: Phaser.Scene,
-    private onDone: () => void,
+    private onDone: (finished: boolean) => void,
   ) {
     this.header = makeText(scene, 0, 0, '', { font: 'mono', size: 11, color: css.inkDim, spacing: 3 }).setOrigin(0.5);
     this.title = makeText(scene, 0, 0, '', { size: 30, glow: true, spacing: 1 }).setOrigin(0.5);
@@ -136,7 +140,7 @@ export class HowToPlay {
         title: 'REACH THE FINISH',
         color: palette.cyan,
         body: 'Your ball rolls by itself.\nGet it to the finish line.',
-        note: 'PLAY: 20 LEVELS, UP TO 3 STARS EACH\nSURVIVAL: ENDLESS. HOW FAR CAN YOU GO?',
+        note: 'PLAY: EASY, NORMAL AND HARD, 20 LEVELS EACH\nSURVIVAL: ENDLESS. HOW FAR CAN YOU GO?',
         images: [ball],
         words: [win],
         draw: (g, t) => {
@@ -234,7 +238,7 @@ export class HowToPlay {
         title: 'DON’T TOUCH',
         color: palette.magenta,
         body: 'Walls, saws and bombs = game over.\nSome of them move. Steer around!',
-        note: 'CLOSE CALLS SLOW TIME FOR A MOMENT.',
+        note: 'BOMBS BLOW UP EVERY FEW SECONDS:\nWATCH THEM SWELL, THEN TIME YOUR TURN.',
         images: [saw, bomb, ball],
         words: labels,
         draw: (g, t) => {
@@ -260,7 +264,6 @@ export class HowToPlay {
 
     // 5. Ducks.
     {
-      const star = this.img(TEX.warpStar, 30);
       const yellow = this.img(TEX.duck, 40);
       const red = this.img(TEX.duckRed, 40);
       const gold = this.img(TEX.duckGold, 66);
@@ -270,32 +273,97 @@ export class HowToPlay {
         this.word('+1', '#ffd21f', 18),
         this.word('+5', '#ff6a55', 18),
         this.word('FRENZY', '#ffe680', 18),
-        this.word('UNIVERSE 2', css.ink, 12),
       ];
       this.cards.push({
         title: 'CATCH DUCKS',
         color: 0xffd21f,
-        body: 'Hit the tiny hidden star to reach\nUNIVERSE 2. It’s full of ducks!',
+        body: 'Bonk ducks on the track to keep them.\nDie, and you keep half.',
         note: 'RED DUCKS RUN AWAY. CATCH THEM LATER.\nGOLDEN DUCK (VERY RARE): TAP LIKE CRAZY\nFOR UP TO 70 DUCKS!',
-        images: [star, yellow, red, gold, glow],
+        images: [yellow, red, gold, glow],
         words: labels,
-        draw: (g, t) => {
-          star.setPosition(-20, -70).setRotation(t * 2).setScale((30 / 64) * (1 + 0.15 * Math.sin(t * 6)));
-          labels[3].setPosition(50, -70);
-          g.lineStyle(1, 0x2a3644, 1).lineBetween(-150, -40, 150, -40);
-          yellow.setPosition(-110, 10 + Math.sin(t * 4) * 2).setRotation(Math.sin(t * 3) * 0.15);
-          red.setPosition(Math.sin(t * 3.2) * 26, 10 - Math.abs(Math.sin(t * 18)) * 3).setRotation(Math.sin(t * 18) * 0.25);
+        draw: (_g, t) => {
+          yellow.setPosition(-110, -5 + Math.sin(t * 4) * 2).setRotation(Math.sin(t * 3) * 0.15);
+          red.setPosition(Math.sin(t * 3.2) * 26, -5 - Math.abs(Math.sin(t * 18)) * 3).setRotation(Math.sin(t * 18) * 0.25);
           const shine = 0.5 + 0.5 * Math.sin(t * 5);
-          gold.setPosition(110, 4 + Math.sin(t * 2.5) * 3).setRotation(Math.sin(t * 2) * 0.12);
-          glow.setPosition(110, 4).setAlpha(0.45 + shine * 0.4);
-          labels[0].setPosition(-110, 58);
-          labels[1].setPosition(0, 58);
-          labels[2].setPosition(110, 58);
+          gold.setPosition(110, -11 + Math.sin(t * 2.5) * 3).setRotation(Math.sin(t * 2) * 0.12);
+          glow.setPosition(110, -11).setAlpha(0.45 + shine * 0.4);
+          labels[0].setPosition(-110, 43);
+          labels[1].setPosition(0, 43);
+          labels[2].setPosition(110, 43);
         },
       });
     }
 
-    // 6. The super power: tap 4 times fast.
+    // 6. The warp star: a secret door to UNIVERSE 2.
+    {
+      const ball = this.ball();
+      const star = this.img(TEX.warpStar, 50);
+      const glow = this.img(TEX.glow, 120).setBlendMode(Phaser.BlendModes.ADD);
+      this.stage.moveBelow(glow, star);
+      const ducks = [this.img(TEX.duck, 26), this.img(TEX.duck, 26), this.img(TEX.duck, 26)];
+      const early = this.word('TAP EARLY', css.ink, 13);
+      const warp = this.word('WARP!', '#ffd21f', 24);
+      const u2 = this.word('UNIVERSE 2', '#ff5cb8', 13);
+      const plus = ducks.map(() => this.word('+1', '#ffd21f', 15));
+      const rainbow = [0xff2f9e, 0xffd21f, 0x2be8ff, 0x7cff6b, 0xff9a2e, 0xb36bff];
+      this.cards.push({
+        title: 'WARP STAR',
+        color: 0xff5cb8,
+        body: 'A secret door, hidden late in a level.\nRoll through it for a bonus run of ducks!',
+        note: 'IT SITS CLOSE TO A WALL: TURN A LITTLE\nEARLY OR LATE TO HIT IT. MISS IT? NO\nPROBLEM, THE LEVEL GOES ON AS NORMAL.',
+        images: [ball, star, glow, ...ducks],
+        words: [early, warp, u2, ...plus],
+        draw: (g, t) => {
+          const T = t % 4.6;
+          const cx = -110;
+          const line = 15; // turning early (before the middle of the corner) keeps the ball close to the bottom wall
+          const sx = -10;
+          const hit = 1.9;
+          // Up the side lane, an early turn, along the bottom wall into the star.
+          const vUp = 120;
+          const upEnd = (74 - line) / vUp;
+          const vRight = (sx - cx) / (hit - upEnd);
+          const warped = T >= hit;
+          const lane = warped ? rainbow[Math.floor(t * 6) % rainbow.length] : palette.cyan;
+          this.lane(g, cx, 74, cx, 0, palette.cyan);
+          this.lane(g, cx, 0, 160, 0, lane);
+          if (warped) g.fillStyle(0xff2f9e, 0.12).fillRect(cx - LANE, -LANE, 160 - cx + LANE * 2, LANE * 2);
+          g.fillStyle(palette.floor, 1).fillRect(cx - LANE + 2, -LANE + 2, LANE * 2 - 4, LANE * 2 - 4);
+          let bx: number;
+          let by: number;
+          if (T < upEnd) {
+            bx = cx;
+            by = 74 - T * vUp;
+          } else {
+            bx = cx + (T - upEnd) * vRight;
+            by = line;
+          }
+          ball.setPosition(Math.min(bx, 170), by).setVisible(bx < 170);
+          // The tap, a little before the middle of the corner.
+          this.ripple(g, cx, line, (T - upEnd) * 3);
+          this.float(early, cx - 4, -49, (T - upEnd) * 1.4);
+          // The star spins until the ball rolls through it.
+          const pulse = 1 + 0.15 * Math.sin(t * 6);
+          star.setVisible(!warped).setPosition(sx, line).setRotation(t * 2.4).setScale((50 / 64) * pulse);
+          glow.setVisible(!warped).setPosition(sx, line).setAlpha(0.35 + 0.2 * Math.sin(t * 6)).setTint(rainbow[Math.floor(t * 4) % rainbow.length]);
+          if (warped) {
+            for (let i = 0; i < 3; i++) this.ripple(g, sx, line, (T - hit) * 1.6 - i * 0.12, rainbow[i * 2]);
+          }
+          this.float(warp, sx, -55, (T - hit) * 1.1);
+          u2.setVisible(warped).setPosition(70, 46).setAlpha(Math.min(1, (T - hit) * 3));
+          // UNIVERSE 2: ducks on the rest of the straight, +1 each.
+          ducks.forEach((d, i) => {
+            const x = 40 + i * 40;
+            const passed = bx >= x;
+            d.setVisible(warped && !passed).setPosition(x, line + Math.sin(t * 5 + i) * 2).setRotation(Math.sin(t * 3 + i) * 0.15);
+            const at = hit + (x - sx) / vRight;
+            this.float(plus[i], x, -41, (T - at) * 1.8);
+          });
+        },
+      });
+    }
+
+    // 7. The super power: tap 4 times fast.
     {
       const ball = this.ball();
       const aura = this.img(TEX.glow, 70).setBlendMode(Phaser.BlendModes.ADD);
@@ -363,17 +431,17 @@ export class HowToPlay {
       });
     }
 
-    // 7. Skins.
+    // 8. Skins.
     {
       const duck = this.img(TEX.duck, 40);
-      const shown = ['kitty', 'soccer', 'pizza', 'crown', 'galaxy', 'froggy'];
+      const shown = ['kitty', 'unicorn', 'pizza', 'crown', 'ufo', 'froggy'];
       const skins = shown.map((id) => this.img(skinTexture(id), 36));
       const cost = this.word(`${SPIN_COST}`, '#ffd21f', 22);
       const count = this.word(`${SKINS.length} SKINS`, css.ink, 12);
       this.cards.push({
         title: 'GET SKINS',
         color: 0xffd21f,
-        body: `${SPIN_COST} ducks = 1 spin on the DUCK-O-MATIC.\nEvery skin has its own super power.`,
+        body: `Feed ${SPIN_COST} ducks to the QUACK REACTOR\nfor a new skin, each with a super power.`,
         note: 'RARER SKINS HAVE STRONGER POWERS.\nCHOOSE YOUR SKIN UNDER SKINS IN THE MENU.',
         images: [duck, ...skins],
         words: [cost, count],
@@ -405,19 +473,37 @@ export class HowToPlay {
 
   show() {
     for (const b of this.balls) b.setTexture(skinTexture(save.skin));
+    this.single = null;
     this.index = 0;
     this.render();
   }
 
+  /** Show one card on its own (a tip right before it matters), then call `done`. */
+  showSingle(index: number, done: () => void) {
+    for (const b of this.balls) b.setTexture(skinTexture(save.skin));
+    this.single = done;
+    this.index = Math.max(0, Math.min(this.cards.length - 1, index));
+    this.render();
+  }
+
+  /** Card numbers for showSingle. */
+  static readonly CARD = { goal: 0, tap: 1, perfect: 2, danger: 3, ducks: 4, warp: 5, power: 6, skins: 7 } as const;
+
   private go(delta: number) {
+    if (this.single) {
+      const done = this.single;
+      this.single = null;
+      done();
+      return;
+    }
     const to = this.index + delta;
     if (to < 0) {
-      this.onDone();
+      this.onDone(false);
       return;
     }
     if (to >= this.cards.length) {
       save.setIntroSeen();
-      this.onDone();
+      this.onDone(true);
       return;
     }
     this.index = to;
@@ -435,17 +521,20 @@ export class HowToPlay {
   private render() {
     const card = this.cards[this.index];
     this.openedAt = this.scene.time.now;
-    this.header.setText(`HOW TO PLAY  ·  ${this.index + 1} / ${this.cards.length}`);
+    this.header.setText(this.single ? 'NEW!' : `HOW TO PLAY  ·  ${this.index + 1} / ${this.cards.length}`);
     this.title.setText(card.title).setShadow(0, 0, hexColor(card.color), 16, false, true);
     this.body.setText(card.body);
     this.note.setText(card.note);
+    this.fitText();
     this.cards.forEach((c) => {
       const on = c === card;
       c.images.forEach((i) => i.setVisible(on));
       c.words.forEach((w) => w.setVisible(on));
     });
     this.back.setLabel(this.index === 0 ? 'MENU' : 'BACK');
-    this.next.setLabel(this.index === this.cards.length - 1 ? 'LET’S GO!' : 'NEXT');
+    this.next.setLabel(this.single ? 'GOT IT!' : this.index === this.cards.length - 1 ? 'LET’S GO!' : 'NEXT');
+    this.back.setVisible(!this.single);
+    this.dots.setVisible(!this.single);
     this.drawDots();
   }
 
@@ -467,11 +556,24 @@ export class HowToPlay {
     this.title.setPosition(0, top + 36);
     const stageY = top + 76 + 100 * scale;
     this.stage.setPosition(0, stageY).setScale(scale);
-    this.body.setPosition(0, stageY + 118 * scale).setWordWrapWidth(wrap);
-    this.note.setPosition(0, stageY + 118 * scale + 58).setWordWrapWidth(wrap);
+    this.wrap = wrap;
+    this.body.setPosition(0, stageY + 118 * scale);
+    this.fitText();
     this.dots.setPosition(0, h - 96);
     this.back.setPosition(-80, h - 50);
     this.next.setPosition(66, h - 50);
+  }
+
+  /**
+   * On narrow phones the body and note shrink a little instead of wrapping
+   * into extra lines, and the note always starts below the body.
+   */
+  private fitText() {
+    const kb = Math.min(1, this.wrap / 330);
+    const kn = Math.min(1, this.wrap / 300);
+    this.body.setScale(kb).setWordWrapWidth(this.wrap / kb);
+    this.note.setScale(kn).setWordWrapWidth(this.wrap / kn);
+    this.note.setPosition(0, this.body.y + Math.max(58, this.body.displayHeight + 10));
   }
 
   update(time: number) {

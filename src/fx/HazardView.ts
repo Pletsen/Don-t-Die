@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { Hazard } from '../game/Track';
 import { palette } from '../game/palette';
 import { TEX, DUCK_RES } from './textures';
-import { glowFx } from './glow';
+import { glowFx, type GlowHandle } from './glow';
 
 /** Visuals for one saw blade, bomb or rubber duck. Follows its `Hazard` data every frame. */
 export class HazardView {
@@ -13,6 +13,9 @@ export class HazardView {
   private fuse?: Phaser.GameObjects.Image;
   private color: number;
   private frozen = false;
+  /** Frame number when the game last saw this hazard on screen. */
+  shownAt = 0;
+  private glow: GlowHandle | null = null;
 
   constructor(
     private scene: Phaser.Scene,
@@ -54,16 +57,14 @@ export class HazardView {
       }
     }
 
-    // A milder engine glow on the things that matter: saws, bombs and the
-    // special ducks. Plain ducks are harmless and stay plain.
-    if (!isDuck || variant !== 'normal') {
-      // Saws a little softer, so their teeth stay sharp.
-      // Ducks get a thin rim, so the detail inside stays visible.
-      const strength = isDuck ? (variant === 'golden' ? 2 : 1.4) : isSaw ? 2 : 2.5;
-      glowFx.add(this.body, this.color, strength, 12);
-    }
-
-    const parts: Phaser.GameObjects.GameObject[] = [this.warn, this.halo, this.body];
+    // A soft dark disc underneath: the hazard pops off the track and the
+    // background, whatever is behind it.
+    const shade = scene.add
+      .image(0, 0, TEX.glow)
+      .setTint(0x05070a)
+      .setAlpha(isDuck ? 0.45 : 0.7)
+      .setScale((d * 2.2) / 128);
+    const parts: Phaser.GameObjects.GameObject[] = [shade, this.warn, this.halo, this.body];
     if (hazard.kind === 'bomb') {
       this.fuse = scene.add
         .image(0, 0, TEX.glow)
@@ -74,6 +75,15 @@ export class HazardView {
     }
 
     this.root = scene.add.container(hazard.x, hazard.y, parts).setDepth(4);
+
+    // An outline glow on the things that matter: saws, bombs and the special
+    // ducks. Plain ducks are harmless and stay plain.
+    if (!isDuck || variant !== 'normal') {
+      // Saws a little softer, so their teeth stay sharp; ducks get a thin rim,
+      // so the detail inside stays visible.
+      const strength = isDuck ? (variant === 'golden' ? 2.4 : 1.6) : isSaw ? 2.4 : 2.8;
+      this.glow = glowFx.add(this.body, this.color, strength);
+    }
 
     // Pop in instead of appearing out of nowhere.
     this.root.setScale(0);
@@ -108,9 +118,25 @@ export class HazardView {
       this.body.rotation += dt * 9;
       this.halo.setAlpha(0.55 + 0.15 * Math.sin(time * 12));
     } else {
+      // The bomb's fuse: it charges (swells, glows hotter, the ring tightens)
+      // and then blasts out to twice its radius for a moment.
+      const charge = h.charge ?? 0;
       const beat = Math.pow(Math.max(0, Math.sin(time * 7 + h.movePhase)), 6);
-      this.body.setScale(((r * 2.2) / 128) * (1 + beat * 0.12));
-      this.halo.setAlpha(0.45 + beat * 0.5);
+      if (charge === -1) {
+        this.body.setScale(((r * 2.2) / 128) * 1.25);
+        this.halo.setAlpha(1).setScale((r * 2 * 4.2) / 128);
+        this.warn.setScale((r * 2.1) / 58).setAlpha(0.95);
+        if (!this.blasting) {
+          this.blasting = true;
+          this.blastRing();
+        }
+      } else {
+        this.blasting = false;
+        const swell = 1 + charge * charge * 0.22 + beat * 0.08;
+        this.body.setScale(((r * 2.2) / 128) * swell);
+        this.halo.setAlpha(0.4 + beat * 0.3 + charge * 0.6).setScale((r * 2 * 2.6 * (1 + charge * 0.4)) / 128);
+        if (charge > 0) this.warn.setScale((r * (3.4 - charge * 1.6)) / 116).setAlpha(0.25 + charge * 0.7);
+      }
       if (this.fuse) {
         const a = time * 14;
         this.fuse
@@ -118,14 +144,78 @@ export class HazardView {
           .setAlpha(0.7 + 0.3 * Math.random());
       }
     }
+    this.glow?.sync();
+  }
+
+  private blasting = false;
+
+  /** A quick ring showing the blast's reach. */
+  private blastRing() {
+    const ring = this.scene.add
+      .image(this.hazard.x, this.hazard.y, TEX.ring)
+      .setTint(0xffb36b)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScale((this.hazard.radius * 2) / 116)
+      .setDepth(5);
+    this.scene.tweens.add({
+      targets: ring,
+      scale: (this.hazard.radius * 2 * 2.1) / 116,
+      alpha: 0,
+      duration: 260,
+      ease: 'Cubic.easeOut',
+      onComplete: () => ring.destroy(),
+    });
   }
 
   setFrozen(on: boolean) {
     if (on === this.frozen) return;
     this.frozen = on;
-    if (on) this.body.setTint(0xbfefff);
+    if (on) this.body.setTint(this.inkColor ?? 0xbfefff);
     else this.body.clearTint();
-    this.halo.setTint(on ? 0x9fe8ff : this.color);
+    this.halo.setTint(on ? (this.inkColor ?? 0x9fe8ff) : this.color);
+  }
+
+  private inkColor: number | null = null;
+
+  /** OCTO's ink (or tangerine juice): splatted in `color`, shrunk to `size`, and still for good. */
+  setInked(color: number, size: number) {
+    this.inkColor = color;
+    this.frozen = false;
+    this.setFrozen(true);
+    this.body.setScale(this.body.scaleX * size);
+    this.halo.setScale(this.halo.scaleX * size).setAlpha(0.3);
+    this.warn.setVisible(false);
+    this.fuse?.setVisible(false);
+    this.scene.tweens.add({ targets: this.root, scale: { from: 1.35, to: 1 }, duration: 260, ease: 'Back.easeOut' });
+  }
+
+  private bodyScale = -1;
+  private haloScale = -1;
+
+  /** SO SHY: shrink back (k = share of the full size). Bombs follow their radius by themselves. */
+  setShrink(k: number) {
+    if (this.hazard.kind === 'bomb') return;
+    if (this.bodyScale < 0) {
+      this.bodyScale = this.body.scaleX;
+      this.haloScale = this.halo.scaleX;
+    }
+    this.body.setScale(this.bodyScale * k);
+    this.halo.setScale(this.haloScale * k);
+  }
+
+  /** Beamed up by a tractor beam: it floats up, spinning and shrinking, and is gone. */
+  abduct() {
+    this.warn.setVisible(false);
+    this.scene.tweens.add({
+      targets: this.root,
+      y: this.root.y - 70,
+      scale: 0.1,
+      angle: 540,
+      alpha: 0,
+      duration: 480,
+      ease: 'Cubic.easeIn',
+      onComplete: () => this.destroy(),
+    });
   }
 
   /** Duck got bonked: it spins off into space and is gone. */

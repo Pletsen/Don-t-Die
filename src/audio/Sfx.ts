@@ -1,7 +1,11 @@
 import { save } from '../game/storage';
+import { SampleBank, vary, type PlayOpts } from './samples';
+import { vibrate } from '../native/bridge';
 
-// All sounds are synthesised live with the Web Audio API: no audio files to
-// download, and every sound can be tuned with a few numbers.
+// Almost all sounds are synthesised live with the Web Audio API, so every
+// sound can be tuned with a few numbers. The ducks are the exception: they use
+// short real quack recordings from public/sfx/ (see CREDITS.md there), with
+// the old synth quack as a fallback if the files can't be loaded.
 
 interface ToneOpts {
   freq: number;
@@ -25,36 +29,70 @@ export const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 /** A minor pentatonic: every note sounds good over the background music. */
 const PENTATONIC = [69, 72, 74, 76, 79, 81, 84, 86];
 
+/** The recorded duck sounds, in public/sfx/. */
+const DUCK_FILES = {
+  quack1: 'quack-1.mp3',
+  quack2: 'quack-2.mp3',
+  quack3: 'quack-3.mp3',
+  red: 'quack-red.mp3',
+  golden: 'quack-golden.mp3',
+  blip: 'quack-blip.mp3',
+  squeak: 'squeak.mp3',
+};
+type DuckSound = keyof typeof DUCK_FILES;
+const QUACKS: DuckSound[] = ['quack1', 'quack2', 'quack3'];
+
+/** Volume of each recording (the files are all normalised to the same loudness). */
+const LEVEL = { quack: 0.75, red: 0.8, golden: 1, blip: 0.45, squeak: 0.3 };
+
+/** Loudness of the whole mix (sound effects and music) into the compressor. */
+const MIX_GAIN = 0.55;
+
 class SfxEngine {
   ctx: AudioContext | null = null;
+  /**
+   * The sound-effects bus: every effect (and the recorded samples) plays into
+   * it, and the SOUND switch turns it to 0. Music has its own bus into `out`.
+   */
   master: GainNode | null = null;
+  /** The final mix (sound effects + music), into the compressor. */
+  out: GainNode | null = null;
   noise: AudioBuffer | null = null;
   /** Called once when audio first becomes available (used to start the music). */
   onUnlock: (() => void) | null = null;
+  private samples = new SampleBank(DUCK_FILES, `${import.meta.env.BASE_URL}sfx/`);
+  private lastQuack = -1;
 
   /** Browsers only allow audio after a user gesture, so call this on the first tap. */
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended') this.ctx.resume();
+      // iOS leaves the context 'interrupted' after a phone call or Siri, not 'suspended'.
+      if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') void this.ctx.resume();
       return;
     }
     try {
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new Ctx();
+      this.out = this.ctx.createGain();
+      this.out.gain.value = MIX_GAIN;
       this.master = this.ctx.createGain();
-      this.master.gain.value = save.muted ? 0 : 0.55;
+      this.master.gain.value = save.sound ? 1 : 0;
+      this.master.connect(this.out);
 
       // A gentle compressor glues overlapping sounds together.
       const comp = this.ctx.createDynamicsCompressor();
       comp.threshold.value = -14;
       comp.ratio.value = 4;
-      this.master.connect(comp);
+      this.out.connect(comp);
       comp.connect(this.ctx.destination);
 
       const len = Math.floor(this.ctx.sampleRate * 0.6);
       this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const data = this.noise.getChannelData(0);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+
+      // Fetch and decode the duck recordings once, in the background.
+      void this.samples.load(this.ctx);
 
       // Pause all sound while the tab or app is in the background.
       document.addEventListener('visibilitychange', () => {
@@ -67,8 +105,16 @@ class SfxEngine {
     }
   }
 
+  /** The SOUND switch: sound effects on or off (the music has its own, see Music.ts). */
+  setSound(on: boolean) {
+    if (!this.ctx || !this.master) return;
+    // A 15 ms fade instead of a hard cut: no click.
+    this.master.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.015);
+  }
+
+  /** @deprecated Use setSound (sound effects) or music.setEnabled. */
   setMuted(muted: boolean) {
-    if (this.master) this.master.gain.value = muted ? 0 : 0.55;
+    this.setSound(!muted);
   }
 
   private tone(o: ToneOpts) {
@@ -221,8 +267,40 @@ class SfxEngine {
     );
   }
 
+  /** Plays a recording. Returns false if it isn't loaded, so the caller can use a synth sound. */
+  private sample(name: DuckSound, o: PlayOpts) {
+    return this.playFrom(this.samples, name, o);
+  }
+
+  /**
+   * Plays a recording from any SampleBank on the same output as the ducks,
+   * so mute and volume apply to it too (the skin voices use this).
+   */
+  playFrom<K extends string>(bank: SampleBank<K>, name: K, o: PlayOpts = {}) {
+    if (!this.ctx || !this.master) return false;
+    return bank.play(this.ctx, this.master, name, o);
+  }
+
   /** Bonked a rubber duck. `pitch` above 1 for small ducks, below 1 for big ones. */
   quack(pitch = 1) {
+    // One of three real quacks (never the same one twice in a row), with a
+    // little random pitch and volume so a run of bonks doesn't sound robotic.
+    let i = Math.floor(Math.random() * QUACKS.length);
+    if (i === this.lastQuack) i = (i + 1) % QUACKS.length;
+    const played = this.sample(QUACKS[i], { rate: pitch * vary(), gain: LEVEL.quack * vary(0.85, 1), group: 'quack', maxVoices: 3 });
+    if (!played) {
+      this.synthQuack(pitch);
+      return;
+    }
+    this.lastQuack = i;
+    // Now and then the rubber duck squeaks as it gets bonked.
+    if (Math.random() < 0.25) {
+      this.sample('squeak', { rate: vary(0.9, 1.15), gain: LEVEL.squeak * vary(0.8, 1), delay: 0.02, group: 'squeak', maxVoices: 2 });
+    }
+  }
+
+  /** The old synthesised quack, used if the recordings didn't load. */
+  private synthQuack(pitch: number) {
     if (!this.ctx || !this.master) return;
     for (const d of [0, 0.11]) {
       const t0 = this.ctx.currentTime + d;
@@ -246,38 +324,49 @@ class SfxEngine {
 
   // --- Special ducks ------------------------------------------------------
 
-  /** Caught the red duck: a bright little jingle on top of the quack. */
+  /** Caught the red duck: an excited "rap-rap-rap" with a bright little jingle. */
   redDuck() {
-    this.quack(1.3);
+    const real = this.sample('red', { rate: vary(0.96, 1.06), gain: LEVEL.red, group: 'red', maxVoices: 2 });
+    if (!real) this.synthQuack(1.3);
     [0, 4, 7, 12].forEach((st, i) =>
-      this.tone({ freq: 784 * Math.pow(2, st / 12), duration: 0.16, type: 'triangle', gain: 0.09, delay: 0.1 + i * 0.05 }),
+      this.tone({ freq: 784 * Math.pow(2, st / 12), duration: 0.16, type: 'triangle', gain: real ? 0.07 : 0.09, delay: 0.1 + i * 0.05 }),
     );
   }
 
   /** A missed red duck runs off up the track, laughing. */
   duckEscape() {
-    this.quack(1.5);
+    if (!this.sample('red', { rate: 1.2 * vary(0.97, 1.03), gain: LEVEL.red * 0.7, group: 'red', maxVoices: 2 })) this.synthQuack(1.5);
     this.tone({ freq: 900, glideTo: 1600, duration: 0.25, type: 'triangle', gain: 0.05, delay: 0.2 });
   }
 
-  /** The golden duck: a huge fanfare into DUCK FRENZY. */
+  /** The golden duck: one huge, deep quack over a fanfare into DUCK FRENZY. */
   frenzyStart() {
-    this.quack(0.6);
-    this.thump(60, 0.5, 0.7, 0.1);
-    this.stab([196, 247, 294, 392], 1.2, 0.12, 5000, 0.1);
+    const real = this.sample('golden', { rate: vary(0.97, 1.03), gain: LEVEL.golden, group: 'golden', maxVoices: 1 });
+    if (!real) this.synthQuack(0.6);
+    // With the recording, the fanfare sits quieter underneath it and the
+    // arpeggio starts a little later, so the quack is heard first.
+    const f = real ? 0.5 : 1;
+    this.thump(60, 0.5 * f, 0.7, 0.1);
+    this.stab([196, 247, 294, 392], 1.2, 0.12 * f, 5000, 0.1);
     [0, 4, 7, 12, 16, 19, 24].forEach((st, i) =>
-      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'square', gain: 0.05, delay: 0.15 + i * 0.06 }),
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'square', gain: 0.05 * f, delay: (real ? 0.3 : 0.15) + i * 0.06 }),
     );
-    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 1.2, gain: 0.1 });
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 1.2, gain: 0.1 * f });
   }
 
-  /** One frenzy tap: a blip that climbs with the count. */
+  /** One frenzy tap: a short quack that climbs with the count. */
   frenzyTap(count: number) {
-    const scale = [0, 2, 4, 7, 9];
-    const step = count % scale.length;
-    const oct = Math.min(3, Math.floor(count / 15));
-    const freq = 330 * Math.pow(2, (scale[step] + oct * 12) / 12);
-    this.tone({ freq, duration: 0.07, type: 'square', gain: 0.045 });
+    // Rises about an octave over the frenzy, with a small up-down wiggle so
+    // fast taps sound like a tune. At most 3 blips sound at once.
+    const semis = Math.min(10, count * 0.18) + [0, 2, 4, 2, 0][count % 5];
+    const rate = 0.9 * Math.pow(2, semis / 12) * vary(0.98, 1.02);
+    if (!this.sample('blip', { rate, gain: LEVEL.blip * vary(0.85, 1), group: 'blip', maxVoices: 3 })) {
+      const scale = [0, 2, 4, 7, 9];
+      const step = count % scale.length;
+      const oct = Math.min(3, Math.floor(count / 15));
+      const freq = 330 * Math.pow(2, (scale[step] + oct * 12) / 12);
+      this.tone({ freq, duration: 0.07, type: 'square', gain: 0.045 });
+    }
     if (count % 5 === 0) this.thump(130, 0.18, 0.08);
   }
 
@@ -331,25 +420,6 @@ class SfxEngine {
     );
   }
 
-  // --- Slot machine -------------------------------------------------------
-
-  leverPull() {
-    this.burst({ filterType: 'lowpass', filterFreq: 700, duration: 0.18, gain: 0.25 });
-    this.tone({ freq: 300, glideTo: 120, duration: 0.2, type: 'square', gain: 0.05 });
-    this.thump(80, 0.3, 0.2, 0.12);
-  }
-
-  /** Reels whirring past. */
-  spinTick() {
-    this.tone({ freq: 1800 + Math.random() * 300, duration: 0.025, type: 'square', gain: 0.03 });
-  }
-
-  /** A reel clunks to a stop; each one a little higher. */
-  reelStop(index: number) {
-    this.thump(140, 0.3, 0.12);
-    this.stab([220 * Math.pow(2, (index * 4) / 12)], 0.2, 0.08, 1800);
-  }
-
   /** Prize reveal: bigger fanfares for rarer skins. */
   reveal(rarity: 'common' | 'rare' | 'epic' | 'legendary') {
     const steps = { common: [0, 7], rare: [0, 4, 7], epic: [0, 4, 7, 12], legendary: [0, 4, 7, 12, 16, 19, 24] }[rarity];
@@ -367,6 +437,233 @@ class SfxEngine {
   /** Not enough ducks. */
   nope() {
     this.denied();
+  }
+
+  // --- QUACK REACTOR (called through src/ui/shopSfx.ts) -------------------
+  // `rank` is the rarity as a number: 0 common, 1 rare, 2 epic, 3 legendary.
+
+  /** The reactor's charge-up drone, while it plays. */
+  private hum: { nodes: AudioScheduledSourceNode[]; out: GainNode } | null = null;
+  /** Steady white noise for the drone's steam hiss (the shared noise buffer decays, so it can't loop). */
+  private hiss: AudioBuffer | null = null;
+
+  /**
+   * A duck dives into the core: a soft plop that climbs as the tank fills
+   * (k = 0..1). Up to ~25 a second at the end of the stream, so each is
+   * quiet and a little detuned from the last.
+   */
+  reactorFeed(k: number) {
+    const f = 300 * Math.pow(2, k * 1.3 + (Math.random() - 0.5) * 0.15);
+    this.tone({ freq: f * 2, glideTo: f, duration: 0.06, type: 'sine', gain: 0.07 });
+    this.tone({ freq: f * 4, duration: 0.03, type: 'triangle', gain: 0.015 });
+  }
+
+  /** Now and then a little quack from the queue (k = 0..1, higher as the tank fills). */
+  reactorQuack(k: number) {
+    if (!this.sample('blip', { rate: 1.1 + k * 0.5, gain: LEVEL.blip * 0.6, group: 'blip', maxVoices: 2 })) this.synthQuack(1.4 + k * 0.4);
+  }
+
+  /** The golden duck (a free charge) dives into the core: a splash of gold. */
+  reactorGolden() {
+    if (!this.sample('golden', { rate: 1.08, gain: LEVEL.golden * 0.7, group: 'golden', maxVoices: 1 })) this.synthQuack(0.8);
+    this.thump(110, 0.25, 0.2);
+    this.burst({ filterType: 'highpass', filterFreq: 4500, duration: 0.5, gain: 0.06 });
+    [0, 4, 7, 12, 16].forEach((st, i) =>
+      this.tone({ freq: 1046 * Math.pow(2, st / 12), duration: 0.18, type: 'triangle', gain: 0.05, delay: 0.12 + i * 0.05 }),
+    );
+  }
+
+  /**
+   * The reactor overloads for `seconds`: a detuned drone that slides up while
+   * its filter opens and a tremolo speeds up, with rising steam hiss. A higher
+   * `rank` builds higher and louder. Cut by reactorChargeStop (the burst).
+   */
+  reactorCharge(seconds: number, rank: number) {
+    this.reactorChargeStop(0.03);
+    const c = this.ctx;
+    if (!c || !this.master) return;
+    if (!this.hiss) {
+      const len = c.sampleRate;
+      this.hiss = c.createBuffer(1, len, c.sampleRate);
+      const d = this.hiss.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const t0 = c.currentTime;
+    const t1 = t0 + Math.max(0.2, seconds);
+    const out = c.createGain();
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.exponentialRampToValueAtTime(0.05, t0 + 0.15);
+    out.gain.exponentialRampToValueAtTime(0.11 + rank * 0.025, t1);
+    out.connect(this.master);
+    // Tremolo: a gain wobbled by an LFO that speeds up.
+    const trem = c.createGain();
+    trem.gain.value = 0.75;
+    const lfo = c.createOscillator();
+    lfo.frequency.setValueAtTime(4, t0);
+    lfo.frequency.exponentialRampToValueAtTime(18 + rank * 5, t1);
+    const depth = c.createGain();
+    depth.gain.value = 0.25;
+    lfo.connect(depth).connect(trem.gain);
+    trem.connect(out);
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.Q.value = 7;
+    lp.frequency.setValueAtTime(240, t0);
+    lp.frequency.exponentialRampToValueAtTime(1500 + rank * 700, t1);
+    lp.connect(trem);
+    const nodes: AudioScheduledSourceNode[] = [lfo];
+    const f0 = 55;
+    const f1 = f0 * Math.pow(2, 1 + rank * 0.25);
+    for (const [type, mul, det] of [
+      ['sawtooth', 1, -9],
+      ['sawtooth', 1, 9],
+      ['square', 0.5, 0],
+    ] as const) {
+      const o = c.createOscillator();
+      o.type = type;
+      o.detune.value = det;
+      o.frequency.setValueAtTime(f0 * mul, t0);
+      o.frequency.exponentialRampToValueAtTime(f1 * mul, t1);
+      o.connect(lp);
+      nodes.push(o);
+    }
+    // Steam: band-passed hiss rising in pitch.
+    const n = c.createBufferSource();
+    n.buffer = this.hiss;
+    n.loop = true;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(900, t0);
+    bp.frequency.exponentialRampToValueAtTime(5000, t1);
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(0.25 + rank * 0.08, t1);
+    n.connect(bp).connect(ng).connect(out);
+    nodes.push(n);
+    for (const node of nodes) {
+      node.start(t0);
+      // A safety stop in case nothing cuts it (the screen was left mid-charge).
+      node.stop(t1 + 0.6);
+    }
+    this.hum = { nodes, out };
+  }
+
+  /** Cut the charge drone (with a short fade, no click). */
+  reactorChargeStop(fade = 0.06) {
+    const h = this.hum;
+    if (!h || !this.ctx) return;
+    this.hum = null;
+    const now = this.ctx.currentTime;
+    h.out.gain.cancelScheduledValues(now);
+    h.out.gain.setValueAtTime(Math.max(0.0001, h.out.gain.value), now);
+    h.out.gain.exponentialRampToValueAtTime(0.0001, now + fade);
+    for (const node of h.nodes) {
+      try {
+        node.stop(now + fade + 0.02);
+      } catch {
+        // Already stopped.
+      }
+    }
+  }
+
+  /** A spark jumps off the reactor: a dry electric crackle. */
+  reactorSpark() {
+    this.burst({ filterType: 'highpass', filterFreq: 3500 + Math.random() * 2500, duration: 0.04, gain: 0.07 });
+    this.tone({ freq: 2400 + Math.random() * 1800, duration: 0.02, type: 'square', gain: 0.012 });
+  }
+
+  /** Overload warning beep; climbs with k (0..1). */
+  reactorAlarm(k: number) {
+    this.tone({ freq: 880 * Math.pow(2, k * 0.5), duration: 0.06, type: 'square', gain: 0.025 });
+  }
+
+  /** The reactor takes a breath just before it bursts: everything sucks in. */
+  reactorInhale() {
+    this.tone({ freq: 900, glideTo: 120, duration: 0.14, type: 'sine', gain: 0.05 });
+  }
+
+  /** The reactor bursts open: a soft whump for a common, a deep blast for a legendary. */
+  reactorBlast(rank: number) {
+    this.reactorChargeStop(0.03);
+    this.burst({ filterType: 'lowpass', filterFreq: 900 + rank * 500, duration: 0.35 + rank * 0.25, gain: 0.25 + rank * 0.1, rate: 0.7 - rank * 0.08 });
+    this.thump(90 - rank * 15, 0.3 + rank * 0.07, 0.25 + rank * 0.15);
+    if (rank >= 1) this.tone({ freq: 1600, glideTo: 300, duration: 0.25, type: 'sawtooth', gain: 0.035 + rank * 0.01 });
+    if (rank >= 2) {
+      this.tone({ freq: 55, glideTo: 28, duration: 0.9, type: 'sine', gain: 0.35 });
+      this.stab([65, 98, 131], 0.9, 0.1, 1200);
+    }
+    if (rank >= 3) this.burst({ filterType: 'highpass', filterFreq: 2500, duration: 1.4, gain: 0.08 });
+  }
+
+  /** Lightning crackling round the shell: thin and bright for a rare, thick and low for an epic. */
+  reactorZap(rank: number) {
+    const base = rank >= 2 ? 700 : 1400;
+    for (let i = 0; i < 3; i++) {
+      this.tone({ freq: base * (1 + Math.random() * 1.5), duration: 0.025, type: 'sawtooth', gain: 0.022 + rank * 0.006, delay: i * 0.03 });
+    }
+    this.burst({ filterType: 'bandpass', filterFreq: rank >= 2 ? 1800 : 3200, duration: 0.09, gain: 0.08 + rank * 0.02, rate: 1.4 });
+  }
+
+  /** Legendary slow motion: the whole world drops deep and slow. */
+  reactorSlowmo() {
+    this.tone({ freq: 240, glideTo: 50, duration: 0.9, type: 'sawtooth', gain: 0.05 });
+    this.burst({ filterType: 'lowpass', filterFreq: 500, duration: 0.9, gain: 0.2, rate: 0.35 });
+  }
+
+  /** Time snaps back: light beams burst out under a big major chord. */
+  reactorBeams() {
+    this.thump(55, 0.5, 0.7);
+    this.stab([196, 247, 294, 392], 1.4, 0.13, 5000);
+    [0, 4, 7, 12, 16, 19, 24].forEach((st, i) =>
+      this.tone({ freq: 523 * Math.pow(2, st / 12), duration: 0.22, type: 'square', gain: 0.035, delay: 0.05 + i * 0.05 }),
+    );
+    this.burst({ filterType: 'highpass', filterFreq: 3500, duration: 1.2, gain: 0.09 });
+  }
+
+  /** Upgrade tease: the shell flares up into the next rarity. */
+  reactorUpgrade(rank: number) {
+    this.tone({ freq: 200, glideTo: 1600 + rank * 300, duration: 0.35, type: 'sawtooth', gain: 0.06 });
+    this.burst({ filterType: 'highpass', filterFreq: 3000, duration: 0.45, gain: 0.08 });
+    this.thump(80, 0.35, 0.3, 0.3);
+    [0, 7, 12].forEach((st, i) =>
+      this.tone({ freq: 784 * Math.pow(2, st / 12), duration: 0.2, type: 'triangle', gain: 0.07, delay: 0.3 + i * 0.05 }),
+    );
+  }
+
+  /** The shell creaks before it breaks; higher each time (k = 0..1). */
+  reactorCreak(k: number) {
+    this.burst({ filterType: 'bandpass', filterFreq: 2400 + k * 2000, duration: 0.05, gain: 0.12 });
+    this.tone({ freq: 1800 + k * 900, duration: 0.03, type: 'square', gain: 0.02 });
+  }
+
+  /** The shell shatters (the rarity fanfare, reveal(), plays on top). */
+  reactorShatter(rank: number) {
+    this.burst({ filterType: 'highpass', filterFreq: 2600, duration: 0.3 + rank * 0.08, gain: 0.2 });
+    this.thump(110 - rank * 12, 0.3, 0.18);
+    for (let i = 0; i < 4; i++) this.tone({ freq: 2600 + Math.random() * 2400, duration: 0.08, type: 'sine', gain: 0.03, delay: 0.03 + i * 0.04 });
+  }
+
+  /** The reactor closes its lid again. */
+  reactorReset() {
+    this.thump(150, 0.15, 0.08);
+    this.burst({ filterType: 'bandpass', filterFreq: 700, duration: 0.08, gain: 0.07 });
+  }
+
+  /** A duplicate bursts into ducks. */
+  shopBurst() {
+    this.quack(1.25);
+    this.burst({ filterType: 'highpass', filterFreq: 2500, duration: 0.25, gain: 0.06 });
+  }
+
+  /** A refunded duck lands in the counter. */
+  shopDuckIn(i: number) {
+    this.coin(i);
+  }
+
+  /** A duck lands in the counter: a bright little blip that climbs. */
+  coin(i: number) {
+    this.tone({ freq: 1046 * Math.pow(2, Math.min(i, 12) / 24), duration: 0.07, type: 'triangle', gain: 0.05 });
   }
 
   /** A gentle sparkle when the warp star is close. */
@@ -423,9 +720,6 @@ export const sfx = new SfxEngine();
 
 export function haptic(pattern: number | number[]) {
   if (save.fxReduced) return;
-  try {
-    navigator.vibrate?.(pattern);
-  } catch {
-    // Not supported (e.g. iOS Safari).
-  }
+  // Native haptics in the app (iPhones ignore navigator.vibrate), else the browser's.
+  vibrate(pattern);
 }

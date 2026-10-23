@@ -15,6 +15,18 @@ export const shared = {
   warp: 0,
   /** 0 normal, 1 dead: the vignette closes in. */
   gloom: 0,
+  /**
+   * Which world's look to use: 0 BASICS, 1 SAWS, 2 BOMBS, 3 CHAOS (levels use
+   * their world; survival and daily runs follow the sector). The background
+   * reads it to pick its sky.
+   */
+  world: 0,
+  /**
+   * The skin the current run is played with: the equipped one, or today's
+   * guest in the Daily Run (see game/guest.ts). Read this, not save.skin,
+   * for anything about the run (the ability pill, the cut-in, sounds).
+   */
+  skin: 'classic',
 };
 
 /** Event names sent over `game.events` between scenes. */
@@ -40,11 +52,76 @@ export const EV = {
   /** UI -> Game: a different skin was equipped. */
   skin: 'dd-skin',
   fxChanged: 'dd-fx-changed',
+  /**
+   * Game -> anyone: something happened that progress tracking cares about
+   * (runs, perfects, ducks, abilities ...). Payload: StatEvent.
+   */
+  stat: 'dd-stat',
+  /** Progress -> UI: show a banner (mission done, achievement, reward). Payload: NotifyData. */
+  notify: 'dd-notify',
+  /** UI/platform -> Game: pause or resume the run (app backgrounded, pause button). */
+  pause: 'dd-pause',
+  resume: 'dd-resume',
+  /** UI -> Game: buy the crash back (CONTINUE). Payload: 'ducks' (default) or 'ad'. */
+  continueRun: 'dd-continue',
+  /** UI -> Game: the CONTINUE offer ran out: the crash stands. */
+  continueDecline: 'dd-continue-decline',
+  /** Game -> UI: back on the track after a CONTINUE: { count } 3, 2, 1, then 0 = GO. */
+  respawn: 'dd-respawn',
 } as const;
 
-/** `level: null` means survival mode. */
+/** Which kind of run is being played. */
+export type RunMode = 'level' | 'survival' | 'daily';
+
+/** Everything progress tracking (missions, achievements, records) listens to. */
+export type StatEvent =
+  | { type: 'runStart'; mode: RunMode; level: number | null }
+  | {
+      type: 'runEnd';
+      mode: RunMode;
+      level: number | null;
+      /** True if a level was cleared (survival/daily runs always end in a crash). */
+      cleared: boolean;
+      meters: number;
+      seconds: number;
+      /** Fraction of the level's goal reached, 0..1 (1 for a clear; survival: 0). */
+      progress: number;
+      stars: number;
+      perfects: number;
+      gateTurns: number;
+      bestCombo: number;
+      ducks: number;
+      warped: boolean;
+      cause: 'wall' | 'saw' | 'bomb' | null;
+      abilityUsed: boolean;
+      /** The attempt was saved by a CONTINUE (a clear gets 1 star at most). */
+      continued: boolean;
+    }
+  /** A crash in a level was bought back. `via` 'ad' is for a future rewarded ad (cost 0). */
+  | { type: 'continue'; level: number | null; cause: 'wall' | 'saw' | 'bomb'; cost: number; via: 'ducks' | 'ad' }
+  | { type: 'perfect'; combo: number }
+  | { type: 'nearMiss'; kind: 'wall' | 'hazard' }
+  | { type: 'duck'; variant: 'normal' | 'red' | 'golden'; value: number }
+  | { type: 'ability'; skin: string }
+  | { type: 'warp'; level: number | null }
+  | { type: 'frenzy'; count: number }
+  | { type: 'spin'; skin: string; rarity: string; isNew: boolean };
+
+export interface NotifyData {
+  title: string;
+  subtitle?: string;
+  /** Accent colour (0xRRGGBB). */
+  color?: number;
+  /** Ducks awarded with it, shown as "+N". */
+  ducks?: number;
+  /** Show it mid-run too (records, milestones). Others wait for the run to end. */
+  live?: boolean;
+}
+
+/** `level: null` means survival mode; `daily: true` plays today's Daily Run. */
 export interface PlayRequest {
   level: number | null;
+  daily?: boolean;
 }
 
 export interface HudData {
@@ -62,7 +139,19 @@ export interface DeathData extends HudData {
   best: number;
   isNewBest: boolean;
   cause: 'wall' | 'saw' | 'bomb';
+  /** For wall crashes: was the turn too early or too late? */
+  hint: 'early' | 'late' | null;
+  /** Ducks kept anyway (all in survival, half of the Universe-2 ducks in a level). */
+  keptDucks: number;
   deaths: number;
+  /**
+   * The crash can be bought back for this many ducks (CONTINUE), or null.
+   * While it's offered the run isn't over: nothing is paid out or recorded
+   * until the offer is taken or runs out.
+   */
+  continueCost: number | null;
+  /** How long the CONTINUE offer stands, seconds. */
+  continueSeconds: number;
 }
 
 export interface ClearData extends HudData {
@@ -74,6 +163,8 @@ export interface ClearData extends HudData {
   turns: number;
   warped: boolean;
   ducks: number;
+  /** Saved by a CONTINUE: stars are capped at 1. */
+  continued: boolean;
 }
 
 export interface FrenzyData {
