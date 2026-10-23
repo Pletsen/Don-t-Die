@@ -209,7 +209,7 @@ export class UIScene extends Phaser.Scene {
     this.buildCutIn();
     // Banners (missions, achievements, records) draw above everything.
     this.banner = new NotifyBanner(this);
-    this.coach = new Coach(this);
+    this.coach = new Coach(this, () => this.calmScreen());
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
@@ -978,9 +978,14 @@ export class UIScene extends Phaser.Scene {
   }
 
   private flushCards() {
-    const calm = this.mode === 'dead' || this.mode === 'clear' || this.mode === 'menu' || this.mode === 'select';
-    if (!calm) return;
+    if (!this.calmScreen()) return;
     for (const spec of this.pendingCards.splice(0)) this.coach.show(spec);
+    this.coach.resume();
+  }
+
+  /** A screen an intro card may open over: a result, the menu, the level map. */
+  private calmScreen() {
+    return this.mode === 'dead' || this.mode === 'clear' || this.mode === 'menu' || this.mode === 'select';
   }
 
   /** EASY 10 opened NORMAL (or NORMAL 10 opened HARD): say so, but don't pull the player away. */

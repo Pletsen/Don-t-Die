@@ -68,7 +68,14 @@ export class Coach {
   /** Taps are ignored for a moment after something opens (the tap that led here). */
   private armedAt = 0;
 
-  constructor(private scene: Phaser.Scene) {
+  /**
+   * `allow` says whether a waiting card may open now (the owner returns false
+   * while a run is on); cards that can't wait in the queue until `resume()`.
+   */
+  constructor(
+    private scene: Phaser.Scene,
+    private allow: () => boolean = () => true,
+  ) {
     const add = scene.add;
     this.blocker = add.zone(0, 0, 10, 10).setOrigin(0).setInteractive();
     this.blocker.on('pointerdown', () => this.tapBackground());
@@ -119,9 +126,16 @@ export class Coach {
     this.steps = steps;
     this.tourDone = done;
     this.step = -1;
+    this.blocker.setInteractive();
     this.root.setVisible(true).setAlpha(0);
     this.scene.tweens.add({ targets: this.root, alpha: 1, duration: 220 });
     this.nextStep();
+  }
+
+  /** Open the next waiting card, if there is one and it may open now. */
+  resume() {
+    if (this.spec || this.steps.length || !this.queue.length || !this.allow()) return;
+    this.open(this.queue.shift()!);
   }
 
   /** Close the tour at once (another screen is taking over). */
@@ -173,6 +187,7 @@ export class Coach {
     this.armedAt = this.scene.time.now + 450;
     this.scene.tweens.killTweensOf(this.root);
     this.root.setVisible(true).setAlpha(1);
+    this.blocker.setInteractive();
     this.dim.setAlpha(0);
     this.scene.tweens.add({ targets: this.dim, alpha: 1, duration: 200 });
     this.card.setVisible(true).setAlpha(0).setScale(0.86);
@@ -224,8 +239,10 @@ export class Coach {
 
   private press(b: { onPress?: () => void }) {
     if (this.scene.time.now < this.armedAt || !this.spec) return;
-    this.closeCard();
+    // The button's action first, so closing knows whether a run has started.
+    const spec = this.spec;
     b.onPress?.();
+    if (this.spec === spec) this.closeCard();
   }
 
   private closeCard() {
@@ -248,11 +265,22 @@ export class Coach {
         if (!this.spec) card.setVisible(false);
       },
     });
-    const next = this.queue.shift();
-    if (next) {
-      this.scene.time.delayedCall(200, () => this.open(next));
+    // The next card follows, unless the button just pressed started a run.
+    if (this.queue.length) {
+      this.scene.time.delayedCall(200, () => {
+        if (this.spec || this.steps.length) return;
+        if (this.allow()) this.open(this.queue.shift()!);
+        else this.fadeAway();
+      });
       return;
     }
+    this.fadeAway();
+  }
+
+  private fadeAway() {
+    // If the button started a run (or opened another screen), taps reach it at
+    // once; else the fading card still swallows them (a double tap on its button).
+    if (!this.allow()) this.blocker.disableInteractive();
     this.scene.tweens.add({ targets: this.dim, alpha: 0, duration: 180, onComplete: () => !this.spec && !this.steps.length && this.root.setVisible(false) });
   }
 
@@ -346,7 +374,6 @@ export class Coach {
       },
     });
     done?.();
-    const next = this.queue.shift();
-    if (next) this.scene.time.delayedCall(220, () => this.open(next));
+    if (this.queue.length) this.scene.time.delayedCall(220, () => this.resume());
   }
 }
