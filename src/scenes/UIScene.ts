@@ -23,7 +23,7 @@ import { renderCard, type CardInfo } from '../ui/shareCard';
 import { calmMoment, share } from '../native/bridge';
 import { todaysGuest } from '../game/guest';
 import { gacha } from '../game/gacha';
-import { Coach, type TourStep } from '../ui/Coach';
+import { Coach, type CardSpec, type TourStep } from '../ui/Coach';
 import { reactorArt, setsArt } from '../ui/introArt';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
@@ -116,6 +116,8 @@ export class UIScene extends Phaser.Scene {
   private banner!: NotifyBanner;
   /** One-time intro cards and the menu tour. */
   private coach!: Coach;
+  /** Intro cards that came due while a run was on: they wait for the next calm screen. */
+  private pendingCards: CardSpec[] = [];
   /** What RETRY replays. */
   private runMode: RunMode = 'level';
   private dailyDot!: Phaser.GameObjects.Graphics;
@@ -964,6 +966,23 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Show an intro card now if the screen is calm (a result, the menu, the
+   * level map), else keep it for the next calm screen. A card must never open
+   * over a run the player has already started (NEXT or RETRY tapped before
+   * the card's delay ran out): it swallows the taps and the ball crashes.
+   */
+  private offerCard(spec: CardSpec) {
+    this.pendingCards.push(spec);
+    this.flushCards();
+  }
+
+  private flushCards() {
+    const calm = this.mode === 'dead' || this.mode === 'clear' || this.mode === 'menu' || this.mode === 'select';
+    if (!calm) return;
+    for (const spec of this.pendingCards.splice(0)) this.coach.show(spec);
+  }
+
   /** EASY 10 opened NORMAL (or NORMAL 10 opened HARD): say so, but don't pull the player away. */
   private maybeUnlockCard(level: number) {
     const opens: LevelSet | null = level === levelId('easy', UNLOCK_AT) ? 'normal' : level === levelId('normal', UNLOCK_AT) ? 'hard' : null;
@@ -974,7 +993,7 @@ export class UIScene extends Phaser.Scene {
     const from = opens === 'normal' ? 'EASY' : 'NORMAL';
     const first = levelId(opens, 1);
     this.time.delayedCall(1300, () =>
-      this.coach.show(
+      this.offerCard(
         opens === 'normal'
           ? {
               title: 'NORMAL UNLOCKED!',
@@ -1008,7 +1027,7 @@ export class UIScene extends Phaser.Scene {
     writeJSON(INTRO_KEYS.reactor, true);
     if (gacha.stats.spins > 0) return false;
     this.time.delayedCall(delay, () =>
-      this.coach.show({
+      this.offerCard({
         title: 'THE QUACK REACTOR',
         color: 0xffd21f,
         art: (sc) => reactorArt(sc),
@@ -1031,6 +1050,7 @@ export class UIScene extends Phaser.Scene {
   private calmSoon() {
     const mode = this.mode;
     this.time.delayedCall(1200, () => this.mode === mode && calmMoment());
+    this.time.delayedCall(900, () => this.flushCards());
   }
 
   /** HOW TO PLAY: animated cards explaining the game. */
@@ -1277,6 +1297,7 @@ export class UIScene extends Phaser.Scene {
     this.countdown.setVisible(false);
     this.tapsFrom = this.time.now + 300;
     this.lastDeath = d;
+    this.time.delayedCall(900, () => this.flushCards());
     this.prepareCard('death');
     this.onHud(d, true);
     this.fadeOut(this.hud);
@@ -1595,6 +1616,7 @@ export class UIScene extends Phaser.Scene {
     this.clearScreen.show(d, rewards.map((r) => `${r.label} +${r.ducks}`).join('   ·   '));
     if (run?.firstClear) this.maybeUnlockCard(d.level);
     if (d.ducks > 0) this.maybeShowSpinBanner(1600);
+    this.time.delayedCall(1300, () => this.flushCards());
   }
 
   // --- "You can spin" banner -------------------------------------------------
