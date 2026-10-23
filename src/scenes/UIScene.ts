@@ -118,6 +118,8 @@ export class UIScene extends Phaser.Scene {
   private coach!: Coach;
   /** Intro cards that came due while a run was on: they wait for the next calm screen. */
   private pendingCards: CardSpec[] = [];
+  /** Intro cards decided on but not shown yet (their seen-flag is only saved once they show). */
+  private introsDue = new Set<string>();
   /** What RETRY replays. */
   private runMode: RunMode = 'level';
   private dailyDot!: Phaser.GameObjects.Graphics;
@@ -999,10 +1001,14 @@ export class UIScene extends Phaser.Scene {
   /** EASY 10 opened NORMAL (or NORMAL 10 opened HARD): say so, but don't pull the player away. */
   private maybeUnlockCard(level: number) {
     const opens: LevelSet | null = level === levelId('easy', UNLOCK_AT) ? 'normal' : level === levelId('normal', UNLOCK_AT) ? 'hard' : null;
-    if (!opens || readJSON<boolean>(INTRO_KEYS[opens], false)) return;
-    writeJSON(INTRO_KEYS[opens], true);
+    if (!opens || readJSON<boolean>(INTRO_KEYS[opens], false) || this.introsDue.has(opens)) return;
     // Saves from before EASY: the set was open already.
-    if (LEVELS_OF[opens].some((l) => save.starsFor(l.id) > 0)) return;
+    if (LEVELS_OF[opens].some((l) => save.starsFor(l.id) > 0)) {
+      writeJSON(INTRO_KEYS[opens], true);
+      return;
+    }
+    this.introsDue.add(opens);
+    const seen = () => writeJSON(INTRO_KEYS[opens], true);
     const from = opens === 'normal' ? 'EASY' : 'NORMAL';
     const first = levelId(opens, 1);
     this.time.delayedCall(1300, () =>
@@ -1016,6 +1022,7 @@ export class UIScene extends Phaser.Scene {
               note: 'NO RUSH: EASY GOES ON TO LEVEL 20,\nWITH BOMBS AND BIGGER CHALLENGES TO COME.',
               primary: { label: `KEEP PLAYING ${from}` },
               secondary: { label: 'TRY NORMAL 1', onPress: () => this.play(first) },
+              onOpen: seen,
             }
           : {
               title: 'HARD MODE UNLOCKED!',
@@ -1025,26 +1032,36 @@ export class UIScene extends Phaser.Scene {
               note: 'NO RUSH: NORMAL GOES ON TO LEVEL 20.\nHARD WAITS FOR YOU UNDER LEVELS.',
               primary: { label: `KEEP PLAYING ${from}` },
               secondary: { label: 'TRY HARD 1', onPress: () => this.play(first) },
+              onOpen: seen,
             },
       ),
     );
   }
 
   /**
-   * The first time the ducks reach a charge: what the REACTOR is, what skins
-   * are, and where to tap. Returns true if the card took over from the
-   * REACTOR READY banner (which follows when the card is closed).
+   * The first time the ducks reach a charge (or a free charge comes in):
+   * what the REACTOR is, what skins are, and where to tap. Returns true if
+   * the card took over from the REACTOR READY banner (which follows when the
+   * card is closed).
    */
   private maybeReactorCard(delay: number): boolean {
     if (readJSON<boolean>(INTRO_KEYS.reactor, false)) return false;
-    writeJSON(INTRO_KEYS.reactor, true);
-    if (gacha.stats.spins > 0) return false;
+    if (this.introsDue.has('reactor')) return true;
+    // Charged before (or a save from before the gacha kept stats): no need.
+    if (gacha.stats.spins > 0 || save.skins.size > 1) {
+      writeJSON(INTRO_KEYS.reactor, true);
+      return false;
+    }
+    this.introsDue.add('reactor');
+    const free = save.ducks < SPIN_COST;
     this.time.delayedCall(delay, () =>
       this.offerCard({
         title: 'THE QUACK REACTOR',
         color: 0xffd21f,
         art: (sc) => reactorArt(sc),
-        body: `You've got ${save.ducks} ducks! Feed ${SPIN_COST} of them\nto the REACTOR and it hatches a new skin.`,
+        body: free
+          ? 'You earned a FREE CHARGE! Spend it in the\nREACTOR and it hatches a new skin.'
+          : `You've got ${save.ducks} ducks! Feed ${SPIN_COST} of them\nto the REACTOR and it hatches a new skin.`,
         note: 'EVERY SKIN HAS ITS OWN LOOK, SOUND AND\nSUPER POWER. YOUR FIRST ONE IS RARE OR BETTER.\nOPEN IT HERE, FROM THE YELLOW BANNER,\nOR WITH REACTOR IN THE MENU.',
         primary: {
           label: 'OPEN THE REACTOR',
@@ -1054,6 +1071,7 @@ export class UIScene extends Phaser.Scene {
           },
         },
         secondary: { label: 'LATER', onPress: () => this.inRun() && this.maybeShowSpinBanner(150) },
+        onOpen: () => writeJSON(INTRO_KEYS.reactor, true),
       }),
     );
     return true;
@@ -1628,7 +1646,10 @@ export class UIScene extends Phaser.Scene {
     const rewards = run && run.cleared ? run.rewards.filter((r) => r.ducks > 0) : [];
     this.clearScreen.show(d, rewards.map((r) => `${r.label} +${r.ducks}`).join('   ·   '));
     if (run?.firstClear) this.maybeUnlockCard(d.level);
-    if (d.ducks > 0) this.maybeShowSpinBanner(1600);
+    // Ducks bonked on the way or paid for the clear: maybe there's a charge now.
+    if (d.ducks + rewards.reduce((a, r) => a + r.ducks, 0) > 0) this.maybeShowSpinBanner(1600);
+    // A free charge (the Star Road) can come before 100 ducks: the REACTOR's intro comes with it.
+    if (save.freeSpins > 0 && save.ducks < SPIN_COST) this.maybeReactorCard(1600);
     this.time.delayedCall(1300, () => this.flushCards());
   }
 

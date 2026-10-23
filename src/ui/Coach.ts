@@ -25,6 +25,8 @@ export interface CardSpec {
   art: (scene: Phaser.Scene) => CardArt;
   primary: { label: string; onPress?: () => void };
   secondary?: { label: string; onPress?: () => void };
+  /** Runs when the card is really on screen (e.g. remember it was seen). */
+  onOpen?: () => void;
 }
 
 export interface TourStep {
@@ -169,6 +171,7 @@ export class Coach {
 
   private open(spec: CardSpec) {
     this.spec = spec;
+    spec.onOpen?.();
     const color = hexColor(spec.color);
     this.title.setText(spec.title).setColor(color).setShadow(0, 0, color, 16, false, true);
     this.body.setText(spec.body);
