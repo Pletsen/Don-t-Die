@@ -98,7 +98,7 @@ export function reactorArt(scene: Phaser.Scene): CardArt {
       // Ducks hop along to the reactor and drop in.
       ducks.forEach((d, i) => {
         const k = Phaser.Math.Clamp(u * 1.6 - i * 0.12, 0, 1);
-        const x = -150 + k * 150;
+        const x = -136 + k * 136;
         const hop = Math.abs(Math.sin(k * Math.PI * 3)) * 10;
         d.setPosition(x, -6 - hop).setVisible(k < 1).setScale((0.3 / DUCK_RES) * (k > 0.85 ? (1 - k) / 0.15 : 1));
       });

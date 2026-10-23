@@ -283,10 +283,11 @@ export class Coach {
     const { w, h } = display.size(this.scene);
     const r = s.target();
     const pad = 8;
-    const x1 = r.x - r.w / 2 - pad;
-    const y1 = r.y - r.h / 2 - pad;
-    const x2 = r.x + r.w / 2 + pad;
-    const y2 = r.y + r.h / 2 + pad;
+    // (Kept inside the screen, so the ring isn't cut off round a full-width button.)
+    const x1 = Math.max(7, r.x - r.w / 2 - pad);
+    const y1 = Math.max(7, r.y - r.h / 2 - pad);
+    const x2 = Math.min(w - 7, r.x + r.w / 2 + pad);
+    const y2 = Math.min(h - 7, r.y + r.h / 2 + pad);
     // Dark everywhere but a hole round the target.
     const a = 0.8;
     this.dim.clear().fillStyle(0x020408, a);
