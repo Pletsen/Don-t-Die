@@ -3,11 +3,11 @@ import { EV, shared, type RunMode, type ClearData, type DeathData, type FrenzyDa
 import { display } from '../game/display';
 import { save } from '../game/storage';
 import { css, palette } from '../game/palette';
-import { LEVELS, SET_NAME, UNLOCK_AT, WORLDS, lastOfSet, levelById, levelId, levelName, levelNumber, setOf } from '../game/levels';
+import { LEVELS, LEVELS_OF, SET_NAME, UNLOCK_AT, WORLDS, lastOfSet, levelById, levelId, levelName, levelNumber, setOf, type LevelSet } from '../game/levels';
 import { sfx } from '../audio/Sfx';
 import { music } from '../audio/Music';
 import { hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton, type TextOpts } from '../ui/widgets';
-import { LevelSelect, nextLevelToPlay, setUnlocked } from '../ui/LevelSelect';
+import { LevelSelect, nextLevelToPlay, rememberSet, setUnlocked } from '../ui/LevelSelect';
 import { skinById, skinTexture, RARITIES, SPIN_COST } from '../game/skins';
 import { abilityFor } from '../game/abilities';
 import { ClearScreen } from '../ui/ClearScreen';
@@ -22,6 +22,9 @@ import { TEX, DUCK_RES } from '../fx/textures';
 import { renderCard, type CardInfo } from '../ui/shareCard';
 import { calmMoment, share } from '../native/bridge';
 import { todaysGuest } from '../game/guest';
+import { gacha } from '../game/gacha';
+import { Coach, type TourStep } from '../ui/Coach';
+import { reactorArt, setsArt } from '../ui/introArt';
 
 type Mode = 'menu' | 'select' | 'skins' | 'howto' | 'daily' | 'records' | 'play' | 'paused' | 'countdown' | 'dead' | 'clear';
 
@@ -48,6 +51,8 @@ const TIPS_KEY = 'dontdie_tips_seen';
 const REACTOR_TIP_KEY = 'dontdie_tip_reactor';
 /** Saves from before EASY existed hear about it once. */
 const EASY_NEWS_KEY = 'dontdie_news_easy';
+/** One-time intro cards and the menu tour. */
+const INTRO_KEYS = { normal: 'dontdie_intro_normal', hard: 'dontdie_intro_hard', reactor: 'dontdie_intro_reactor', menu: 'dontdie_tour_menu' };
 
 /** Bright party colours that all read well on black (no deep blue). */
 const PARTY_COLORS = [0xffd21f, 0xff9a2e, 0xff5cb8, 0x2be8ff, 0x7cff6b];
@@ -109,6 +114,8 @@ export class UIScene extends Phaser.Scene {
   private daily!: DailyScreen;
   private records!: RecordsScreen;
   private banner!: NotifyBanner;
+  /** One-time intro cards and the menu tour. */
+  private coach!: Coach;
   /** What RETRY replays. */
   private runMode: RunMode = 'level';
   private dailyDot!: Phaser.GameObjects.Graphics;
@@ -200,6 +207,7 @@ export class UIScene extends Phaser.Scene {
     this.buildCutIn();
     // Banners (missions, achievements, records) draw above everything.
     this.banner = new NotifyBanner(this);
+    this.coach = new Coach(this);
     this.toastText = this.text(0, 0, '', { size: 15, glow: true, spacing: 2 }).setOrigin(0.5).setAlpha(0);
 
     this.layout();
@@ -215,6 +223,13 @@ export class UIScene extends Phaser.Scene {
     });
     this.input.keyboard?.on('keydown', (e: KeyboardEvent) => {
       this.checkKonami(e.code);
+      if (this.coach.active) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
+          e.preventDefault();
+          this.coach.key();
+        }
+        return;
+      }
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
         e.preventDefault();
         if (this.mode === 'select') this.play(nextLevelToPlay());
@@ -654,7 +669,7 @@ export class UIScene extends Phaser.Scene {
   /** Fade out every screen (before showing another one). */
   private hideScreens() {
     this.hideSpinBanner();
-    this.hideReactorTip();
+    this.coach.cancelTour();
     for (const c of [this.title, this.select.root, this.shop.root, this.howTo.root, this.daily.root, this.records.root, this.over, this.hud]) {
       this.fadeOut(c);
     }
@@ -822,6 +837,7 @@ export class UIScene extends Phaser.Scene {
     this.daily.layout(w, h, top + 4);
     this.records.layout(w, h, top + 4);
     this.banner?.layout(w, h, 8 + display.safeTop());
+    this.coach?.layout();
     this.howTo.layout(w, h, top + 40);
     this.frenzy.setPosition(w / 2, h * 0.3);
     this.clearScreen.layout(w, h);
@@ -884,7 +900,7 @@ export class UIScene extends Phaser.Scene {
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
     this.statsLine.setText(parts.join('   ·   '));
     this.calmSoon();
-    this.maybeShowReactorTip();
+    this.maybeMenuTour();
     this.maybeEasyNews();
   }
 
@@ -896,52 +912,119 @@ export class UIScene extends Phaser.Scene {
     progress.notify({ title: 'NEW: EASY MODE', subtitle: '20 GENTLER LEVELS · SEE LEVELS', color: 0x7cff6b });
   }
 
-  // --- "Your skins live in the REACTOR" ----------------------------------------
-
-  private reactorTip: Phaser.GameObjects.Container | null = null;
+  // --- Introductions -------------------------------------------------------------
 
   /**
-   * Once: a bubble over the REACTOR button saying that's where the skins are
-   * (the menu used to have a SKINS button). Not on the very first launch:
-   * only once the player has a run behind them.
+   * Once, the first time the menu shows after a run: a spotlight on each
+   * button, what it's for. (The very first launch goes straight to HOW TO
+   * PLAY and EASY 1, so the menu waits until it matters.)
    */
-  private maybeShowReactorTip() {
-    if (readJSON<boolean>(REACTOR_TIP_KEY, false) || this.reactorTip) return;
-    if (progress.stats().runs < 1 && save.skins.size <= 1) return;
-    writeJSON(REACTOR_TIP_KEY, true);
-    const { w } = display.size(this);
-    const bw = 262;
-    const bh = 84;
-    const bx = this.skinsBtn.x;
-    const by = this.skinsBtn.y - 23 - 14 - bh / 2;
-    const cx = Phaser.Math.Clamp(bx, 12 + bw / 2, w - 12 - bw / 2);
-    const g = this.add.graphics();
-    g.fillStyle(0x140f02, 0.96).fillRoundedRect(-bw / 2, -bh / 2, bw, bh, 16);
-    g.lineStyle(2, 0xffd21f, 1).strokeRoundedRect(-bw / 2, -bh / 2, bw, bh, 16);
-    // The point, aimed at the button.
-    const px = bx - cx;
-    g.fillStyle(0x140f02, 0.96).fillTriangle(px - 10, bh / 2 - 1, px + 10, bh / 2 - 1, px, bh / 2 + 12);
-    g.lineStyle(2, 0xffd21f, 1).lineBetween(px - 10, bh / 2, px, bh / 2 + 12).lineBetween(px + 10, bh / 2, px, bh / 2 + 12);
-    const title = this.text(0, -24, 'NEW: THE QUACK REACTOR', { size: 15, color: '#ffd21f', spacing: 1 }).setOrigin(0.5);
-    const body = this.text(0, 2, 'YOUR SKINS LIVE IN HERE NOW.\nFEED IT DUCKS FOR NEW ONES.', { font: 'mono', size: 11, color: css.ink, spacing: 0.5 })
-      .setOrigin(0.5)
-      .setAlign('center');
-    const hint = this.text(0, 30, 'TAP TO CLOSE', { font: 'mono', size: 9, color: '#8fa3b5', spacing: 1.5 }).setOrigin(0.5);
-    const tip = this.add.container(cx, by, [g, title, body, hint]).setDepth(900).setAlpha(0).setScale(0.8);
-    this.reactorTip = tip;
-    this.tweens.add({ targets: tip, alpha: 1, scale: 1, delay: 500, duration: 300, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: tip, y: by - 4, delay: 800, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    // Any tap closes it (and still reaches the button underneath). Armed a
-    // moment later, so the tap that opened the menu doesn't close it.
-    this.time.delayedCall(500, () => this.reactorTip === tip && this.input.once('pointerdown', () => this.hideReactorTip()));
+  private maybeMenuTour() {
+    if (readJSON<boolean>(INTRO_KEYS.menu, false) || progress.stats().runs < 1) return;
+    this.time.delayedCall(450, () => {
+      if (this.mode !== 'menu' || this.coach.active || readJSON<boolean>(INTRO_KEYS.menu, false)) return;
+      writeJSON(INTRO_KEYS.menu, true);
+      // (The old one-time bubble over REACTOR is part of the tour now.)
+      writeJSON(REACTOR_TIP_KEY, true);
+      const at = (b: Phaser.GameObjects.Container, w: number, h: number) => () => ({ x: b.x, y: b.y, w, h });
+      const steps: TourStep[] = [
+        { target: at(this.playBtn, 300, 60), color: palette.cyan, title: 'PLAY', body: 'Straight into your next level.' },
+        {
+          target: at(this.levelsBtn, 146, 46),
+          color: palette.cyan,
+          title: 'LEVELS',
+          body: 'Every level, in EASY, NORMAL and HARD. Replay any of them to get all 3 stars.',
+        },
+        {
+          target: at(this.survivalBtn, 146, 46),
+          color: 0xff9a2e,
+          title: 'SURVIVAL',
+          body: 'One endless run that keeps getting faster. How far can you go? A duck for every 200 m.',
+        },
+        {
+          target: at(this.skinsBtn, 146, 46),
+          color: 0xffd21f,
+          title: 'THE QUACK REACTOR',
+          body: `Feed it ${SPIN_COST} ducks and it hatches a new skin, each with its own super power. Your collection lives here.`,
+        },
+        {
+          target: at(this.dailyBtn, 146, 46),
+          color: 0xff5cb8,
+          title: 'DAILY',
+          body: "Today's run (the same for everyone), 3 missions for ducks, and a bonus for every day in a row you come back.",
+        },
+        {
+          target: () => ({ x: (this.helpBtn.x + this.recordsBtn.x) / 2, y: this.helpBtn.y, w: this.recordsBtn.x - this.helpBtn.x + 44, h: 44 }),
+          color: 0xffd21f,
+          title: 'RECORDS & HELP',
+          body: 'The trophy: your records and achievements. The ?: HOW TO PLAY, any time.',
+        },
+      ];
+      this.coach.tour(steps, () => {});
+    });
   }
 
-  private hideReactorTip() {
-    const tip = this.reactorTip;
-    if (!tip) return;
-    this.reactorTip = null;
-    this.tweens.killTweensOf(tip);
-    this.tweens.add({ targets: tip, alpha: 0, scale: 0.9, duration: 160, onComplete: () => tip.destroy() });
+  /** EASY 10 opened NORMAL (or NORMAL 10 opened HARD): say so, but don't pull the player away. */
+  private maybeUnlockCard(level: number) {
+    const opens: LevelSet | null = level === levelId('easy', UNLOCK_AT) ? 'normal' : level === levelId('normal', UNLOCK_AT) ? 'hard' : null;
+    if (!opens || readJSON<boolean>(INTRO_KEYS[opens], false)) return;
+    writeJSON(INTRO_KEYS[opens], true);
+    // Saves from before EASY: the set was open already.
+    if (LEVELS_OF[opens].some((l) => save.starsFor(l.id) > 0)) return;
+    const from = opens === 'normal' ? 'EASY' : 'NORMAL';
+    const first = levelId(opens, 1);
+    this.time.delayedCall(1300, () =>
+      this.coach.show(
+        opens === 'normal'
+          ? {
+              title: 'NORMAL UNLOCKED!',
+              color: palette.cyan,
+              art: (sc) => setsArt(sc, 'normal'),
+              body: 'Faster, tighter, more to dodge.\nIt waits for you under LEVELS.',
+              note: 'NO RUSH: EASY GOES ON TO LEVEL 20,\nWITH BOMBS AND BIGGER CHALLENGES TO COME.',
+              primary: { label: `KEEP PLAYING ${from}` },
+              secondary: { label: 'TRY NORMAL 1', onPress: () => this.play(first) },
+            }
+          : {
+              title: 'HARD MODE UNLOCKED!',
+              color: palette.crimson,
+              art: (sc) => setsArt(sc, 'hard'),
+              body: 'Every level remixed: faster, narrower,\nmore hazards, and double the ducks.',
+              note: 'NO RUSH: NORMAL GOES ON TO LEVEL 20.\nHARD WAITS FOR YOU UNDER LEVELS.',
+              primary: { label: `KEEP PLAYING ${from}` },
+              secondary: { label: 'TRY HARD 1', onPress: () => this.play(first) },
+            },
+      ),
+    );
+  }
+
+  /**
+   * The first time the ducks reach a charge: what the REACTOR is, what skins
+   * are, and where to tap. Returns true if the card took over from the
+   * REACTOR READY banner (which follows when the card is closed).
+   */
+  private maybeReactorCard(delay: number): boolean {
+    if (readJSON<boolean>(INTRO_KEYS.reactor, false)) return false;
+    writeJSON(INTRO_KEYS.reactor, true);
+    if (gacha.stats.spins > 0) return false;
+    this.time.delayedCall(delay, () =>
+      this.coach.show({
+        title: 'THE QUACK REACTOR',
+        color: 0xffd21f,
+        art: (sc) => reactorArt(sc),
+        body: `You've got ${save.ducks} ducks! Feed ${SPIN_COST} of them\nto the REACTOR and it hatches a new skin.`,
+        note: 'EVERY SKIN HAS ITS OWN LOOK, SOUND AND\nSUPER POWER. YOUR FIRST ONE IS RARE OR BETTER.\nOPEN IT HERE, FROM THE YELLOW BANNER,\nOR WITH REACTOR IN THE MENU.',
+        primary: {
+          label: 'OPEN THE REACTOR',
+          onPress: () => {
+            this.hideSpinBanner();
+            this.showSkins();
+          },
+        },
+        secondary: { label: 'LATER', onPress: () => this.inRun() && this.maybeShowSpinBanner(150) },
+      }),
+    );
+    return true;
   }
 
   /** Native app: a waiting system prompt (rating, reminders) may show if the player stays here. */
@@ -1004,7 +1087,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private play(level: number | null) {
-    this.hideReactorTip();
+    this.coach.cancelTour();
     // A one-time tip card right before a level that brings something new.
     const n = level !== null ? levelNumber(level) : 0;
     const tip = LEVEL_TIPS[n];
@@ -1030,6 +1113,7 @@ export class UIScene extends Phaser.Scene {
       return;
     }
     this.level = level;
+    if (level !== null) rememberSet(setOf(level));
     this.runMode = level === null ? 'survival' : 'level';
     this.fadeOut(this.howTo.root);
     this.fadeOut(this.daily.root);
@@ -1048,8 +1132,6 @@ export class UIScene extends Phaser.Scene {
 
   private nextLevel() {
     if (this.level === null || this.level >= lastOfSet(this.level)) this.showSelect();
-    // EASY 10 just opened NORMAL: that's where the game goes on.
-    else if (this.level === levelId('easy', UNLOCK_AT) && save.starsFor(levelId('normal', 1)) === 0) this.play(levelId('normal', 1));
     else this.play(this.level + 1);
   }
 
@@ -1511,6 +1593,7 @@ export class UIScene extends Phaser.Scene {
     const run = progress.lastRun;
     const rewards = run && run.cleared ? run.rewards.filter((r) => r.ducks > 0) : [];
     this.clearScreen.show(d, rewards.map((r) => `${r.label} +${r.ducks}`).join('   ·   '));
+    if (run?.firstClear) this.maybeUnlockCard(d.level);
     if (d.ducks > 0) this.maybeShowSpinBanner(1600);
   }
 
@@ -1545,6 +1628,7 @@ export class UIScene extends Phaser.Scene {
   /** Pops up when you've got enough ducks for a charge of the QUACK REACTOR. */
   private maybeShowSpinBanner(delay = 900) {
     if (save.ducks < SPIN_COST) return;
+    if (this.maybeReactorCard(delay)) return;
     this.spinBannerText.setText(`${save.ducks} DUCKS · TAP TO CHARGE`);
     this.placeSpinBanner();
     const b = this.spinBanner;
@@ -1676,7 +1760,8 @@ export class UIScene extends Phaser.Scene {
 
     if (this.mode === 'select') this.select.update(time);
     if (this.mode === 'skins') this.shop.update(time);
-    this.banner.setPaused(this.mode === 'skins' && this.shop.revealing);
+    this.banner.setPaused((this.mode === 'skins' && this.shop.revealing) || this.coach.active);
+    this.coach.update(time);
     if (this.mode === 'daily') this.daily.update(time);
     if (this.mode === 'records') this.records.update(time);
     if (this.mode === 'howto') this.howTo.update(time);

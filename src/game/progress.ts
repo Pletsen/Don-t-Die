@@ -1,7 +1,7 @@
 import { EV, type HudData, type NotifyData, type RunMode, type StatEvent } from './shared';
 import { save } from './storage';
 import { readJSON, writeJSON } from './persist';
-import { ALL_LEVELS, LEVELS, LEVELS_OF, UNLOCK_AT, levelById, levelId, levelNumber, setOf } from './levels';
+import { ALL_LEVELS, LEVELS, levelById, levelNumber, setOf } from './levels';
 import { Missions, newMissionsData, type MissionCtx, type MissionsData } from './missions';
 import { Achievements, type AchCtx } from './achievements';
 import { Daily, DAILY_MILESTONES, dailyModifier, dayKey, dayNumber, newDailyData, todayKey, type DailyData } from './daily';
@@ -677,12 +677,7 @@ class Progress {
       sum.firstClear = true;
       rec.first = todayKey();
       sum.rewards.push({ label: 'FIRST CLEAR', ducks: ECONOMY.firstClear(id) });
-      // EASY 10 opens NORMAL, NORMAL 10 opens HARD (unless it was open already).
-      const opens = id === levelId('easy', UNLOCK_AT) ? 'normal' : id === levelId('normal', UNLOCK_AT) ? 'hard' : null;
-      if (opens && !LEVELS_OF[opens].some((l) => this.starsFor(l.id) > 0)) {
-        if (opens === 'normal') this.notify({ title: 'NORMAL UNLOCKED', subtitle: '20 LEVELS · FASTER, MORE TO DODGE', color: 0x2be8ff });
-        else this.notify({ title: 'HARD MODE UNLOCKED', subtitle: '20 REMIXED LEVELS · SEE LEVELS', color: 0xff2d55 });
-      }
+      // (EASY 10 opening NORMAL and NORMAL 10 opening HARD get a card: UIScene.maybeUnlockCard.)
     }
     // The fastest clear is a clean one: a CONTINUE doesn't set the record.
     if (!ev.continued && (rec.time === 0 || ev.seconds < rec.time)) rec.time = ev.seconds;

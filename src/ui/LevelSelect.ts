@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ALL_LEVELS, LEVELS_OF, SETS, UNLOCK_AT, WORLDS, levelId, levelNumber, setOf, type LevelDef, type LevelSet } from '../game/levels';
 import { save } from '../game/storage';
+import { readJSON, writeJSON } from '../game/persist';
 import { css } from '../game/palette';
 import { sfx } from '../audio/Sfx';
 import { drawStar, hexColor, makeButton, makeIconButton, makeText, type Button, type IconButton } from './widgets';
@@ -38,14 +39,21 @@ export const setUnlocked = (set: LevelSet): boolean => {
 
 export const isUnlocked = (id: number) => setUnlocked(setOf(id)) && (levelNumber(id) === 1 || save.starsFor(id - 1) > 0);
 
+const LAST_SET_KEY = 'dontdie_last_set';
+/** The set of the level played last: PLAY carries on in it. */
+export const rememberSet = (set: LevelSet) => writeJSON(LAST_SET_KEY, set);
+
 /**
- * The next level to play: the first open level without stars on the main
- * path. EASY until NORMAL opens; then NORMAL is the main game, HARD comes
- * next and whatever is left of EASY last. Once everything open is cleared,
- * the last open level of the hardest set.
+ * The next level to play: the first open level without stars, in the set
+ * played last (opening NORMAL doesn't pull you out of EASY: the card says
+ * it's there, the player picks). After that the main path: NORMAL, HARD,
+ * then whatever is left of EASY. Once everything open is cleared, the last
+ * open level of the hardest set.
  */
 export function nextLevelToPlay(): number {
-  const order: LevelSet[] = setUnlocked('normal') ? ['normal', 'hard', 'easy'] : ['easy'];
+  const path: LevelSet[] = setUnlocked('normal') ? ['normal', 'hard', 'easy'] : ['easy'];
+  const last = readJSON<string>(LAST_SET_KEY, '') as LevelSet;
+  const order = SETS.includes(last) ? [last, ...path.filter((s) => s !== last)] : path;
   for (const set of order.filter(setUnlocked)) {
     const fresh = LEVELS_OF[set].find((l) => isUnlocked(l.id) && save.starsFor(l.id) === 0);
     if (fresh) return fresh.id;
