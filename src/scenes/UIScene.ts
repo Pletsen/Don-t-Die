@@ -663,6 +663,12 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
+  /** The menu's stats line shrinks rather than run off a narrow screen (HARD stars, a long BEST). */
+  private fitStatsLine() {
+    const { w } = display.size(this);
+    this.statsLine.setScale(Math.min(1, (w - 28) / Math.max(1, this.statsLine.width)));
+  }
+
   /** PLAY goes straight into the next level to beat. */
   private playNext() {
     this.play(nextLevelToPlay());
@@ -830,6 +836,7 @@ export class UIScene extends Phaser.Scene {
     this.dailyBtn.setPosition(w / 2 + 78, dockTop + 190);
     this.dailyDot.setPosition(w / 2 + 78 + 66, dockTop + 190 - 18);
     this.statsLine.setPosition(w / 2, dockTop + 244);
+    this.fitStatsLine();
     this.scrim.setSize(w, h);
     this.vignette.setDisplaySize(w, h);
     this.layoutOver();
@@ -901,6 +908,7 @@ export class UIScene extends Phaser.Scene {
     if (save.hardStars() > 0) parts.splice(1, 0, `${save.hardStars()} HARD`);
     if (save.best > 0) parts.push(`BEST ${save.best.toFixed(0)} M`);
     this.statsLine.setText(parts.join('   ·   '));
+    this.fitStatsLine();
     this.calmSoon();
     this.maybeMenuTour();
     this.maybeEasyNews();
