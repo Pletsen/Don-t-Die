@@ -20,6 +20,7 @@ import { CameraRig } from '../player/CameraRig';
 import { buildHeldModel } from '../player/Held';
 import { Player, type PlayerStats } from '../player/Player';
 import { Hud } from '../ui/Hud';
+import { SoundBoard } from '../ui/SoundBoard';
 import { canAfford, Screens, type RunSummary } from '../ui/Screens';
 import { Projectiles } from '../weapons/Projectiles';
 import { Traps } from '../weapons/Traps';
@@ -100,6 +101,7 @@ export class Game {
   /** The browser must hand us the mouse to play; tests (webdriver) have no pointer lock. */
   private readonly requireLock = !navigator.webdriver;
   private v1 = new THREE.Vector3();
+  private soundBoard = new SoundBoard(this.audio);
 
   constructor(root: HTMLElement, ui: HTMLElement) {
     this.save = loadSave();
@@ -135,6 +137,7 @@ export class Game {
       this.buildLevel(1);
     }
     this.showMenu();
+    if (new URLSearchParams(location.search).has('lyd')) this.soundBoard.open(() => this.showMenu());
     requestAnimationFrame(() => this.loop());
   }
 
@@ -395,11 +398,14 @@ export class Game {
 
   private openSettings(back: () => void) {
     const before = settings.quality;
-    this.screens.settings(() => {
-      writeSave(this.save);
-      if (before !== settings.quality) this.setupPost();
-      back();
-    });
+    this.screens.settings(
+      () => {
+        writeSave(this.save);
+        if (before !== settings.quality) this.setupPost();
+        back();
+      },
+      () => this.soundBoard.open(() => this.openSettings(back)),
+    );
   }
 
   startLevel(n: number) {
@@ -1031,6 +1037,11 @@ export class Game {
     for (let i = this.delayed.length - 1; i >= 0; i--) {
       this.delayed[i].t -= dt;
       if (this.delayed[i].t <= 0) this.delayed.splice(i, 1)[0].fn();
+    }
+    if (this.input.was('KeyM')) {
+      settings.muted = !settings.muted;
+      writeSave(this.save);
+      this.hud.toast(settings.muted ? 'Lyd slået fra (M)' : 'Lyd slået til', 1200);
     }
     if (this.input.was('KeyE') && !this.interact()) this.hud.toast('Intet at samle op her', 900);
 

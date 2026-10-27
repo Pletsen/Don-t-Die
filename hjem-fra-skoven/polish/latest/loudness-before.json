@@ -1,0 +1,1772 @@
+[
+ {
+  "id": "step_grass",
+  "f": "step_grass_1.ogg",
+  "cat": "sfx",
+  "dur": 0.79,
+  "peakDb": -3.5,
+  "rmsDb": -28.8,
+  "playedPeakDb": -10.5,
+  "playedRmsDb": -35.7
+ },
+ {
+  "id": "step_grass",
+  "f": "step_grass_2.ogg",
+  "cat": "sfx",
+  "dur": 0.69,
+  "peakDb": -1.7,
+  "rmsDb": -25.9,
+  "playedPeakDb": -8.7,
+  "playedRmsDb": -32.9
+ },
+ {
+  "id": "step_grass",
+  "f": "step_grass_3.ogg",
+  "cat": "sfx",
+  "dur": 0.71,
+  "peakDb": -2.8,
+  "rmsDb": -26,
+  "playedPeakDb": -9.8,
+  "playedRmsDb": -33
+ },
+ {
+  "id": "step_grass",
+  "f": "step_grass_4.ogg",
+  "cat": "sfx",
+  "dur": 0.68,
+  "peakDb": -3.5,
+  "rmsDb": -28.2,
+  "playedPeakDb": -10.4,
+  "playedRmsDb": -35.1
+ },
+ {
+  "id": "step_grass",
+  "f": "step_grass_5.ogg",
+  "cat": "sfx",
+  "dur": 0.61,
+  "peakDb": -3.8,
+  "rmsDb": -27.7,
+  "playedPeakDb": -10.8,
+  "playedRmsDb": -34.6
+ },
+ {
+  "id": "step_leaves",
+  "f": "step_leaves_1.ogg",
+  "cat": "sfx",
+  "dur": 0.41,
+  "peakDb": -1.5,
+  "rmsDb": -24.5,
+  "playedPeakDb": -9.5,
+  "playedRmsDb": -32.5
+ },
+ {
+  "id": "step_leaves",
+  "f": "step_leaves_2.ogg",
+  "cat": "sfx",
+  "dur": 0.48,
+  "peakDb": -1.3,
+  "rmsDb": -22.6,
+  "playedPeakDb": -9.3,
+  "playedRmsDb": -30.5
+ },
+ {
+  "id": "step_leaves",
+  "f": "step_leaves_3.ogg",
+  "cat": "sfx",
+  "dur": 0.44,
+  "peakDb": -3.6,
+  "rmsDb": -19.9,
+  "playedPeakDb": -11.5,
+  "playedRmsDb": -27.9
+ },
+ {
+  "id": "step_leaves",
+  "f": "step_leaves_4.ogg",
+  "cat": "sfx",
+  "dur": 0.46,
+  "peakDb": -2.3,
+  "rmsDb": -25.9,
+  "playedPeakDb": -10.2,
+  "playedRmsDb": -33.9
+ },
+ {
+  "id": "step_snow",
+  "f": "step_snow_1.ogg",
+  "cat": "sfx",
+  "dur": 0.38,
+  "peakDb": -1.1,
+  "rmsDb": -22.6,
+  "playedPeakDb": -8,
+  "playedRmsDb": -29.6
+ },
+ {
+  "id": "step_snow",
+  "f": "step_snow_2.ogg",
+  "cat": "sfx",
+  "dur": 0.25,
+  "peakDb": -2.6,
+  "rmsDb": -18.5,
+  "playedPeakDb": -9.6,
+  "playedRmsDb": -25.4
+ },
+ {
+  "id": "step_snow",
+  "f": "step_snow_3.ogg",
+  "cat": "sfx",
+  "dur": 0.25,
+  "peakDb": -2.1,
+  "rmsDb": -18.1,
+  "playedPeakDb": -9.1,
+  "playedRmsDb": -25
+ },
+ {
+  "id": "step_wood",
+  "f": "step_wood_1.ogg",
+  "cat": "sfx",
+  "dur": 0.27,
+  "peakDb": -5.5,
+  "rmsDb": -25.5,
+  "playedPeakDb": -12.4,
+  "playedRmsDb": -32.4
+ },
+ {
+  "id": "step_wood",
+  "f": "step_wood_2.ogg",
+  "cat": "sfx",
+  "dur": 0.27,
+  "peakDb": -6.1,
+  "rmsDb": -25.5,
+  "playedPeakDb": -13.1,
+  "playedRmsDb": -32.4
+ },
+ {
+  "id": "step_wood",
+  "f": "step_wood_3.ogg",
+  "cat": "sfx",
+  "dur": 0.27,
+  "peakDb": -6.2,
+  "rmsDb": -25.5,
+  "playedPeakDb": -13.1,
+  "playedRmsDb": -32.4
+ },
+ {
+  "id": "breath_sprint",
+  "f": "breath_sprint.ogg",
+  "cat": "sfx",
+  "dur": 2.94,
+  "peakDb": -1.7,
+  "rmsDb": -18.9,
+  "playedPeakDb": -10.9,
+  "playedRmsDb": -28
+ },
+ {
+  "id": "jump",
+  "f": "jump_1.ogg",
+  "cat": "sfx",
+  "dur": 0.38,
+  "peakDb": -7,
+  "rmsDb": -24.7,
+  "playedPeakDb": -13.1,
+  "playedRmsDb": -30.7
+ },
+ {
+  "id": "jump",
+  "f": "jump_2.ogg",
+  "cat": "sfx",
+  "dur": 0.43,
+  "peakDb": -11.7,
+  "rmsDb": -24,
+  "playedPeakDb": -17.7,
+  "playedRmsDb": -30
+ },
+ {
+  "id": "jump",
+  "f": "jump_3.ogg",
+  "cat": "sfx",
+  "dur": 0.34,
+  "peakDb": -8.7,
+  "rmsDb": -23.8,
+  "playedPeakDb": -14.8,
+  "playedRmsDb": -29.8
+ },
+ {
+  "id": "land",
+  "f": "land_1.ogg",
+  "cat": "sfx",
+  "dur": 0.53,
+  "peakDb": -4.8,
+  "rmsDb": -21.7,
+  "playedPeakDb": -9.2,
+  "playedRmsDb": -26.1
+ },
+ {
+  "id": "land",
+  "f": "land_2.ogg",
+  "cat": "sfx",
+  "dur": 0.58,
+  "peakDb": -4.9,
+  "rmsDb": -21.7,
+  "playedPeakDb": -9.3,
+  "playedRmsDb": -26.2
+ },
+ {
+  "id": "land",
+  "f": "land_3.ogg",
+  "cat": "sfx",
+  "dur": 0.58,
+  "peakDb": -4.9,
+  "rmsDb": -21.4,
+  "playedPeakDb": -9.3,
+  "playedRmsDb": -25.9
+ },
+ {
+  "id": "roll",
+  "f": "roll_1.ogg",
+  "cat": "sfx",
+  "dur": 0.62,
+  "peakDb": -2.9,
+  "rmsDb": -23.2,
+  "playedPeakDb": -7.3,
+  "playedRmsDb": -27.6
+ },
+ {
+  "id": "roll",
+  "f": "roll_2.ogg",
+  "cat": "sfx",
+  "dur": 0.61,
+  "peakDb": -1.2,
+  "rmsDb": -19.2,
+  "playedPeakDb": -5.6,
+  "playedRmsDb": -23.6
+ },
+ {
+  "id": "roll",
+  "f": "roll_3.ogg",
+  "cat": "sfx",
+  "dur": 0.48,
+  "peakDb": -1.7,
+  "rmsDb": -20.2,
+  "playedPeakDb": -6.2,
+  "playedRmsDb": -24.6
+ },
+ {
+  "id": "hurt",
+  "f": "hurt_1.ogg",
+  "cat": "sfx",
+  "dur": 0.5,
+  "peakDb": -1.2,
+  "rmsDb": -18.2,
+  "playedPeakDb": -3.1,
+  "playedRmsDb": -20.1
+ },
+ {
+  "id": "hurt",
+  "f": "hurt_2.ogg",
+  "cat": "sfx",
+  "dur": 0.58,
+  "peakDb": -5.4,
+  "rmsDb": -16.2,
+  "playedPeakDb": -7.3,
+  "playedRmsDb": -18.1
+ },
+ {
+  "id": "hurt",
+  "f": "hurt_3.ogg",
+  "cat": "sfx",
+  "dur": 0.69,
+  "peakDb": -4.9,
+  "rmsDb": -17,
+  "playedPeakDb": -6.8,
+  "playedRmsDb": -19
+ },
+ {
+  "id": "hurt",
+  "f": "hurt_4.ogg",
+  "cat": "sfx",
+  "dur": 0.59,
+  "peakDb": -1.1,
+  "rmsDb": -16.3,
+  "playedPeakDb": -3,
+  "playedRmsDb": -18.2
+ },
+ {
+  "id": "death",
+  "f": "death_1.ogg",
+  "cat": "sfx",
+  "dur": 1.42,
+  "peakDb": -4.4,
+  "rmsDb": -17.2,
+  "playedPeakDb": -5.3,
+  "playedRmsDb": -18.2
+ },
+ {
+  "id": "death",
+  "f": "death_2.ogg",
+  "cat": "sfx",
+  "dur": 1.62,
+  "peakDb": -1,
+  "rmsDb": -17.3,
+  "playedPeakDb": -1.9,
+  "playedRmsDb": -18.2
+ },
+ {
+  "id": "heartbeat_slow",
+  "f": "heartbeat_slow.ogg",
+  "cat": "sfx",
+  "dur": 1.8,
+  "peakDb": -5.3,
+  "rmsDb": -22.7,
+  "playedPeakDb": -9.8,
+  "playedRmsDb": -27.1
+ },
+ {
+  "id": "heartbeat_fast",
+  "f": "heartbeat_fast.ogg",
+  "cat": "sfx",
+  "dur": 1.12,
+  "peakDb": -5.2,
+  "rmsDb": -20.4,
+  "playedPeakDb": -8.3,
+  "playedRmsDb": -23.5
+ },
+ {
+  "id": "eat",
+  "f": "eat_1.ogg",
+  "cat": "sfx",
+  "dur": 0.54,
+  "peakDb": -1.7,
+  "rmsDb": -27.7,
+  "playedPeakDb": -6.1,
+  "playedRmsDb": -32.1
+ },
+ {
+  "id": "eat",
+  "f": "eat_2.ogg",
+  "cat": "sfx",
+  "dur": 0.54,
+  "peakDb": -0.9,
+  "rmsDb": -26,
+  "playedPeakDb": -5.3,
+  "playedRmsDb": -30.4
+ },
+ {
+  "id": "eat",
+  "f": "eat_3.ogg",
+  "cat": "sfx",
+  "dur": 0.81,
+  "peakDb": -1.9,
+  "rmsDb": -28.4,
+  "playedPeakDb": -6.3,
+  "playedRmsDb": -32.8
+ },
+ {
+  "id": "weapon_switch",
+  "f": "weapon_switch_1.ogg",
+  "cat": "sfx",
+  "dur": 0.41,
+  "peakDb": -1.1,
+  "rmsDb": -20.4,
+  "playedPeakDb": -8.1,
+  "playedRmsDb": -27.3
+ },
+ {
+  "id": "weapon_switch",
+  "f": "weapon_switch_2.ogg",
+  "cat": "sfx",
+  "dur": 0.44,
+  "peakDb": -0.6,
+  "rmsDb": -18.8,
+  "playedPeakDb": -7.6,
+  "playedRmsDb": -25.7
+ },
+ {
+  "id": "weapon_switch",
+  "f": "weapon_switch_3.ogg",
+  "cat": "sfx",
+  "dur": 0.29,
+  "peakDb": -1.6,
+  "rmsDb": -25.8,
+  "playedPeakDb": -8.6,
+  "playedRmsDb": -32.8
+ },
+ {
+  "id": "bow_draw",
+  "f": "bow_draw_1.ogg",
+  "cat": "sfx",
+  "dur": 1.5,
+  "peakDb": -1.3,
+  "rmsDb": -24,
+  "playedPeakDb": -7.3,
+  "playedRmsDb": -30
+ },
+ {
+  "id": "bow_draw",
+  "f": "bow_draw_2.ogg",
+  "cat": "sfx",
+  "dur": 1.5,
+  "peakDb": -1.2,
+  "rmsDb": -27,
+  "playedPeakDb": -7.2,
+  "playedRmsDb": -33.1
+ },
+ {
+  "id": "bow_draw",
+  "f": "bow_draw_3.ogg",
+  "cat": "sfx",
+  "dur": 0.63,
+  "peakDb": -2.7,
+  "rmsDb": -20,
+  "playedPeakDb": -8.7,
+  "playedRmsDb": -26.1
+ },
+ {
+  "id": "bow_release",
+  "f": "bow_release_1.ogg",
+  "cat": "sfx",
+  "dur": 0.2,
+  "peakDb": -1.4,
+  "rmsDb": -24.3,
+  "playedPeakDb": -2.8,
+  "playedRmsDb": -25.7
+ },
+ {
+  "id": "bow_release",
+  "f": "bow_release_2.ogg",
+  "cat": "sfx",
+  "dur": 0.38,
+  "peakDb": -1.2,
+  "rmsDb": -27,
+  "playedPeakDb": -2.6,
+  "playedRmsDb": -28.5
+ },
+ {
+  "id": "bow_release",
+  "f": "bow_release_3.ogg",
+  "cat": "sfx",
+  "dur": 0.43,
+  "peakDb": -1.1,
+  "rmsDb": -29.8,
+  "playedPeakDb": -2.5,
+  "playedRmsDb": -31.3
+ },
+ {
+  "id": "bow_release",
+  "f": "bow_release_4.ogg",
+  "cat": "sfx",
+  "dur": 0.39,
+  "peakDb": -1.2,
+  "rmsDb": -30.2,
+  "playedPeakDb": -2.6,
+  "playedRmsDb": -31.7
+ },
+ {
+  "id": "arrow_whoosh",
+  "f": "arrow_whoosh_1.ogg",
+  "cat": "sfx",
+  "dur": 0.56,
+  "peakDb": -1,
+  "rmsDb": -24.9,
+  "playedPeakDb": -7.1,
+  "playedRmsDb": -30.9
+ },
+ {
+  "id": "arrow_whoosh",
+  "f": "arrow_whoosh_2.ogg",
+  "cat": "sfx",
+  "dur": 0.45,
+  "peakDb": -1.1,
+  "rmsDb": -25.2,
+  "playedPeakDb": -7.1,
+  "playedRmsDb": -31.2
+ },
+ {
+  "id": "arrow_whoosh",
+  "f": "arrow_whoosh_3.ogg",
+  "cat": "sfx",
+  "dur": 0.47,
+  "peakDb": -0.8,
+  "rmsDb": -22,
+  "playedPeakDb": -6.8,
+  "playedRmsDb": -28.1
+ },
+ {
+  "id": "hit_flesh",
+  "f": "hit_flesh_1.ogg",
+  "cat": "sfx",
+  "dur": 0.59,
+  "peakDb": -2.4,
+  "rmsDb": -22.5,
+  "playedPeakDb": -4.3,
+  "playedRmsDb": -24.4
+ },
+ {
+  "id": "hit_flesh",
+  "f": "hit_flesh_2.ogg",
+  "cat": "sfx",
+  "dur": 0.59,
+  "peakDb": -1.1,
+  "rmsDb": -21.9,
+  "playedPeakDb": -3,
+  "playedRmsDb": -23.8
+ },
+ {
+  "id": "hit_flesh",
+  "f": "hit_flesh_3.ogg",
+  "cat": "sfx",
+  "dur": 0.61,
+  "peakDb": -1.9,
+  "rmsDb": -25.2,
+  "playedPeakDb": -3.9,
+  "playedRmsDb": -27.2
+ },
+ {
+  "id": "hit_flesh",
+  "f": "hit_flesh_4.ogg",
+  "cat": "sfx",
+  "dur": 0.56,
+  "peakDb": -0.9,
+  "rmsDb": -26,
+  "playedPeakDb": -2.8,
+  "playedRmsDb": -28
+ },
+ {
+  "id": "hit_flesh",
+  "f": "hit_flesh_5.ogg",
+  "cat": "sfx",
+  "dur": 0.63,
+  "peakDb": -0.9,
+  "rmsDb": -21.6,
+  "playedPeakDb": -2.8,
+  "playedRmsDb": -23.6
+ },
+ {
+  "id": "gore_splat",
+  "f": "gore_splat_1.ogg",
+  "cat": "sfx",
+  "dur": 0.71,
+  "peakDb": -1.8,
+  "rmsDb": -18.9,
+  "playedPeakDb": -6.3,
+  "playedRmsDb": -23.3
+ },
+ {
+  "id": "gore_splat",
+  "f": "gore_splat_2.ogg",
+  "cat": "sfx",
+  "dur": 0.71,
+  "peakDb": -2,
+  "rmsDb": -17.9,
+  "playedPeakDb": -6.5,
+  "playedRmsDb": -22.3
+ },
+ {
+  "id": "gore_splat",
+  "f": "gore_splat_3.ogg",
+  "cat": "sfx",
+  "dur": 0.51,
+  "peakDb": -1.7,
+  "rmsDb": -19.7,
+  "playedPeakDb": -6.2,
+  "playedRmsDb": -24.1
+ },
+ {
+  "id": "bone_crunch",
+  "f": "bone_crunch_1.ogg",
+  "cat": "sfx",
+  "dur": 0.74,
+  "peakDb": -0.3,
+  "rmsDb": -18.4,
+  "playedPeakDb": -4.8,
+  "playedRmsDb": -22.9
+ },
+ {
+  "id": "bone_crunch",
+  "f": "bone_crunch_2.ogg",
+  "cat": "sfx",
+  "dur": 0.74,
+  "peakDb": -0.1,
+  "rmsDb": -19,
+  "playedPeakDb": -4.6,
+  "playedRmsDb": -23.4
+ },
+ {
+  "id": "hit_wood",
+  "f": "hit_wood_1.ogg",
+  "cat": "sfx",
+  "dur": 0.28,
+  "peakDb": -1.5,
+  "rmsDb": -26.2,
+  "playedPeakDb": -4.6,
+  "playedRmsDb": -29.3
+ },
+ {
+  "id": "hit_wood",
+  "f": "hit_wood_2.ogg",
+  "cat": "sfx",
+  "dur": 0.33,
+  "peakDb": -1.5,
+  "rmsDb": -22.7,
+  "playedPeakDb": -4.6,
+  "playedRmsDb": -25.8
+ },
+ {
+  "id": "hit_wood",
+  "f": "hit_wood_3.ogg",
+  "cat": "sfx",
+  "dur": 0.2,
+  "peakDb": -0.9,
+  "rmsDb": -23,
+  "playedPeakDb": -4,
+  "playedRmsDb": -26.1
+ },
+ {
+  "id": "hit_wood",
+  "f": "hit_wood_4.ogg",
+  "cat": "sfx",
+  "dur": 0.34,
+  "peakDb": -3.9,
+  "rmsDb": -22.2,
+  "playedPeakDb": -7,
+  "playedRmsDb": -25.3
+ },
+ {
+  "id": "hit_ground",
+  "f": "hit_ground_1.ogg",
+  "cat": "sfx",
+  "dur": 0.13,
+  "peakDb": -6.6,
+  "rmsDb": -21.2,
+  "playedPeakDb": -12.6,
+  "playedRmsDb": -27.3
+ },
+ {
+  "id": "hit_ground",
+  "f": "hit_ground_2.ogg",
+  "cat": "sfx",
+  "dur": 0.18,
+  "peakDb": -6.4,
+  "rmsDb": -20.7,
+  "playedPeakDb": -12.4,
+  "playedRmsDb": -26.8
+ },
+ {
+  "id": "hit_ground",
+  "f": "hit_ground_3.ogg",
+  "cat": "sfx",
+  "dur": 0.16,
+  "peakDb": -7.6,
+  "rmsDb": -21.8,
+  "playedPeakDb": -13.6,
+  "playedRmsDb": -27.9
+ },
+ {
+  "id": "hit_stone",
+  "f": "hit_stone_1.ogg",
+  "cat": "sfx",
+  "dur": 0.27,
+  "peakDb": -1.5,
+  "rmsDb": -29.8,
+  "playedPeakDb": -5.9,
+  "playedRmsDb": -34.2
+ },
+ {
+  "id": "hit_stone",
+  "f": "hit_stone_2.ogg",
+  "cat": "sfx",
+  "dur": 0.29,
+  "peakDb": -1.7,
+  "rmsDb": -26.8,
+  "playedPeakDb": -6.2,
+  "playedRmsDb": -31.2
+ },
+ {
+  "id": "throw_light",
+  "f": "throw_light_1.ogg",
+  "cat": "sfx",
+  "dur": 0.13,
+  "peakDb": -9.2,
+  "rmsDb": -19.3,
+  "playedPeakDb": -13.7,
+  "playedRmsDb": -23.8
+ },
+ {
+  "id": "throw_light",
+  "f": "throw_light_2.ogg",
+  "cat": "sfx",
+  "dur": 0.2,
+  "peakDb": -7.9,
+  "rmsDb": -21.3,
+  "playedPeakDb": -12.3,
+  "playedRmsDb": -25.7
+ },
+ {
+  "id": "throw_light",
+  "f": "throw_light_3.ogg",
+  "cat": "sfx",
+  "dur": 0.2,
+  "peakDb": -4.7,
+  "rmsDb": -19.9,
+  "playedPeakDb": -9.2,
+  "playedRmsDb": -24.3
+ },
+ {
+  "id": "throw_heavy",
+  "f": "throw_heavy_1.ogg",
+  "cat": "sfx",
+  "dur": 0.52,
+  "peakDb": -5.3,
+  "rmsDb": -22,
+  "playedPeakDb": -8.4,
+  "playedRmsDb": -25.1
+ },
+ {
+  "id": "throw_heavy",
+  "f": "throw_heavy_2.ogg",
+  "cat": "sfx",
+  "dur": 0.51,
+  "peakDb": -6.3,
+  "rmsDb": -23.9,
+  "playedPeakDb": -9.4,
+  "playedRmsDb": -27
+ },
+ {
+  "id": "throw_heavy",
+  "f": "throw_heavy_3.ogg",
+  "cat": "sfx",
+  "dur": 0.51,
+  "peakDb": -6.6,
+  "rmsDb": -22.4,
+  "playedPeakDb": -9.7,
+  "playedRmsDb": -25.5
+ },
+ {
+  "id": "throw_spin",
+  "f": "throw_spin_1.ogg",
+  "cat": "sfx",
+  "dur": 1.4,
+  "peakDb": -3.5,
+  "rmsDb": -23.5,
+  "playedPeakDb": -9.5,
+  "playedRmsDb": -29.6
+ },
+ {
+  "id": "throw_spin",
+  "f": "throw_spin_2.ogg",
+  "cat": "sfx",
+  "dur": 1.43,
+  "peakDb": -2.5,
+  "rmsDb": -23.6,
+  "playedPeakDb": -8.5,
+  "playedRmsDb": -29.6
+ },
+ {
+  "id": "melee_swing",
+  "f": "melee_swing_1.ogg",
+  "cat": "sfx",
+  "dur": 0.36,
+  "peakDb": -6.1,
+  "rmsDb": -23.6,
+  "playedPeakDb": -9.2,
+  "playedRmsDb": -26.7
+ },
+ {
+  "id": "melee_swing",
+  "f": "melee_swing_2.ogg",
+  "cat": "sfx",
+  "dur": 0.37,
+  "peakDb": -6.7,
+  "rmsDb": -22.6,
+  "playedPeakDb": -9.8,
+  "playedRmsDb": -25.7
+ },
+ {
+  "id": "melee_swing",
+  "f": "melee_swing_3.ogg",
+  "cat": "sfx",
+  "dur": 0.37,
+  "peakDb": -7.7,
+  "rmsDb": -21.2,
+  "playedPeakDb": -10.8,
+  "playedRmsDb": -24.3
+ },
+ {
+  "id": "melee_swing",
+  "f": "melee_swing_4.ogg",
+  "cat": "sfx",
+  "dur": 0.5,
+  "peakDb": -6.4,
+  "rmsDb": -22.1,
+  "playedPeakDb": -9.5,
+  "playedRmsDb": -25.2
+ },
+ {
+  "id": "knife_stab",
+  "f": "knife_stab_1.ogg",
+  "cat": "sfx",
+  "dur": 0.44,
+  "peakDb": -2.2,
+  "rmsDb": -19.1,
+  "playedPeakDb": -5.3,
+  "playedRmsDb": -22.2
+ },
+ {
+  "id": "knife_stab",
+  "f": "knife_stab_2.ogg",
+  "cat": "sfx",
+  "dur": 0.53,
+  "peakDb": -1.6,
+  "rmsDb": -21,
+  "playedPeakDb": -4.7,
+  "playedRmsDb": -24.1
+ },
+ {
+  "id": "axe_chop",
+  "f": "axe_chop_1.ogg",
+  "cat": "sfx",
+  "dur": 0.25,
+  "peakDb": -4.1,
+  "rmsDb": -23.2,
+  "playedPeakDb": -6.6,
+  "playedRmsDb": -25.7
+ },
+ {
+  "id": "axe_chop",
+  "f": "axe_chop_2.ogg",
+  "cat": "sfx",
+  "dur": 0.31,
+  "peakDb": -4.7,
+  "rmsDb": -23.9,
+  "playedPeakDb": -7.2,
+  "playedRmsDb": -26.4
+ },
+ {
+  "id": "sling_whirl",
+  "f": "sling_whirl.ogg",
+  "cat": "sfx",
+  "dur": 2.35,
+  "peakDb": -1.3,
+  "rmsDb": -16.4,
+  "playedPeakDb": -8.3,
+  "playedRmsDb": -23.4
+ },
+ {
+  "id": "sling_release",
+  "f": "sling_release_1.ogg",
+  "cat": "sfx",
+  "dur": 0.1,
+  "peakDb": -4.6,
+  "rmsDb": -20,
+  "playedPeakDb": -9.1,
+  "playedRmsDb": -24.4
+ },
+ {
+  "id": "sling_release",
+  "f": "sling_release_2.ogg",
+  "cat": "sfx",
+  "dur": 0.11,
+  "peakDb": -4.8,
+  "rmsDb": -19.3,
+  "playedPeakDb": -9.3,
+  "playedRmsDb": -23.8
+ },
+ {
+  "id": "trap_set",
+  "f": "trap_set_1.ogg",
+  "cat": "sfx",
+  "dur": 0.27,
+  "peakDb": -0.6,
+  "rmsDb": -24.4,
+  "playedPeakDb": -5,
+  "playedRmsDb": -28.8
+ },
+ {
+  "id": "trap_set",
+  "f": "trap_set_2.ogg",
+  "cat": "sfx",
+  "dur": 0.45,
+  "peakDb": -1.6,
+  "rmsDb": -28.2,
+  "playedPeakDb": -6,
+  "playedRmsDb": -32.7
+ },
+ {
+  "id": "snare_set",
+  "f": "snare_set_1.ogg",
+  "cat": "sfx",
+  "dur": 0.3,
+  "peakDb": -0.6,
+  "rmsDb": -24,
+  "playedPeakDb": -5.8,
+  "playedRmsDb": -29.2
+ },
+ {
+  "id": "snare_set",
+  "f": "snare_set_2.ogg",
+  "cat": "sfx",
+  "dur": 0.3,
+  "peakDb": -1.4,
+  "rmsDb": -24.1,
+  "playedPeakDb": -6.6,
+  "playedRmsDb": -29.3
+ },
+ {
+  "id": "snare_snap",
+  "f": "snare_snap_1.ogg",
+  "cat": "sfx",
+  "dur": 0.61,
+  "peakDb": -1.3,
+  "rmsDb": -24.7,
+  "playedPeakDb": -3.2,
+  "playedRmsDb": -26.6
+ },
+ {
+  "id": "snare_snap",
+  "f": "snare_snap_2.ogg",
+  "cat": "sfx",
+  "dur": 0.69,
+  "peakDb": -4.8,
+  "rmsDb": -22.3,
+  "playedPeakDb": -6.7,
+  "playedRmsDb": -24.2
+ },
+ {
+  "id": "beartrap_clamp",
+  "f": "beartrap_clamp_1.ogg",
+  "cat": "sfx",
+  "dur": 0.45,
+  "peakDb": -1.4,
+  "rmsDb": -23,
+  "playedPeakDb": -2.3,
+  "playedRmsDb": -23.9
+ },
+ {
+  "id": "beartrap_clamp",
+  "f": "beartrap_clamp_2.ogg",
+  "cat": "sfx",
+  "dur": 0.58,
+  "peakDb": -0.6,
+  "rmsDb": -24.3,
+  "playedPeakDb": -1.5,
+  "playedRmsDb": -25.3
+ },
+ {
+  "id": "beartrap_clamp",
+  "f": "beartrap_clamp_3.ogg",
+  "cat": "sfx",
+  "dur": 0.37,
+  "peakDb": -1,
+  "rmsDb": -23,
+  "playedPeakDb": -2,
+  "playedRmsDb": -23.9
+ },
+ {
+  "id": "bait_place",
+  "f": "bait_place.ogg",
+  "cat": "sfx",
+  "dur": 0.37,
+  "peakDb": -2.5,
+  "rmsDb": -19.3,
+  "playedPeakDb": -6.9,
+  "playedRmsDb": -23.8
+ },
+ {
+  "id": "ammo_pickup",
+  "f": "ammo_pickup_1.ogg",
+  "cat": "sfx",
+  "dur": 0.36,
+  "peakDb": -1.6,
+  "rmsDb": -24.2,
+  "playedPeakDb": -7.6,
+  "playedRmsDb": -30.2
+ },
+ {
+  "id": "ammo_pickup",
+  "f": "ammo_pickup_2.ogg",
+  "cat": "sfx",
+  "dur": 0.28,
+  "peakDb": -1.5,
+  "rmsDb": -28.2,
+  "playedPeakDb": -7.6,
+  "playedRmsDb": -34.2
+ },
+ {
+  "id": "wolf_howl",
+  "f": "wolf_howl_1.ogg",
+  "cat": "ambience",
+  "dur": 6.82,
+  "peakDb": -6.6,
+  "rmsDb": -22,
+  "playedPeakDb": -9.7,
+  "playedRmsDb": -25.1
+ },
+ {
+  "id": "wolf_howl",
+  "f": "wolf_howl_2.ogg",
+  "cat": "ambience",
+  "dur": 9.32,
+  "peakDb": -6.8,
+  "rmsDb": -20.4,
+  "playedPeakDb": -9.9,
+  "playedRmsDb": -23.5
+ },
+ {
+  "id": "wolf_howl",
+  "f": "wolf_howl_3.ogg",
+  "cat": "ambience",
+  "dur": 4.4,
+  "peakDb": -11.2,
+  "rmsDb": -20.4,
+  "playedPeakDb": -14.3,
+  "playedRmsDb": -23.5
+ },
+ {
+  "id": "wolf_pack_distant",
+  "f": "wolf_pack_distant.ogg",
+  "cat": "ambience",
+  "dur": 28.33,
+  "peakDb": -6.3,
+  "rmsDb": -20.1,
+  "playedPeakDb": -13.2,
+  "playedRmsDb": -27.1
+ },
+ {
+  "id": "wolf_growl",
+  "f": "wolf_growl_1.ogg",
+  "cat": "sfx",
+  "dur": 0.74,
+  "peakDb": -1,
+  "rmsDb": -17.5,
+  "playedPeakDb": -3,
+  "playedRmsDb": -19.4
+ },
+ {
+  "id": "wolf_growl",
+  "f": "wolf_growl_2.ogg",
+  "cat": "sfx",
+  "dur": 0.68,
+  "peakDb": -4,
+  "rmsDb": -17,
+  "playedPeakDb": -5.9,
+  "playedRmsDb": -19
+ },
+ {
+  "id": "wolf_growl",
+  "f": "wolf_growl_3.ogg",
+  "cat": "sfx",
+  "dur": 0.83,
+  "peakDb": -2.9,
+  "rmsDb": -17.6,
+  "playedPeakDb": -4.8,
+  "playedRmsDb": -19.5
+ },
+ {
+  "id": "wolf_attack",
+  "f": "wolf_attack_1.ogg",
+  "cat": "sfx",
+  "dur": 1.12,
+  "peakDb": -1.2,
+  "rmsDb": -20.1,
+  "playedPeakDb": -2.6,
+  "playedRmsDb": -21.5
+ },
+ {
+  "id": "wolf_attack",
+  "f": "wolf_attack_2.ogg",
+  "cat": "sfx",
+  "dur": 1.17,
+  "peakDb": -2,
+  "rmsDb": -24.1,
+  "playedPeakDb": -3.4,
+  "playedRmsDb": -25.5
+ },
+ {
+  "id": "wolf_hurt",
+  "f": "wolf_hurt_1.ogg",
+  "cat": "sfx",
+  "dur": 0.49,
+  "peakDb": -2.8,
+  "rmsDb": -18.2,
+  "playedPeakDb": -4.7,
+  "playedRmsDb": -20.1
+ },
+ {
+  "id": "wolf_hurt",
+  "f": "wolf_hurt_2.ogg",
+  "cat": "sfx",
+  "dur": 0.49,
+  "peakDb": -4,
+  "rmsDb": -18.2,
+  "playedPeakDb": -6,
+  "playedRmsDb": -20.2
+ },
+ {
+  "id": "bear_roar",
+  "f": "bear_roar_1.ogg",
+  "cat": "sfx",
+  "dur": 3.22,
+  "peakDb": -5.2,
+  "rmsDb": -17.4,
+  "playedPeakDb": -6.2,
+  "playedRmsDb": -18.3
+ },
+ {
+  "id": "bear_roar",
+  "f": "bear_roar_2.ogg",
+  "cat": "sfx",
+  "dur": 3.62,
+  "peakDb": -4.6,
+  "rmsDb": -17,
+  "playedPeakDb": -5.6,
+  "playedRmsDb": -17.9
+ },
+ {
+  "id": "bear_roar",
+  "f": "bear_roar_3.ogg",
+  "cat": "sfx",
+  "dur": 3.52,
+  "peakDb": -0.7,
+  "rmsDb": -20.8,
+  "playedPeakDb": -1.6,
+  "playedRmsDb": -21.8
+ },
+ {
+  "id": "bear_growl",
+  "f": "bear_growl_1.ogg",
+  "cat": "sfx",
+  "dur": 1.08,
+  "peakDb": -7.4,
+  "rmsDb": -17,
+  "playedPeakDb": -8.8,
+  "playedRmsDb": -18.4
+ },
+ {
+  "id": "bear_growl",
+  "f": "bear_growl_2.ogg",
+  "cat": "sfx",
+  "dur": 1.2,
+  "peakDb": -5.3,
+  "rmsDb": -16.9,
+  "playedPeakDb": -6.7,
+  "playedRmsDb": -18.3
+ },
+ {
+  "id": "boar_grunt",
+  "f": "boar_grunt_1.ogg",
+  "cat": "sfx",
+  "dur": 0.53,
+  "peakDb": -1.9,
+  "rmsDb": -19.8,
+  "playedPeakDb": -5,
+  "playedRmsDb": -22.9
+ },
+ {
+  "id": "boar_grunt",
+  "f": "boar_grunt_2.ogg",
+  "cat": "sfx",
+  "dur": 0.94,
+  "peakDb": -2.7,
+  "rmsDb": -17.6,
+  "playedPeakDb": -5.8,
+  "playedRmsDb": -20.7
+ },
+ {
+  "id": "boar_grunt",
+  "f": "boar_grunt_3.ogg",
+  "cat": "sfx",
+  "dur": 0.69,
+  "peakDb": -3.4,
+  "rmsDb": -18.8,
+  "playedPeakDb": -6.5,
+  "playedRmsDb": -21.9
+ },
+ {
+  "id": "boar_squeal",
+  "f": "boar_squeal_1.ogg",
+  "cat": "sfx",
+  "dur": 0.57,
+  "peakDb": -2.2,
+  "rmsDb": -19.1,
+  "playedPeakDb": -4.1,
+  "playedRmsDb": -21
+ },
+ {
+  "id": "boar_squeal",
+  "f": "boar_squeal_2.ogg",
+  "cat": "sfx",
+  "dur": 1.02,
+  "peakDb": -1.5,
+  "rmsDb": -18.9,
+  "playedPeakDb": -3.4,
+  "playedRmsDb": -20.8
+ },
+ {
+  "id": "deer_call",
+  "f": "deer_call_1.ogg",
+  "cat": "ambience",
+  "dur": 2.81,
+  "peakDb": -6.5,
+  "rmsDb": -20.6,
+  "playedPeakDb": -9.6,
+  "playedRmsDb": -23.7
+ },
+ {
+  "id": "deer_call",
+  "f": "deer_call_2.ogg",
+  "cat": "ambience",
+  "dur": 3.02,
+  "peakDb": -6.2,
+  "rmsDb": -20.8,
+  "playedPeakDb": -9.3,
+  "playedRmsDb": -23.9
+ },
+ {
+  "id": "deer_roar",
+  "f": "deer_roar.ogg",
+  "cat": "sfx",
+  "dur": 4.02,
+  "peakDb": -1.2,
+  "rmsDb": -17.3,
+  "playedPeakDb": -2.6,
+  "playedRmsDb": -18.7
+ },
+ {
+  "id": "moose_grunt",
+  "f": "moose_grunt_1.ogg",
+  "cat": "sfx",
+  "dur": 1.3,
+  "peakDb": -6.9,
+  "rmsDb": -16.8,
+  "playedPeakDb": -8.3,
+  "playedRmsDb": -18.2
+ },
+ {
+  "id": "moose_grunt",
+  "f": "moose_grunt_2.ogg",
+  "cat": "sfx",
+  "dur": 0.79,
+  "peakDb": -6.1,
+  "rmsDb": -17.3,
+  "playedPeakDb": -7.5,
+  "playedRmsDb": -18.7
+ },
+ {
+  "id": "moose_bellow",
+  "f": "moose_bellow_1.ogg",
+  "cat": "sfx",
+  "dur": 1.07,
+  "peakDb": -0.7,
+  "rmsDb": -20.2,
+  "playedPeakDb": -1.7,
+  "playedRmsDb": -21.1
+ },
+ {
+  "id": "moose_bellow",
+  "f": "moose_bellow_2.ogg",
+  "cat": "sfx",
+  "dur": 1.78,
+  "peakDb": -0.9,
+  "rmsDb": -17.7,
+  "playedPeakDb": -1.8,
+  "playedRmsDb": -18.6
+ },
+ {
+  "id": "fox_bark",
+  "f": "fox_bark_1.ogg",
+  "cat": "sfx",
+  "dur": 0.62,
+  "peakDb": -2.3,
+  "rmsDb": -18.2,
+  "playedPeakDb": -5.4,
+  "playedRmsDb": -21.3
+ },
+ {
+  "id": "fox_bark",
+  "f": "fox_bark_2.ogg",
+  "cat": "sfx",
+  "dur": 0.66,
+  "peakDb": -4,
+  "rmsDb": -20.4,
+  "playedPeakDb": -7.1,
+  "playedRmsDb": -23.5
+ },
+ {
+  "id": "fox_bark",
+  "f": "fox_bark_3.ogg",
+  "cat": "sfx",
+  "dur": 0.66,
+  "peakDb": -4.4,
+  "rmsDb": -19.2,
+  "playedPeakDb": -7.5,
+  "playedRmsDb": -22.3
+ },
+ {
+  "id": "bird_flush",
+  "f": "bird_flush_1.ogg",
+  "cat": "sfx",
+  "dur": 1.8,
+  "peakDb": -5.3,
+  "rmsDb": -17.5,
+  "playedPeakDb": -8.4,
+  "playedRmsDb": -20.6
+ },
+ {
+  "id": "bird_flush",
+  "f": "bird_flush_2.ogg",
+  "cat": "sfx",
+  "dur": 1,
+  "peakDb": -2.3,
+  "rmsDb": -32.5,
+  "playedPeakDb": -5.4,
+  "playedRmsDb": -35.6
+ },
+ {
+  "id": "hare_squeal",
+  "f": "hare_squeal_1.ogg",
+  "cat": "sfx",
+  "dur": 0.61,
+  "peakDb": -0.9,
+  "rmsDb": -18.1,
+  "playedPeakDb": -7,
+  "playedRmsDb": -24.1
+ },
+ {
+  "id": "hare_squeal",
+  "f": "hare_squeal_2.ogg",
+  "cat": "sfx",
+  "dur": 0.58,
+  "peakDb": -5.7,
+  "rmsDb": -16.8,
+  "playedPeakDb": -11.7,
+  "playedRmsDb": -22.9
+ },
+ {
+  "id": "animal_flee",
+  "f": "animal_flee_1.ogg",
+  "cat": "sfx",
+  "dur": 0.91,
+  "peakDb": -2.4,
+  "rmsDb": -21.8,
+  "playedPeakDb": -6.9,
+  "playedRmsDb": -26.2
+ },
+ {
+  "id": "animal_flee",
+  "f": "animal_flee_2.ogg",
+  "cat": "sfx",
+  "dur": 0.92,
+  "peakDb": -1.2,
+  "rmsDb": -19.5,
+  "playedPeakDb": -5.6,
+  "playedRmsDb": -23.9
+ },
+ {
+  "id": "animal_flee",
+  "f": "animal_flee_3.ogg",
+  "cat": "sfx",
+  "dur": 0.9,
+  "peakDb": -1.5,
+  "rmsDb": -21.4,
+  "playedPeakDb": -5.9,
+  "playedRmsDb": -25.8
+ },
+ {
+  "id": "animal_alert",
+  "f": "animal_alert_1.ogg",
+  "cat": "sfx",
+  "dur": 0.42,
+  "peakDb": -1.4,
+  "rmsDb": -18.8,
+  "playedPeakDb": -5.9,
+  "playedRmsDb": -23.2
+ },
+ {
+  "id": "animal_alert",
+  "f": "animal_alert_2.ogg",
+  "cat": "sfx",
+  "dur": 0.42,
+  "peakDb": -1.6,
+  "rmsDb": -19.3,
+  "playedPeakDb": -6.1,
+  "playedRmsDb": -23.7
+ },
+ {
+  "id": "animal_hurt",
+  "f": "animal_hurt_1.ogg",
+  "cat": "sfx",
+  "dur": 0.52,
+  "peakDb": -5.5,
+  "rmsDb": -19.8,
+  "playedPeakDb": -8.6,
+  "playedRmsDb": -22.9
+ },
+ {
+  "id": "animal_hurt",
+  "f": "animal_hurt_2.ogg",
+  "cat": "sfx",
+  "dur": 0.52,
+  "peakDb": -1.4,
+  "rmsDb": -19.4,
+  "playedPeakDb": -4.5,
+  "playedRmsDb": -22.5
+ },
+ {
+  "id": "animal_death_fall",
+  "f": "animal_death_fall_1.ogg",
+  "cat": "sfx",
+  "dur": 0.67,
+  "peakDb": -4.5,
+  "rmsDb": -20.4,
+  "playedPeakDb": -7.6,
+  "playedRmsDb": -23.5
+ },
+ {
+  "id": "animal_death_fall",
+  "f": "animal_death_fall_2.ogg",
+  "cat": "sfx",
+  "dur": 0.5,
+  "peakDb": -5.8,
+  "rmsDb": -20.6,
+  "playedPeakDb": -8.9,
+  "playedRmsDb": -23.7
+ },
+ {
+  "id": "boss_wolf_howl",
+  "f": "boss_wolf_howl.ogg",
+  "cat": "sfx",
+  "dur": 5.19,
+  "peakDb": -7.1,
+  "rmsDb": -16.4,
+  "playedPeakDb": -7.1,
+  "playedRmsDb": -16.4
+ },
+ {
+  "id": "boss_wolf_snarl",
+  "f": "boss_wolf_snarl_1.ogg",
+  "cat": "sfx",
+  "dur": 2.77,
+  "peakDb": -1.2,
+  "rmsDb": -18.8,
+  "playedPeakDb": -1.2,
+  "playedRmsDb": -18.8
+ },
+ {
+  "id": "boss_wolf_snarl",
+  "f": "boss_wolf_snarl_2.ogg",
+  "cat": "sfx",
+  "dur": 2.55,
+  "peakDb": -0.9,
+  "rmsDb": -24.3,
+  "playedPeakDb": -0.9,
+  "playedRmsDb": -24.3
+ },
+ {
+  "id": "boss_moose_bellow",
+  "f": "boss_moose_bellow_1.ogg",
+  "cat": "sfx",
+  "dur": 1.39,
+  "peakDb": -1,
+  "rmsDb": -20.2,
+  "playedPeakDb": -1,
+  "playedRmsDb": -20.2
+ },
+ {
+  "id": "boss_moose_bellow",
+  "f": "boss_moose_bellow_2.ogg",
+  "cat": "sfx",
+  "dur": 1.97,
+  "peakDb": -6.8,
+  "rmsDb": -16.8,
+  "playedPeakDb": -6.8,
+  "playedRmsDb": -16.8
+ },
+ {
+  "id": "boss_bear_roar",
+  "f": "boss_bear_roar_1.ogg",
+  "cat": "sfx",
+  "dur": 4.81,
+  "peakDb": -4.8,
+  "rmsDb": -17.1,
+  "playedPeakDb": -4.8,
+  "playedRmsDb": -17.1
+ },
+ {
+  "id": "boss_bear_roar",
+  "f": "boss_bear_roar_2.ogg",
+  "cat": "sfx",
+  "dur": 6.15,
+  "peakDb": -2,
+  "rmsDb": -17.9,
+  "playedPeakDb": -2,
+  "playedRmsDb": -17.9
+ },
+ {
+  "id": "boss_charge",
+  "f": "boss_charge_1.ogg",
+  "cat": "sfx",
+  "dur": 0.75,
+  "peakDb": -5.5,
+  "rmsDb": -20.5,
+  "playedPeakDb": -6.4,
+  "playedRmsDb": -21.4
+ },
+ {
+  "id": "boss_charge",
+  "f": "boss_charge_2.ogg",
+  "cat": "sfx",
+  "dur": 0.67,
+  "peakDb": -5.2,
+  "rmsDb": -20.5,
+  "playedPeakDb": -6.1,
+  "playedRmsDb": -21.4
+ },
+ {
+  "id": "boss_charge",
+  "f": "boss_charge_3.ogg",
+  "cat": "sfx",
+  "dur": 0.75,
+  "peakDb": -5.3,
+  "rmsDb": -20.6,
+  "playedPeakDb": -6.2,
+  "playedRmsDb": -21.5
+ },
+ {
+  "id": "pickup_meat",
+  "f": "pickup_meat_1.ogg",
+  "cat": "sfx",
+  "dur": 0.37,
+  "peakDb": -2.5,
+  "rmsDb": -19.3,
+  "playedPeakDb": -6.9,
+  "playedRmsDb": -23.8
+ },
+ {
+  "id": "pickup_meat",
+  "f": "pickup_meat_2.ogg",
+  "cat": "sfx",
+  "dur": 0.3,
+  "peakDb": -0.6,
+  "rmsDb": -24,
+  "playedPeakDb": -5,
+  "playedRmsDb": -28.5
+ },
+ {
+  "id": "pickup_shards",
+  "f": "pickup_shards_1.ogg",
+  "cat": "sfx",
+  "dur": 0.79,
+  "peakDb": -1.6,
+  "rmsDb": -30.7,
+  "playedPeakDb": -6.8,
+  "playedRmsDb": -35.9
+ },
+ {
+  "id": "pickup_shards",
+  "f": "pickup_shards_2.ogg",
+  "cat": "sfx",
+  "dur": 0.36,
+  "peakDb": -1.9,
+  "rmsDb": -24.1,
+  "playedPeakDb": -7.1,
+  "playedRmsDb": -29.3
+ },
+ {
+  "id": "pickup_trophy",
+  "f": "pickup_trophy.ogg",
+  "cat": "ui",
+  "dur": 2.59,
+  "peakDb": -6.6,
+  "rmsDb": -18.8,
+  "playedPeakDb": -9.7,
+  "playedRmsDb": -21.9
+ },
+ {
+  "id": "ui_click",
+  "f": "ui_click_1.ogg",
+  "cat": "ui",
+  "dur": 0.02,
+  "peakDb": -10.3,
+  "rmsDb": -20.6,
+  "playedPeakDb": -16.3,
+  "playedRmsDb": -26.6
+ },
+ {
+  "id": "ui_click",
+  "f": "ui_click_2.ogg",
+  "cat": "ui",
+  "dur": 0.11,
+  "peakDb": -3.5,
+  "rmsDb": -25.4,
+  "playedPeakDb": -9.5,
+  "playedRmsDb": -31.4
+ },
+ {
+  "id": "ui_hover",
+  "f": "ui_hover.ogg",
+  "cat": "ui",
+  "dur": 0.06,
+  "peakDb": -1.6,
+  "rmsDb": -24.2,
+  "playedPeakDb": -12,
+  "playedRmsDb": -34.7
+ },
+ {
+  "id": "ui_buy",
+  "f": "ui_buy_1.ogg",
+  "cat": "ui",
+  "dur": 0.36,
+  "peakDb": -1.9,
+  "rmsDb": -24.1,
+  "playedPeakDb": -6.4,
+  "playedRmsDb": -28.5
+ },
+ {
+  "id": "ui_buy",
+  "f": "ui_buy_2.ogg",
+  "cat": "ui",
+  "dur": 0.54,
+  "peakDb": -6.9,
+  "rmsDb": -20.6,
+  "playedPeakDb": -11.4,
+  "playedRmsDb": -25.1
+ },
+ {
+  "id": "ui_error",
+  "f": "ui_error.ogg",
+  "cat": "ui",
+  "dur": 0.12,
+  "peakDb": -4.4,
+  "rmsDb": -19.6,
+  "playedPeakDb": -10.4,
+  "playedRmsDb": -25.6
+ },
+ {
+  "id": "level_complete",
+  "f": "level_complete.ogg",
+  "cat": "ui",
+  "dur": 5.26,
+  "peakDb": -5.3,
+  "rmsDb": -20,
+  "playedPeakDb": -7.3,
+  "playedRmsDb": -21.9
+ },
+ {
+  "id": "death_sting",
+  "f": "death_sting.ogg",
+  "cat": "ui",
+  "dur": 8.6,
+  "peakDb": -5.6,
+  "rmsDb": -20.2,
+  "playedPeakDb": -7.6,
+  "playedRmsDb": -22.1
+ },
+ {
+  "id": "amb_day",
+  "f": "amb_day.ogg",
+  "cat": "ambience",
+  "dur": 29.19,
+  "peakDb": -1.3,
+  "rmsDb": -25.5,
+  "playedPeakDb": -7.3,
+  "playedRmsDb": -31.5
+ },
+ {
+  "id": "amb_dusk",
+  "f": "amb_dusk.ogg",
+  "cat": "ambience",
+  "dur": 38.01,
+  "peakDb": -0.8,
+  "rmsDb": -27.5,
+  "playedPeakDb": -8.8,
+  "playedRmsDb": -35.4
+ },
+ {
+  "id": "amb_night",
+  "f": "amb_night.ogg",
+  "cat": "ambience",
+  "dur": 21.94,
+  "peakDb": -2.2,
+  "rmsDb": -18.1,
+  "playedPeakDb": -9.1,
+  "playedRmsDb": -25
+ },
+ {
+  "id": "amb_wind",
+  "f": "amb_wind.ogg",
+  "cat": "ambience",
+  "dur": 28.02,
+  "peakDb": -3.6,
+  "rmsDb": -20.2,
+  "playedPeakDb": -11.6,
+  "playedRmsDb": -28.1
+ },
+ {
+  "id": "amb_fire",
+  "f": "amb_fire.ogg",
+  "cat": "ambience",
+  "dur": 19,
+  "peakDb": -1.4,
+  "rmsDb": -23.7,
+  "playedPeakDb": -4.5,
+  "playedRmsDb": -26.8
+ },
+ {
+  "id": "owl_hoot",
+  "f": "owl_hoot.ogg",
+  "cat": "ambience",
+  "dur": 5.12,
+  "peakDb": -7.8,
+  "rmsDb": -25.5,
+  "playedPeakDb": -13.9,
+  "playedRmsDb": -31.5
+ },
+ {
+  "id": "raven_call",
+  "f": "raven_call.ogg",
+  "cat": "ambience",
+  "dur": 5.55,
+  "peakDb": -7.6,
+  "rmsDb": -30.1,
+  "playedPeakDb": -15.6,
+  "playedRmsDb": -38.1
+ },
+ {
+  "id": "tree_creak",
+  "f": "tree_creak.ogg",
+  "cat": "ambience",
+  "dur": 6.58,
+  "peakDb": -0.7,
+  "rmsDb": -30.6,
+  "playedPeakDb": -9.8,
+  "playedRmsDb": -39.7
+ },
+ {
+  "id": "music_explore",
+  "f": "music_explore.ogg",
+  "cat": "music",
+  "dur": 82.24,
+  "peakDb": -1.6,
+  "rmsDb": -16.9,
+  "playedPeakDb": -10.7,
+  "playedRmsDb": -26
+ },
+ {
+  "id": "music_tension",
+  "f": "music_tension.ogg",
+  "cat": "music",
+  "dur": 47.97,
+  "peakDb": -1.1,
+  "rmsDb": -19,
+  "playedPeakDb": -9,
+  "playedRmsDb": -26.9
+ },
+ {
+  "id": "music_boss",
+  "f": "music_boss.ogg",
+  "cat": "music",
+  "dur": 87.02,
+  "peakDb": -1.2,
+  "rmsDb": -16.9,
+  "playedPeakDb": -8.2,
+  "playedRmsDb": -23.8
+ }
+]

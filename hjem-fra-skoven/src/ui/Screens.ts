@@ -158,6 +158,7 @@ export class Screens {
         <b>E</b><span>saml op, spis kød, tag fælder op</span>
         <b>1-4 · hjul</b><span>skift våben</span>
         <b>Esc eller P</b><span>pause og indstillinger</span>
+        <b>M</b><span>slå lyden til/fra</span>
       </div>
       <div class="tip"><b>Vinden afgør alt.</b> Kompasset viser, hvor din fært driver hen. Driver den mod dyrene, lugter de dig langt væk. Gå på tværs af vinden eller imod den.</div>
       <button id="play">${fresh ? 'Begynd turen' : 'Fortsæt'}</button>
@@ -303,7 +304,7 @@ export class Screens {
   }
 
   /** Settings bound live to the shared `settings` object. */
-  settings(onBack: () => void) {
+  settings(onBack: () => void, onSounds?: () => void) {
     const slider = (key: 'sensitivity' | 'fov' | 'master' | 'sfx' | 'music' | 'ambience', label: string, min: number, max: number, step: number, fmt: (v: number) => string) =>
       `<label class="set"><span>${label}</span><input type="range" data-set="${key}" min="${min}" max="${max}" step="${step}" value="${settings[key]}"><output data-out="${key}">${fmt(settings[key])}</output></label>`;
     const seg = <T extends string>(key: 'quality' | 'difficulty', label: string, opts: [T, string][]) =>
@@ -322,6 +323,7 @@ export class Screens {
       ${slider('sfx', 'Effekter', 0, 1, 0.05, pct)}
       ${slider('ambience', 'Natur', 0, 1, 0.05, pct)}
       ${slider('music', 'Musik', 0, 1, 0.05, pct)}
+      <label class="set" style="grid-template-columns:180px 1fr"><span>Slå lyden fra (M)</span><span><input type="checkbox" data-check="muted" ${settings.muted ? 'checked' : ''}> ${onSounds ? '<button type="button" id="sounds" class="ghost" style="margin:0 0 0 16px">Lyt til alle lyde</button>' : ''}</span></label>
       <h3>Spil</h3>
       ${seg<Difficulty>('difficulty', 'Sværhedsgrad', [['let', 'Let'], ['normal', 'Normal'], ['svaer', 'Svær']])}
       <label class="set" style="grid-template-columns:180px 1fr"><span>Blod</span><span><input type="checkbox" data-check="blood" ${settings.blood ? 'checked' : ''}> <small style="opacity:.7">(fra: støv i stedet for blod)</small></span></label>
@@ -340,7 +342,7 @@ export class Screens {
     );
     this.el.querySelectorAll<HTMLInputElement>('[data-check]').forEach((inp) =>
       inp.addEventListener('change', () => {
-        settings[inp.dataset.check as 'invertY' | 'blood'] = inp.checked;
+        settings[inp.dataset.check as 'invertY' | 'blood' | 'muted'] = inp.checked;
       }),
     );
     this.el.querySelectorAll<HTMLButtonElement>('[data-seg]').forEach((btn) =>
@@ -351,6 +353,7 @@ export class Screens {
       }),
     );
     this.on('#back', onBack);
+    if (onSounds) this.on('#sounds', onSounds);
   }
 
   pause(cb: { resume: () => void; settings: () => void; hub: () => void; menu: () => void }) {

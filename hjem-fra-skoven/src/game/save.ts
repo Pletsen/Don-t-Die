@@ -134,6 +134,7 @@ export function loadSave(): Save {
     quality: se.quality === 'low' || se.quality === 'medium' || se.quality === 'high' ? se.quality : d.quality,
     difficulty: se.difficulty === 'let' || se.difficulty === 'svaer' || se.difficulty === 'normal' ? se.difficulty : d.difficulty,
     blood: bool(se.blood, d.blood),
+    muted: bool(se.muted, d.muted),
   };
   Object.assign(settings, out.settings);
   return out;

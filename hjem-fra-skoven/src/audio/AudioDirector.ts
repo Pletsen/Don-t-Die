@@ -8,8 +8,8 @@ import type { Audio } from './Audio';
 /** Which sound each species makes in each situation (manifest ids in public/sfx/manifest.json). */
 const VOICE: Record<string, { alert?: string; chase?: string; windup?: string; hurt?: string; flee?: string; idle?: string }> = {
   hare: { flee: 'animal_flee', hurt: 'hare_squeal' },
-  fasan: { flee: 'bird_flush', hurt: 'animal_hurt' },
-  raadyr: { alert: 'animal_alert', flee: 'animal_flee', hurt: 'animal_hurt' },
+  fasan: { alert: 'pheasant_call', flee: 'pheasant_call', hurt: 'animal_hurt' },
+  raadyr: { alert: 'deer_bark', flee: 'animal_flee', hurt: 'animal_hurt', idle: 'deer_bark' },
   hvidhjort: { alert: 'animal_alert', flee: 'animal_flee', hurt: 'animal_hurt', idle: 'deer_call' },
   raev: { alert: 'fox_bark', chase: 'fox_bark', windup: 'wolf_growl', hurt: 'animal_hurt' },
   vildsvin: { alert: 'boar_grunt', chase: 'boar_squeal', windup: 'boar_grunt', hurt: 'boar_squeal', idle: 'boar_grunt' },

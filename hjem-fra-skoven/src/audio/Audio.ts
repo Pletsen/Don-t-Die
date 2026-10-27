@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { settings } from '../game/settings';
+import { SYNTH } from './synth';
 
 /**
  * Sample-based audio engine (files in public/sfx, see manifest.json and CREDITS.md).
@@ -35,6 +36,7 @@ interface LoopHandle {
   gain: GainNode;
   panner?: PannerNode;
   target: number;
+  norm: number;
 }
 
 export class Audio {
@@ -43,6 +45,10 @@ export class Audio {
   private bus: Record<string, GainNode> = {};
   private manifest?: Manifest;
   private buffers = new Map<string, AudioBuffer>();
+  /** Per-file gain that brings every recording to the same loudness (see `measure`). */
+  private norm = new Map<string, number>();
+  /** Loudness table for the sound board and the polish log. */
+  readonly stats: { file: string; peakDb: number; rmsDb: number; gainDb: number }[] = [];
   private lastVariant = new Map<string, number>();
   private lastPlayed = new Map<string, number>();
   private loops = new Map<string, LoopHandle>();
@@ -93,12 +99,55 @@ export class Audio {
           const r = await fetch(base + f);
           const buf = await this.ctx!.decodeAudioData(await r.arrayBuffer());
           this.buffers.set(f, buf);
+          this.measure(f, buf);
         } catch {
           /* a missing file only silences that sound */
         }
       }),
     );
+    // procedural sounds for the gaps (roe deer, pheasant) and the fallback blip
+    for (const [id, sy] of Object.entries(SYNTH)) {
+      if (this.manifest.events[id]) continue;
+      const data = sy.make(this.ctx!.sampleRate);
+      const buf = this.ctx!.createBuffer(1, data.length, this.ctx!.sampleRate);
+      buf.copyToChannel(data as Float32Array<ArrayBuffer>, 0);
+      const file = `synth:${id}`;
+      this.buffers.set(file, buf);
+      this.measure(file, buf);
+      this.manifest.events[id] = { files: [file], volume: sy.volume, category: sy.category, spatial: sy.spatial, refDistance: sy.refDistance, pitchVar: sy.pitchVar };
+    }
     this.ready = true;
+  }
+
+  /**
+   * Loudness normalisation: every file is brought to the same RMS (-20 dBFS) so variants of one event sound equally loud
+   * and the manifest volume is a pure mix level. The gain is capped so the peak never goes above -1 dBFS.
+   */
+  private measure(file: string, buf: AudioBuffer) {
+    let peak = 0;
+    let sum = 0;
+    let n = 0;
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < d.length; i += 2) {
+        const v = Math.abs(d[i]);
+        if (v > peak) peak = v;
+        sum += d[i] * d[i];
+        n++;
+      }
+    }
+    const rms = Math.sqrt(sum / Math.max(1, n)) || 1e-6;
+    const target = Math.pow(10, -20 / 20);
+    let gain = Math.min(3, Math.max(0.3, target / rms));
+    gain = Math.min(gain, 0.89 / Math.max(peak, 1e-6));
+    this.norm.set(file, gain);
+    this.stats.push({ file, peakDb: 20 * Math.log10(peak || 1e-9), rmsDb: 20 * Math.log10(rms), gainDb: 20 * Math.log10(gain) });
+  }
+
+  /** All event ids with their files, for the sound board. */
+  events(): { id: string; files: string[]; category: string }[] {
+    if (!this.manifest) return [];
+    return Object.entries(this.manifest.events).map(([id, e]) => ({ id, files: e.files, category: e.category }));
   }
 
   whenReady(): Promise<void> {
@@ -108,7 +157,7 @@ export class Audio {
   private applyVolumes() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master!.gain.setTargetAtTime(settings.master, t, 0.05);
+    this.master!.gain.setTargetAtTime(settings.muted ? 0 : settings.master, t, 0.05);
     this.bus.sfx.gain.setTargetAtTime(settings.sfx, t, 0.05);
     this.bus.ui.gain.setTargetAtTime(settings.sfx, t, 0.05);
     this.bus.ambience.gain.setTargetAtTime(settings.ambience * this.duckGain, t, 0.1);
@@ -121,14 +170,20 @@ export class Audio {
     setTimeout(() => (this.duckTarget = 1), seconds * 1000);
   }
 
-  private pick(id: string): { def: EventDef; buf: AudioBuffer } | null {
+  private pick(id: string, variant?: number): { def: EventDef; buf: AudioBuffer; gain: number } | null {
     const def = this.manifest?.events[id];
     if (!def || !def.files.length) return null;
-    let i = Math.floor(Math.random() * def.files.length);
-    if (def.files.length > 1 && i === this.lastVariant.get(id)) i = (i + 1) % def.files.length;
+    let i = variant ?? Math.floor(Math.random() * def.files.length);
+    if (variant === undefined && def.files.length > 1 && i === this.lastVariant.get(id)) i = (i + 1) % def.files.length;
     this.lastVariant.set(id, i);
-    const buf = this.buffers.get(def.files[i]);
-    return buf ? { def, buf } : null;
+    const file = def.files[Math.min(i, def.files.length - 1)];
+    const buf = this.buffers.get(file);
+    if (!buf) {
+      // a file that failed to load: a soft blip instead of silence for gameplay sounds
+      const fb = this.buffers.get('synth:fallback');
+      return fb && def.category !== 'music' && def.category !== 'ambience' ? { def, buf: fb, gain: 1 } : null;
+    }
+    return { def, buf, gain: this.norm.get(file) ?? 1 };
   }
 
   private panner(pos: THREE.Vector3, ref: number): PannerNode {
@@ -145,11 +200,11 @@ export class Audio {
   }
 
   /** One-shot. Returns false if the sound is unknown, not loaded yet, or rate-limited. */
-  play(id: string, o: PlayOpts = {}): boolean {
+  play(id: string, o: PlayOpts & { variant?: number } = {}): boolean {
     if (!this.ctx || !this.ready || this.voices > 28) return false;
     const now = this.ctx.currentTime;
     if (now - (this.lastPlayed.get(id) ?? -1) < 0.045) return false;
-    const p = this.pick(id);
+    const p = this.pick(id, o.variant);
     if (!p) return false;
     this.lastPlayed.set(id, now);
     const src = this.ctx.createBufferSource();
@@ -157,7 +212,7 @@ export class Audio {
     const pv = p.def.pitchVar ?? 0;
     src.playbackRate.value = (o.rate ?? 1) * (1 + (Math.random() * 2 - 1) * pv);
     const g = this.ctx.createGain();
-    g.gain.value = p.def.volume * (o.volume ?? 1);
+    g.gain.value = p.def.volume * p.gain * (o.volume ?? 1);
     let node: AudioNode = src.connect(g);
     if (o.pos && p.def.spatial !== false) node = node.connect(this.panner(o.pos, p.def.refDistance ?? 6));
     node.connect(this.bus[p.def.category] ?? this.bus.sfx);
@@ -167,13 +222,28 @@ export class Audio {
     return true;
   }
 
+  /** Sound board: plays one exact variant (loops play as a loop handle, so they can be stopped). Returns its length. */
+  preview(id: string, variant: number): number {
+    const def = this.manifest?.events[id];
+    if (!def) return 0;
+    const buf = this.buffers.get(def.files[variant]);
+    if (def.loop) {
+      this.lastVariant.set(id, variant);
+      this.loop(`preview:${id}`, id, 1, undefined, 0.1);
+    } else {
+      this.lastPlayed.delete(id);
+      this.play(id, { variant });
+    }
+    return buf?.duration ?? 1;
+  }
+
   /** Starts (or retargets) a named loop. volume 0 fades it out; it is stopped once silent. */
   loop(key: string, id: string, volume: number, pos?: THREE.Vector3, fade = 0.6) {
     if (!this.ctx || !this.ready) return;
     let h = this.loops.get(key);
     if (!h) {
       if (volume <= 0.001) return;
-      const p = this.pick(id);
+      const p = this.pick(id, key.startsWith('preview:') ? this.lastVariant.get(id) : undefined);
       if (!p) return;
       const src = this.ctx.createBufferSource();
       src.buffer = p.buf;
@@ -189,11 +259,11 @@ export class Audio {
       node.connect(this.bus[p.def.category] ?? this.bus.sfx);
       // start loops at a random point so they don't sound identical every level
       src.start(0, Math.random() * p.buf.duration);
-      h = { src, gain, panner, target: 0 };
+      h = { src, gain, panner, target: 0, norm: p.gain };
       this.loops.set(key, h);
     }
     const def = this.manifest!.events[id];
-    const target = volume * (def?.volume ?? 1);
+    const target = volume * (def?.volume ?? 1) * h.norm;
     if (Math.abs(target - h.target) > 0.002) {
       h.gain.gain.setTargetAtTime(target, this.ctx.currentTime, fade / 3);
       h.target = target;

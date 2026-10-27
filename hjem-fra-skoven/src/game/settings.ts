@@ -16,6 +16,7 @@ export interface Settings {
   quality: Quality;
   difficulty: Difficulty;
   blood: boolean; // false = dust instead of blood
+  muted: boolean; // M toggles; remembered in the save
 }
 
 export function defaultSettings(): Settings {
@@ -30,6 +31,7 @@ export function defaultSettings(): Settings {
     quality: new URLSearchParams(typeof location !== 'undefined' ? location.search : '').has('lite') ? 'low' : 'high',
     difficulty: 'normal',
     blood: true,
+    muted: false,
   };
 }
 
