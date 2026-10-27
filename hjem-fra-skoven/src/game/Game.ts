@@ -250,6 +250,10 @@ export class Game {
     this.wind = new Wind(this.level.windAngle, this.level.windStrength);
     this.projectiles = new Projectiles(this.scene, this.world);
     this.projectiles.onHit = (e) => this.onAnimalHit(e.animal, e.killed, e.point);
+    this.projectiles.onImpact = (e) => {
+      this.audio.play(e.surface === 'wood' ? 'hit_wood' : e.look === 'stone' ? 'hit_stone' : 'hit_ground', { pos: e.point });
+      this.blood?.dust(e.point, 0.3);
+    };
     this.traps = new Traps(this.scene, this.world);
     this.blood = new Blood(this.scene, this.world);
     this.traps.blood = this.blood;
