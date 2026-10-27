@@ -331,10 +331,11 @@ export class HeldRig {
    * Start a melee swing of `dur` seconds. `onContact` fires once when the animation reaches the blow
    * (`contactAt` as a fraction of `dur`: spear thrust peak 0.5, knife slash mid-arc 0.45).
    */
-  swing(dur: number, contactAt = 0.5, onContact?: () => void) {
+  swing(dur: number, contactAt?: number, onContact?: () => void) {
+    // no default values in the signature: callers detect the contact callback via swing.length === 3
     this.swingT = 0;
     this.swingDur = dur;
-    this.contactAt = contactAt;
+    this.contactAt = contactAt ?? 0.5;
     this.onContact = onContact ?? null;
   }
 

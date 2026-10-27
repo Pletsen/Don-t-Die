@@ -55,6 +55,7 @@ export class CameraRig {
   private t = 0;
   private deathT = -1;
   private deathHeading = 0;
+  private world?: World;
 
   constructor(readonly camera: THREE.PerspectiveCamera) {}
 
@@ -86,6 +87,7 @@ export class CameraRig {
 
   /** `aim` is 0 (hip) .. 1 (fully aimed). `dt` is real time. */
   update(dt: number, target: THREE.Vector3, aim: number, world: World) {
+    this.world = world;
     this.t += dt;
     this.deathT = -1;
     const C = CAMERA;
@@ -162,7 +164,7 @@ export class CameraRig {
   /**
    * Death camera: cranes up over the body and orbits slowly. Call instead of `update` while the hunter is dead.
    */
-  deathCam(dt: number, target: THREE.Vector3, world?: World) {
+  deathCam(dt: number, target: THREE.Vector3, world: World | undefined = this.world) {
     const D = CAMERA.death;
     if (this.deathT < 0) {
       this.deathT = 0;

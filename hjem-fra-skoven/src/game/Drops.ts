@@ -152,7 +152,7 @@ export class Drops {
 
   /** `focus` (the hunter) makes nearby loot twinkle more often and its ring a little stronger. */
   update(time: number, focus?: THREE.Vector3) {
-    this.S.mats.ring.opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(time * 2.4));
+    this.S.mats.ring.opacity = 0.12 + 0.1 * (0.5 + 0.5 * Math.sin(time * 2.4));
     for (const d of this.list) {
       const dist = focus ? Math.hypot(d.pos.x - focus.x, d.pos.z - focus.z) : 20;
       const near = Math.max(0, 1 - dist / 9);

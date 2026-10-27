@@ -19,6 +19,8 @@ interface Collider {
 export interface Grade {
   tint: THREE.Vector3;
   saturation: number;
+  /** Same as `saturation` (the name Game.applyGrade reads). */
+  sat: number;
   vignette: number;
   /** Small blue lift added to the blacks at night (add `lift * vec3(0.6, 0.8, 1.0)` before the tint). */
   lift: number;
@@ -99,6 +101,7 @@ export class World {
     this.grade = {
       tint: new THREE.Vector3(L.gradeR, L.gradeG, L.gradeB),
       saturation: L.gradeSat,
+      sat: L.gradeSat,
       vignette: L.gradeVignette,
       lift: L.gradeLift,
     };

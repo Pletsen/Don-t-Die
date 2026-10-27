@@ -164,6 +164,9 @@ export class Player {
   private capeBase!: Float32Array;
   private mats: THREE.MeshStandardMaterial[] = [];
   private fade = 1;
+  private world?: World;
+  private lastUpdateAt = 0;
+  private selfStepAt = 0;
   private weaponShown = '';
   onRoll: () => void = () => {};
   onHurt: (amount: number) => void = () => {};
@@ -215,7 +218,10 @@ export class Player {
     const solid = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.92, map: cloth });
     const sheet = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.95, map: cloth, side: THREE.DoubleSide });
     this.mats.push(solid, sheet);
-    for (const m of this.mats) m.emissive.setHex(0x9a1010);
+    for (const m of this.mats) {
+      m.emissive.setHex(0x9a1010);
+      m.emissiveIntensity = 0;
+    }
     const C = {
       cloak: 0x6f8445,
       cloakDark: 0x4f5e34,
@@ -324,6 +330,17 @@ export class Player {
     breathe.add(breatheC);
     merged(solidParts, solid, breatheC);
     this.torsoMesh = breathe;
+    // Fallback: if the game stops calling update() once the hunter is dead, the death fall still plays
+    // (stepped from the render callback of one torso mesh, at most once per frame).
+    const torso = breatheC.children[0] as THREE.Mesh;
+    torso.onBeforeRender = () => {
+      if (!this.dead || !this.world) return;
+      const now = performance.now();
+      if (now - this.lastUpdateAt < 100 || now - this.selfStepAt < 8) return;
+      const dt = Math.min(0.05, this.selfStepAt ? (now - this.selfStepAt) / 1000 : 1 / 60);
+      this.selfStepAt = now;
+      this.updateDead(dt, this.world);
+    };
     // coat skirt split at the front, fur mantle, hood cowl (double-sided)
     merged(
       [
@@ -414,6 +431,7 @@ export class Player {
     const skin = new THREE.MeshStandardMaterial({ color: C.leatherDark, roughness: 0.85 });
     for (const m of [sleeve, glove, skin]) {
       m.emissive.setHex(0x9a1010);
+      m.emissiveIntensity = 0;
       this.mats.push(m);
     }
     const rig = new HeldRig(sleeve, skin, glove);
@@ -427,6 +445,8 @@ export class Player {
 
   update(dt: number, input: Input, cam: CameraRig, world: World) {
     this.time += dt;
+    this.world = world;
+    this.lastUpdateAt = performance.now();
     if (this.dead) {
       this.updateDead(dt, world);
       return;

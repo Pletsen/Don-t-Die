@@ -379,7 +379,10 @@ export class Game {
       this.audio.play('jump');
       this.tip('jump', false);
     };
-    this.player.onLand = () => this.audio.play('land');
+    this.player.onLand = (impact?: number) => {
+      this.audio.play('land', { volume: Math.min(1.2, 0.5 + (impact ?? 4) / 10) });
+      if ((impact ?? 0) > 5) this.bursts.emit(this.player.pos.clone().setY(this.player.pos.y + 0.1), 0x8a7a5a, 8, 2);
+    };
     this.player.onHurt = () => {
       this.audio.play('hurt');
       this.audio.duck(0.35, 0.8);
@@ -720,7 +723,7 @@ export class Game {
     if (w.look === 'arrow') this.audio.play('bow_release', { rate: w.id === 'langbue' ? 0.92 : w.id === 'hurtigbue' ? 1.1 : 1, volume: 0.7 + 0.3 * power });
     else if (w.look === 'stone') this.audio.play('sling_release');
     else this.audio.play(w.look === 'knife' ? 'throw_light' : 'throw_heavy');
-    this.rig.kick(0.04 + 0.04 * power);
+    this.rig.kick(0.03 + 0.03 * power);
   }
 
   private melee(w: WeaponDef, e: Effective) {
@@ -751,11 +754,11 @@ export class Game {
         hit = true;
       }
       if (!hit) this.bursts.emit(p.chest.add(new THREE.Vector3(fx * (e.reach * 0.8), -0.4, fz * (e.reach * 0.8))), 0xcfd6da, 4, 2);
-      this.rig.kick(hit ? 0.12 : 0.03);
+      this.rig.kick(hit ? 0.15 : 0.03);
     };
     // the blow lands at the contact frame of the swing animation, not on the click
     const held = p.held as unknown as { swing: (dur: number, contactAt?: number, onContact?: () => void) => void };
-    if (held.swing.length >= 3) held.swing(dur, 0.5, strike);
+    if (held.swing.length >= 3) held.swing(dur, w.id === 'jagtkniv' ? 0.45 : 0.5, strike);
     else {
       held.swing(dur);
       this.delayed.push({ t: dur * 0.5, fn: strike });
@@ -773,7 +776,7 @@ export class Game {
   }
 
   private placeTrap(w: WeaponDef, e: Effective) {
-    this.traps.placeTrap(this.placeAt(2.2), { weaponId: w.id, type: w.trap!, radius: w.radius!, damage: e.damage, root: e.root });
+    this.traps.placeTrap(this.placeAt(1.0), { weaponId: w.id, type: w.trap!, radius: w.radius!, damage: e.damage, root: e.root });
     this.audio.play(w.trap === 'snare' ? 'snare_set' : 'trap_set');
     this.hud.toast(`${w.name} lagt ud`, 1000);
   }
@@ -804,7 +807,7 @@ export class Game {
     }
     this.ghost.visible = on;
     if (on) {
-      const at = this.placeAt(w.kind === 'bait' ? 8 : 2.2);
+      const at = this.placeAt(w.kind === 'bait' ? 8 : 1.0);
       this.ghost.position.set(at.x, at.y + 0.08, at.z);
       this.ghost.scale.setScalar(w.kind === 'bait' ? 1.4 : 1);
     }
@@ -846,6 +849,7 @@ export class Game {
     }
     this.hud.toast(msg, 1800);
     this.hitStop = Math.max(this.hitStop, 0.07);
+    this.rig.kick(0.2);
   }
 
   private interact(): boolean {
@@ -904,7 +908,7 @@ export class Game {
         const dmg = a.def.damage * diff.animalDamage;
         const dmgFn = p.damage as unknown as (amount: number, by: string, from?: THREE.Vector3) => boolean;
         if (dmgFn.call(p, dmg, a.def.name, a.pos)) {
-          this.rig.kick(0.3);
+          this.rig.kick(0.45, p.hitDir);
           this.hud.hurtFrom(this.screenAngleTo(a.pos));
         }
       },
@@ -918,7 +922,7 @@ export class Game {
         else if (kind === 'heavy') this.hitStop = Math.max(this.hitStop, 0.045);
         else if (kind === 'thud') this.rig.kick(Math.min(0.25, 0.02 * strength));
         else if (kind === 'roar') {
-          this.rig.kick(0.2);
+          this.rig.kick(0.6);
           this.audio.duck(0.4, 1.5);
         }
       },
@@ -1096,6 +1100,8 @@ export class Game {
     } else if (this.state === 'dead') {
       this.deathTimer -= dt;
       const rig = this.rig as unknown as { deathCam?: (dt: number, target: THREE.Vector3) => void };
+      // the hunter's fall is physics in Player.update; input is ignored once he is dead
+      this.player.update(gdt, this.input, this.rig, this.world);
       if (rig.deathCam) rig.deathCam(dt, this.player.pos);
       else this.rig.update(dt, this.player.pos, 0, this.world);
       this.wind.update(gdt);

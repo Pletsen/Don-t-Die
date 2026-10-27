@@ -189,7 +189,7 @@ export class Animal {
   // ---- pose (damped)
   protected gait = new GaitBlend();
   protected gaitName: GaitName = 'walk';
-  protected phase = 0;
+  protected gaitPhase = 0;
   protected pPitch = 0;
   protected pRoll = 0;
   protected pDrop = 0;
@@ -245,7 +245,7 @@ export class Animal {
     this.circleDir = this.rng.next() < 0.5 ? -1 : 1;
     this.circleR = this.rng.range(T.circleMin, T.circleMax);
     this.flank = this.rng.range(-1, 1);
-    this.phase = this.rng.next();
+    this.gaitPhase = this.rng.next();
     this.earFlickT = this.rng.range(1, 5);
   }
 
@@ -591,8 +591,8 @@ export class Animal {
     const k = Math.max(0, this.flash / 0.22);
     const m = this.model.mat;
     if (k > 0) {
-      m.emissive.setRGB(0.9 * k, 0.08 * k, 0.06 * k);
-      m.emissiveIntensity = 0.9;
+      m.emissive.setRGB(0.9 * k, 0.12 * k, 0.08 * k);
+      m.emissiveIntensity = 0.35;
     } else {
       m.emissive.copy(this.baseEmissive);
       m.emissiveIntensity = this.baseEmissiveI;
@@ -691,7 +691,7 @@ export class Animal {
       this.turnMul = this.jinkSlow > 0 ? 2.5 : 1;
       this.goalHeading = away;
     } else {
-      this.goalHeading = away + Math.sin(this.t * 1.3 + this.phase * 6) * 0.25;
+      this.goalHeading = away + Math.sin(this.t * 1.3 + this.gaitPhase * 6) * 0.25;
       this.goalSpeed = def.run;
     }
     if (d > 60 || (this.fleeTime > 9 && d > 32)) {
@@ -728,7 +728,7 @@ export class Animal {
         this.goalHeading = away;
         this.goalSpeed = def.run;
         this.avoid = false;
-        if (this.alt > this.rng.range(3, 3.4) + (this.phase * 1.5)) {
+        if (this.alt > this.rng.range(3, 3.4) + (this.gaitPhase * 1.5)) {
           this.flight = 'fly';
           this.altVel = 0;
         }
@@ -1092,7 +1092,7 @@ export class Animal {
       const side = this.rng.next() < 0.5 ? -1 : 1;
       const off = 0.15 * side;
       _c.set(this.pos.x + Math.cos(this.heading) * off, this.pos.y, this.pos.z - Math.sin(this.heading) * off);
-      const size = (0.1 + this.rng.next() * 0.14) * (0.6 + this.def.radius * 0.5) * (0.6 + this.bleed * 0.8);
+      const size = (0.14 + this.rng.next() * 0.16) * (0.6 + this.def.radius * 0.5) * (0.7 + this.bleed * 0.8);
       blood.trail(_c, size);
     }
     // drips from the wound
@@ -1236,9 +1236,13 @@ export class Animal {
     const gb = this.gait;
     const strideLen = gb.stride * hipL * (heavy ? 1.1 : 1);
     const cadence = speed / Math.max(0.05, strideLen);
-    this.phase = (this.phase + cadence * dt) % 1;
+    this.gaitPhase = (this.gaitPhase + cadence * dt) % 1;
     const amp = clamp(speed / 0.35, 0, 1);
     const reach = (strideLen * gb.duty) / 2;
+    // the body rides a little lower than the straight leg, so a planted foot stays on the ground through the
+    // whole stance: the knee bends mid-stance and straightens at the ends (2-bone leg, equal segments)
+    const thMax = Math.atan2(reach, hipL);
+    const sink = hipL * 0.5 * (1 - Math.cos(thMax)) * amp;
 
     let bodyDip = 0;
     let bodyRollLimp = 0;
@@ -1249,11 +1253,19 @@ export class Animal {
       const shank = m.shanks[i];
       const front = i < 2;
       const lame = this.lame[i];
-      let p = (this.phase + gb.offsets[i]) % 1;
+      let p = (this.gaitPhase + gb.offsets[i]) % 1;
       const duty = gb.duty * (1 - 0.4 * lame);
       legPose(p, duty, reach * (1 - 0.6 * lame), m.hipY[i], _leg);
       let hip = _leg.hip * amp;
       let knee = _leg.knee * gb.flex * amp;
+      if (_leg.stance && amp > 0.01) {
+        const Li = m.hipY[i];
+        const need = Math.min(Li, (Li - sink) / Math.cos(hip));
+        const cosDev = clamp((2 * need * need) / (Li * Li) - 1, -1, 1);
+        const dev = Math.acos(cosDev);
+        knee += dev;
+        hip += (front ? 1 : -1) * dev * 0.5;
+      }
       if (trapped) {
         // thrash: fast random kicks, the trapped leg held
         if (i === this.trappedLeg) {
@@ -1274,9 +1286,9 @@ export class Animal {
       leg.rotation.x = -hip;
       shank.rotation.x = (front ? 1 : -1) * (knee + buckle) + (front ? buckle * 0.5 : 0);
     }
-    const bobPh = want === 'gallop' || want === 'bound' ? Math.sin(this.phase * Math.PI * 2) : Math.cos(this.phase * Math.PI * 4);
+    const bobPh = want === 'gallop' || want === 'bound' ? Math.sin(this.gaitPhase * Math.PI * 2) : Math.cos(this.gaitPhase * Math.PI * 4);
     const bob = gb.bob * hipL * amp * bobPh * (heavy ? 1.3 : 1);
-    const spine = want === 'gallop' || want === 'bound' ? gb.pitch * amp * Math.sin(this.phase * Math.PI * 2 + 0.6) : 0;
+    const spine = want === 'gallop' || want === 'bound' ? gb.pitch * amp * Math.sin(this.gaitPhase * Math.PI * 2 + 0.6) : 0;
 
     // stumble when badly hurt
     if (this.hp < this.maxHp * 0.3 && speed > 1.5) {
@@ -1310,7 +1322,7 @@ export class Animal {
     const rear = Math.max(0, -this.pPitch);
     pose.position.set(
       tremble,
-      m.bodyY + bob + this.pDrop - bodyDip + pivot * Math.sin(rear),
+      m.bodyY + bob + this.pDrop - bodyDip - sink + pivot * Math.sin(rear),
       -pivot * (1 - Math.cos(rear)) + this.pZ,
     );
     pose.rotation.set(pitch, 0, this.pRoll + this.bank + fr + bodyRollLimp + jerkR + tremble * 2);
@@ -1325,7 +1337,7 @@ export class Animal {
 
     // head and neck
     m.neck.rotation.set(this.nPitch - spine * 0.5 + headBob * 0.5, this.hYaw * 0.5, 0);
-    m.head.rotation.set(this.hPitch - headBob + Math.sin(this.phase * Math.PI * 4) * 0.03 * amp, this.hYaw * 0.5 + hj, 0);
+    m.head.rotation.set(this.hPitch - headBob + Math.sin(this.gaitPhase * Math.PI * 4) * 0.03 * amp, this.hYaw * 0.5 + hj, 0);
 
     // ears: flicks when calm, pinned when running or attacking
     this.earFlickT -= dt;
@@ -1340,7 +1352,7 @@ export class Animal {
     }
     // tail: spring driven by yaw rate and gait
     const ts = this.tailSpring.step(dt, -this.yawRate * 0.12);
-    m.tail.rotation.set(this.tailX + Math.sin(this.phase * Math.PI * 4) * 0.12 * amp + (trapped ? Math.sin(this.t * 20) * 0.3 : 0), clamp(ts, -0.8, 0.8), 0);
+    m.tail.rotation.set(this.tailX + Math.sin(this.gaitPhase * Math.PI * 4) * 0.12 * amp + (trapped ? Math.sin(this.t * 20) * 0.3 : 0), clamp(ts, -0.8, 0.8), 0);
   }
 
   protected animateBird(dt: number, fr: number, fp: number, hj: number) {
@@ -1350,20 +1362,20 @@ export class Animal {
     const pose = m.pose;
     // walking: quick steps with a head bob held while the foot plants
     const cadence = flying ? 0 : speed / 0.18;
-    this.phase = (this.phase + cadence * dt) % 1;
+    this.gaitPhase = (this.gaitPhase + cadence * dt) % 1;
     const amp = clamp(speed / 0.3, 0, 1) * (flying ? 0 : 1);
     for (let i = 0; i < m.legs.length; i++) {
-      const p = (this.phase + i * 0.5) % 1;
+      const p = (this.gaitPhase + i * 0.5) % 1;
       legPose(p, 0.55, 0.06, m.hipY[i], _leg);
       m.legs[i].rotation.x = flying ? 0.9 : -_leg.hip * amp;
       m.shanks[i].rotation.x = flying ? -1.2 : -_leg.knee * 0.9 * amp;
     }
     const crouch = this.flight === 'crouch' ? -0.06 : 0;
-    pose.position.set(0, m.bodyY + crouch + Math.abs(Math.sin(this.phase * Math.PI * 2)) * 0.012 * amp, 0);
+    pose.position.set(0, m.bodyY + crouch + Math.abs(Math.sin(this.gaitPhase * Math.PI * 2)) * 0.012 * amp, 0);
     const pitchFly = flying ? (this.flight === 'up' ? -0.45 : this.flight === 'glide' ? 0.1 : -0.1) : 0;
     this.pPitch = damp(this.pPitch, pitchFly, 6, dt);
     pose.rotation.set(this.pPitch + fp, 0, this.bank * 2 + fr);
-    const bobZ = amp > 0 ? (Math.sin(this.phase * Math.PI * 4) > 0 ? 0.03 : -0.01) : 0;
+    const bobZ = amp > 0 ? (Math.sin(this.gaitPhase * Math.PI * 4) > 0 ? 0.03 : -0.01) : 0;
     m.neck.rotation.set(this.nPitch + (this.state === 'idle' && this.pause > 0 ? 0.6 + Math.sin(this.t * 3) * 0.2 : 0) - bobZ, 0, 0);
     m.head.rotation.set(this.hPitch, this.hYaw + hj, 0);
     // wings: folded, flapping or gliding
