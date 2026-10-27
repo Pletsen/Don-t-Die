@@ -325,3 +325,71 @@ export function meatTexture(): THREE.Texture {
   cache.set('meat', tx);
   return tx;
 }
+
+/**
+ * The trail: packed dirt with two worn foot/game paths, roots crossing it, pebbles and soft ragged edges (alpha).
+ * u runs across the trail, v along it (tiles).
+ */
+export function trailTexture(): THREE.CanvasTexture {
+  const rng = new Rng(17);
+  const W = 128;
+  const H = 256;
+  const sizes = [4, 8, 16, 32];
+  const grids = sizes.map((n) => valueNoise(rng, n));
+  const [c, g] = canvas(W, H);
+  const img = g.createImageData(W, H);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const u = x / W;
+      const n = fbm(grids, sizes, u, y / H);
+      const n2 = fbm(grids, sizes, (u * 3.7) % 1, (y / H * 2.3) % 1);
+      const d = Math.abs(u - 0.5) * 2; // 0 centre .. 1 edge
+      // two worn paths at about ±0.5 m (the strip is 3.2 m wide)
+      const rut = Math.exp(-Math.pow((d - 0.32 + (n - 0.5) * 0.08) / 0.09, 2));
+      let r = 92 + n * 70 - rut * 26;
+      let gg = 72 + n * 52 - rut * 20;
+      let b = 50 + n * 34 - rut * 14;
+      // moss creeping in at the sides
+      const side = Math.max(0, d - 0.55) * 2;
+      r = r * (1 - side * 0.4) + 60 * side * 0.4;
+      gg = gg * (1 - side * 0.4) + 82 * side * 0.4;
+      b = b * (1 - side * 0.4) + 36 * side * 0.4;
+      const edge = 1 - smoothstepJs(0.6 + (n2 - 0.5) * 0.5, 0.98, d);
+      const i = (y * W + x) * 4;
+      img.data[i] = r;
+      img.data[i + 1] = gg;
+      img.data[i + 2] = b;
+      img.data[i + 3] = Math.round(255 * edge);
+    }
+  g.putImageData(img, 0, 0);
+  // roots crossing the trail
+  for (let k = 0; k < 3; k++) {
+    const y0 = rng.range(10, H - 10);
+    g.strokeStyle = `rgba(52,36,22,0.85)`;
+    g.lineWidth = rng.range(2, 4);
+    g.beginPath();
+    g.moveTo(rng.range(0, 20), y0);
+    g.bezierCurveTo(W * 0.3, y0 + rng.range(-20, 20), W * 0.6, y0 + rng.range(-20, 20), rng.range(W - 30, W), y0 + rng.range(-25, 25));
+    g.stroke();
+    g.strokeStyle = `rgba(120,96,70,0.35)`;
+    g.lineWidth = 1;
+    g.stroke();
+  }
+  // pebbles
+  for (let k = 0; k < 70; k++) {
+    const v = Math.floor(rng.range(90, 170));
+    g.fillStyle = `rgba(${v},${v - 6},${v - 14},0.9)`;
+    g.beginPath();
+    g.ellipse(rng.range(15, W - 15), rng.range(0, H), rng.range(1, 2.6), rng.range(0.8, 2), rng.range(0, 3), 0, Math.PI * 2);
+    g.fill();
+  }
+  const t = tex(c);
+  t.wrapS = THREE.ClampToEdgeWrapping;
+  t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+function smoothstepJs(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}

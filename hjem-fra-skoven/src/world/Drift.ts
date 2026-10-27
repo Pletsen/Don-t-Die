@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Wind } from './Wind';
+import { softDot } from './textures';
 
 /** Floating leaves and dust that travel with the wind, so the player can read it in the world. */
 export class Drift {
@@ -19,9 +20,15 @@ export class Drift {
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.points = new THREE.Points(
       g,
-      new THREE.PointsMaterial({ color, size: 0.09, transparent: true, opacity: 0.75, depthWrite: false }),
+      new THREE.PointsMaterial({ color, size: 0.08, map: softDot(0.3), alphaTest: 0.02, transparent: true, opacity: 0.75, depthWrite: false }),
     );
     this.points.frustumCulled = false;
+  }
+
+  dispose() {
+    this.points.removeFromParent();
+    this.points.geometry.dispose();
+    (this.points.material as THREE.Material).dispose();
   }
 
   update(dt: number, wind: Wind, center: THREE.Vector3, time: number) {
@@ -62,22 +69,20 @@ export class Fireflies {
       this.pos[i * 3 + 2] = (Math.random() - 0.5) * this.box;
       this.phase[i] = Math.random() * 10;
     }
-    const c = document.createElement('canvas');
-    c.width = c.height = 32;
-    const g = c.getContext('2d')!;
-    const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-    gr.addColorStop(0, 'rgba(230,255,140,1)');
-    gr.addColorStop(0.3, 'rgba(190,255,90,0.45)');
-    gr.addColorStop(1, 'rgba(160,255,60,0)');
-    g.fillStyle = gr;
-    g.fillRect(0, 0, 32, 32);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
     this.points = new THREE.Points(
       geo,
-      new THREE.PointsMaterial({ map: new THREE.CanvasTexture(c), size: 0.38, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffffff }),
+      // fog off: additive sprites with fog add the fog colour over the whole quad. Small, because bloom grows them.
+      new THREE.PointsMaterial({ map: softDot(0.15), size: 0.16, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xd8ff8a, fog: false }),
     );
     this.points.frustumCulled = false;
+  }
+
+  dispose() {
+    this.points.removeFromParent();
+    this.points.geometry.dispose();
+    (this.points.material as THREE.Material).dispose();
   }
 
   update(dt: number, center: THREE.Vector3, time: number, groundY: number) {
