@@ -31,7 +31,7 @@ import { Bursts } from './Burst';
 import { Drops, DROP_LABEL } from './Drops';
 import { Input } from './Input';
 import { freshSave, loadSave, writeSave, type Save } from './save';
-import { qualityProfile, settings } from './settings';
+import { QUALITY_ORDER, qualityProfile, settings } from './settings';
 
 const MIN_POWER = 0.12; // a tap on the button
 // animals that count against the engagement cap; 'circle' animals wait their turn and must not block each other
@@ -102,6 +102,10 @@ export class Game {
   private readonly requireLock = !navigator.webdriver;
   private v1 = new THREE.Vector3();
   private soundBoard = new SoundBoard(this.audio);
+  /** Real frame times for the FPS readout and automatic quality. */
+  private frameTimes: number[] = [];
+  private fpsT = 0;
+  private autoT = 0;
 
   constructor(root: HTMLElement, ui: HTMLElement) {
     this.save = loadSave();
@@ -109,6 +113,8 @@ export class Game {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // count draw calls for the whole frame (shadow + main + post), reset by hand in step()
+    this.renderer.info.autoReset = false;
     root.appendChild(this.renderer.domElement);
     this.input = new Input(this.renderer.domElement);
     this.hud = new Hud(ui);
@@ -1180,10 +1186,47 @@ export class Game {
 
   private loop() {
     const now = performance.now();
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    const raw = (now - this.last) / 1000;
+    const dt = Math.min(0.05, raw);
     this.last = now;
+    this.trackFps(raw);
     this.step(dt);
     requestAnimationFrame(() => this.loop());
+  }
+
+  /**
+   * FPS readout and automatic quality: after 3 s of play, if the average stays under 45 fps for 4 s,
+   * step the quality down one level (never below low). Only in a real browser (tests run in software rendering).
+   */
+  private trackFps(raw: number) {
+    if (raw <= 0) return;
+    raw = Math.min(raw, 1);
+    this.frameTimes.push(raw);
+    if (this.frameTimes.length > 120) this.frameTimes.shift();
+    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    const fps = 1 / avg;
+    this.fpsT -= raw;
+    if (this.fpsT <= 0) {
+      this.fpsT = 0.5;
+      const worst = Math.max(...this.frameTimes);
+      this.hud.fps(settings.showFps ? `${fps.toFixed(0)} fps · ${(avg * 1000).toFixed(1)} ms (værst ${(worst * 1000).toFixed(0)}) · ${settings.quality} · ${this.renderer.info.render.calls} kald` : null);
+    }
+    if (!settings.autoQuality || !this.requireLock || this.state !== 'playing' || !this.input.locked) {
+      this.autoT = 0;
+      return;
+    }
+    this.autoT += raw;
+    if (this.autoT > 7 && fps < 45) {
+      const i = QUALITY_ORDER.indexOf(settings.quality);
+      if (i > 0) {
+        settings.quality = QUALITY_ORDER[i - 1];
+        writeSave(this.save);
+        this.setupPost();
+        this.hud.toast(`Grafik sat ned til "${{ low: 'Lav', medium: 'Mellem', high: 'Høj', ultra: 'Ultra' }[settings.quality]}" (${fps.toFixed(0)} fps)`, 2500);
+      }
+      this.autoT = 3;
+      this.frameTimes.length = 0;
+    }
   }
 
   /** One frame. Public so tests can step the game deterministically. */
@@ -1272,7 +1315,10 @@ export class Game {
     this.world.setWind(this.wind.dx, this.wind.dz, this.wind.strength);
     this.audio.update(dt, this.camera);
     this.gradePass.uniforms.hurt.value = this.state === 'playing' ? Math.max(0, 1 - this.player.hp / this.stats.maxHealth - 0.5) : 0;
-    if (render) this.composer.render(dt);
+    if (render) {
+      this.renderer.info.reset();
+      this.composer.render(dt);
+    }
     this.input.endFrame();
   }
 }

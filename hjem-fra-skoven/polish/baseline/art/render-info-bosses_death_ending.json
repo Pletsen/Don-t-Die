@@ -1,0 +1,26 @@
+{
+  "L10": {
+    "calls": 254,
+    "tris": 872289,
+    "geoms": 76,
+    "tex": 48,
+    "progs": 58,
+    "lights": 5
+  },
+  "L20": {
+    "calls": 215,
+    "tris": 786021,
+    "geoms": 74,
+    "tex": 45,
+    "progs": 64,
+    "lights": 5
+  },
+  "L30": {
+    "calls": 205,
+    "tris": 834162,
+    "geoms": 60,
+    "tex": 39,
+    "progs": 64,
+    "lights": 5
+  }
+}

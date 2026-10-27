@@ -2,7 +2,7 @@
  * Player settings, stored in the save and readable from anywhere.
  * `settings` is a live object: the settings menu mutates it, and systems read it each time they need a value.
  */
-export type Quality = 'low' | 'medium' | 'high';
+export type Quality = 'low' | 'medium' | 'high' | 'ultra';
 export type Difficulty = 'let' | 'normal' | 'svaer';
 
 export interface Settings {
@@ -17,6 +17,8 @@ export interface Settings {
   difficulty: Difficulty;
   blood: boolean; // false = dust instead of blood
   muted: boolean; // M toggles; remembered in the save
+  autoQuality: boolean; // lower the quality by itself when the measured FPS is too low
+  showFps: boolean;
 }
 
 export function defaultSettings(): Settings {
@@ -32,6 +34,8 @@ export function defaultSettings(): Settings {
     difficulty: 'normal',
     blood: true,
     muted: false,
+    autoQuality: true,
+    showFps: false,
   };
 }
 
@@ -47,8 +51,12 @@ export interface QualityProfile {
   viewScale: number; // multiplier on view distance
 }
 
+/** Quality steps from lowest to highest, used by the automatic FPS-based selection. */
+export const QUALITY_ORDER: Quality[] = ['low', 'medium', 'high', 'ultra'];
+
 export function qualityProfile(q: Quality = settings.quality): QualityProfile {
   if (q === 'low') return { pixelRatioMax: 1, msaa: 0, bloom: false, shadowMap: 1024, vegetation: 0.35, viewScale: 0.75 };
   if (q === 'medium') return { pixelRatioMax: 1.25, msaa: 0, bloom: true, shadowMap: 2048, vegetation: 0.65, viewScale: 0.9 };
-  return { pixelRatioMax: 1.5, msaa: 4, bloom: true, shadowMap: 2048, vegetation: 1, viewScale: 1 };
+  if (q === 'high') return { pixelRatioMax: 1.5, msaa: 4, bloom: true, shadowMap: 2048, vegetation: 1, viewScale: 1 };
+  return { pixelRatioMax: 2, msaa: 4, bloom: true, shadowMap: 4096, vegetation: 1.25, viewScale: 1.15 };
 }

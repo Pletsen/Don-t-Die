@@ -328,7 +328,9 @@ export class Screens {
       ${seg<Difficulty>('difficulty', 'Sværhedsgrad', [['let', 'Let'], ['normal', 'Normal'], ['svaer', 'Svær']])}
       <label class="set" style="grid-template-columns:180px 1fr"><span>Blod</span><span><input type="checkbox" data-check="blood" ${settings.blood ? 'checked' : ''}> <small style="opacity:.7">(fra: støv i stedet for blod)</small></span></label>
       <h3>Grafik</h3>
-      ${seg<Quality>('quality', 'Kvalitet', [['low', 'Lav'], ['medium', 'Mellem'], ['high', 'Høj']])}
+      ${seg<Quality>('quality', 'Kvalitet', [['low', 'Lav'], ['medium', 'Mellem'], ['high', 'Høj'], ['ultra', 'Ultra']])}
+      <label class="set" style="grid-template-columns:180px 1fr"><span>Automatisk</span><span><input type="checkbox" data-check="autoQuality" ${settings.autoQuality ? 'checked' : ''}> <small style="opacity:.7">sænk kvaliteten selv, hvis spillet hakker</small></span></label>
+      <label class="set" style="grid-template-columns:180px 1fr"><span>Vis FPS</span><span><input type="checkbox" data-check="showFps" ${settings.showFps ? 'checked' : ''}></span></label>
       <p class="sub" style="font-size:13px">Lav kvalitet hjælper på ældre bærbare. Mængden af planter skifter fra næste bane.</p>
       <button id="back">Tilbage</button>
     `);
@@ -342,7 +344,7 @@ export class Screens {
     );
     this.el.querySelectorAll<HTMLInputElement>('[data-check]').forEach((inp) =>
       inp.addEventListener('change', () => {
-        settings[inp.dataset.check as 'invertY' | 'blood' | 'muted'] = inp.checked;
+        settings[inp.dataset.check as 'invertY' | 'blood' | 'muted' | 'autoQuality' | 'showFps'] = inp.checked;
       }),
     );
     this.el.querySelectorAll<HTMLButtonElement>('[data-seg]').forEach((btn) =>

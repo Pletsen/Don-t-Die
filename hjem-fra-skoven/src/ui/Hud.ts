@@ -77,6 +77,7 @@ const CSS = `
 .hud .dmg i{position:absolute;left:-90px;top:-250px;width:180px;height:60px;border-radius:50%;border-top:8px solid rgba(220,30,20,.85);filter:blur(2px);opacity:0;transition:opacity .5s}
 .hud .threat{position:absolute;left:50%;top:50%;width:0;height:0;display:none}
 .hud .threat i{position:absolute;left:-12px;top:-230px;width:0;height:0;border:12px solid transparent;border-bottom:20px solid rgba(255,90,60,.9);border-top:0;filter:drop-shadow(0 0 4px #000)}
+.fps{position:fixed;left:8px;top:6px;font:12px monospace;color:#cfe;text-shadow:0 1px 2px #000;pointer-events:none;z-index:40}
 .hud .fade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none}
 .hud .unlock{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-size:26px;letter-spacing:.12em;background:rgba(0,0,0,.45)}
 .hud .unlock.on{display:flex}
@@ -94,6 +95,7 @@ export class Hud {
   private dmgT: number[] = [0, 0, 0, 0];
   private dmgNext = 0;
   private threatEls: HTMLElement[] = [];
+  private fpsEl: HTMLDivElement;
 
   constructor(parent: HTMLElement) {
     const style = document.createElement('style');
@@ -134,6 +136,9 @@ export class Hud {
       <div class="fade" data-k="fade"></div>
       <div class="unlock" data-k="unlock">Klik for at fortsætte</div>`;
     parent.appendChild(this.root);
+    this.fpsEl = document.createElement('div');
+    this.fpsEl.className = 'fps';
+    parent.appendChild(this.fpsEl);
     this.root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.q[e.dataset.k!] = e));
     for (let i = 0; i < 4; i++) {
       const arc = document.createElement('i');
@@ -159,6 +164,12 @@ export class Hud {
     else if (prop === 'opacity') el.style.opacity = value;
     else if (prop === 'width') el.style.width = value;
     else el.style.transform = value;
+  }
+
+  /** Small FPS / frame-time readout (settings → Vis FPS). Pass null to hide. */
+  fps(text: string | null) {
+    this.fpsEl.style.display = text ? 'block' : 'none';
+    if (text) this.fpsEl.textContent = text;
   }
 
   show(on: boolean) {

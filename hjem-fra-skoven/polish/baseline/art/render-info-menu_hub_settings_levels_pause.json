@@ -1,0 +1,50 @@
+{
+  "L1": {
+    "calls": 252,
+    "tris": 727504,
+    "geoms": 81,
+    "tex": 48,
+    "progs": 60,
+    "lights": 5
+  },
+  "L8": {
+    "calls": 259,
+    "tris": 899749,
+    "geoms": 82,
+    "tex": 52,
+    "progs": 58,
+    "lights": 5
+  },
+  "L12": {
+    "calls": 253,
+    "tris": 927502,
+    "geoms": 76,
+    "tex": 50,
+    "progs": 58,
+    "lights": 5
+  },
+  "L18": {
+    "calls": 222,
+    "tris": 868833,
+    "geoms": 66,
+    "tex": 44,
+    "progs": 63,
+    "lights": 5
+  },
+  "L24": {
+    "calls": 211,
+    "tris": 798984,
+    "geoms": 67,
+    "tex": 45,
+    "progs": 65,
+    "lights": 5
+  },
+  "L30": {
+    "calls": 205,
+    "tris": 834162,
+    "geoms": 60,
+    "tex": 42,
+    "progs": 64,
+    "lights": 5
+  }
+}

@@ -131,10 +131,12 @@ export function loadSave(): Save {
     sfx: num(se.sfx, d.sfx, 0, 1),
     music: num(se.music, d.music, 0, 1),
     ambience: num(se.ambience, d.ambience, 0, 1),
-    quality: se.quality === 'low' || se.quality === 'medium' || se.quality === 'high' ? se.quality : d.quality,
+    quality: se.quality === 'low' || se.quality === 'medium' || se.quality === 'high' || se.quality === 'ultra' ? se.quality : d.quality,
     difficulty: se.difficulty === 'let' || se.difficulty === 'svaer' || se.difficulty === 'normal' ? se.difficulty : d.difficulty,
     blood: bool(se.blood, d.blood),
     muted: bool(se.muted, d.muted),
+    autoQuality: bool(se.autoQuality, d.autoQuality),
+    showFps: bool(se.showFps, d.showFps),
   };
   Object.assign(settings, out.settings);
   return out;

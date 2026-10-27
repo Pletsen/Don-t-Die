@@ -22,3 +22,11 @@ Regler: se `POLISH.md` i projektmappen. Kort om afvigelser, besluttet med Søren
 - Lytteside: Indstillinger → "Lyt til alle lyde", eller `?lyd` i adressen. Hver variant kan afspilles, og "Afspil alle"
   spiller hele listen med navn. Skærmbillede: `polish/latest/soundboard.png`.
 - Verificeret i headless Chromium: 180 buffere (177 filer + 3 genererede), 85 hændelser, ingen konsolfejl.
+
+## Iteration 2 – Grafik: kvalitetsniveauer, FPS-måler og automatisk valg
+- Nyt niveau **Ultra** (pixel ratio op til 2, 4096 skyggekort, 25 % mere vegetation, 15 % længere sigt) ud over Lav/Mellem/Høj.
+- **Automatisk**: efter 7 s spil sænkes kvaliteten ét trin, hvis gennemsnittet er under 45 fps (aldrig under Lav),
+  med en besked på skærmen. Kan slås fra i indstillinger. Kører kun i en rigtig browser (ikke i test med software-rendering).
+- **Vis FPS** i indstillinger: fps, frametid, værste frame, kvalitet og draw calls for hele framen
+  (`renderer.info.autoReset=false`, nulstilles pr. frame, så tallet dækker skygge + scene + efterbehandling).
+- Verificeret: indstillinger → Ultra + Vis FPS → bane 1 viser måleren (SwiftShader: 1 fps, som forventet i containeren).
