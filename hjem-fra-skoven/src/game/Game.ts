@@ -249,6 +249,7 @@ export class Game {
     this.level = getLevel(n);
     this.builtLevel = n;
     this.scene = new THREE.Scene();
+    this.ctxLive = undefined;
     this.ghost = undefined;
     this.delayed = [];
     this.world = new World(this.scene, this.level, this.renderer);
@@ -311,11 +312,7 @@ export class Game {
    * Compiles the shaders of everything that can appear mid-fight (loot, particles, thrown weapons, traps, held weapons)
    * while the level loads. Otherwise the first kill or first throw would freeze for a moment.
    */
-  private warmed = false;
-
   private warmup() {
-    if (this.warmed) return;
-    this.warmed = true;
     const warm = new THREE.Scene();
     const at = this.world.spawn;
     const drops = new Drops(warm, this.world);
@@ -988,21 +985,38 @@ export class Game {
     if (cue === 'slam' || cue === 'stun') this.rig.kick(0.4);
   }
 
-  private animalCtx(): AnimalContext {
+  /** Cached per level (rebuilt when the player or level changes): no new objects or closures per frame. */
+  private ctxLive?: AnimalContext;
+  private ctxDead?: AnimalContext;
+
+  private animalCtx(dead = false): AnimalContext {
+    if (!this.ctxLive || this.ctxLive.player !== this.player) {
+      this.ctxLive = this.makeAnimalCtx();
+      // a dead hunter smells of nothing and can't be struck: animals wander off
+      this.ctxDead = { ...this.ctxLive, scentMul: 0, onStrike: () => {} };
+    }
+    const c = dead ? this.ctxDead! : this.ctxLive;
+    c.time = this.time;
+    c.diff = DIFFICULTY[settings.difficulty];
+    if (!dead) c.scentMul = this.stats.scentMul;
+    c.blood = this.blood;
+    return c;
+  }
+
+  private makeAnimalCtx(): AnimalContext {
     const p = this.player;
-    const diff = DIFFICULTY[settings.difficulty];
     const ctx = {
       player: p,
       wind: this.wind,
       world: this.world,
       scentMul: this.stats.scentMul,
       time: this.time,
-      diff,
+      diff: DIFFICULTY[settings.difficulty],
       blood: this.blood,
       camera: this.camera,
       onAlert: () => this.tip('wind'),
       onStrike: (a: Animal) => {
-        const dmg = a.strikeDamage || a.def.damage * diff.animalDamage;
+        const dmg = a.strikeDamage || a.def.damage * DIFFICULTY[settings.difficulty].animalDamage;
         const name = (a as unknown as { bossName?: string }).bossName ?? a.def.name;
         if (p.damage(dmg, name, a.pos)) {
           const big = ['charge', 'crush', 'stomp', 'rock'].includes(a.strikeKind);
@@ -1014,8 +1028,8 @@ export class Game {
       onCue: (a: Animal, cue: AnimalCue) => this.animalCue(a, cue),
       canEngage: (a: Animal) => {
         let n = 0;
-        for (const o of this.animals) if (o !== a && !o.dead && HOSTILE.has(o.state) && !(o as unknown as { isBoss?: boolean }).isBoss) n++;
-        return n < diff.maxAttackers;
+        for (const o of this.animals) if (o !== a && !o.dead && HOSTILE.has(o.state) && !o.isBoss) n++;
+        return n < DIFFICULTY[settings.difficulty].maxAttackers;
       },
       onImpact: (kind: string, strength: number) => {
         if (kind === 'hit') return;
@@ -1261,10 +1275,8 @@ export class Game {
       if (rig.deathCam) rig.deathCam(dt, this.player.pos);
       else this.rig.update(dt, this.player.pos, 0, this.world);
       this.wind.update(gdt);
-      const ctx = this.animalCtx() as unknown as { scentMul: number; onStrike: () => void };
-      ctx.scentMul = 0;
-      ctx.onStrike = () => {};
-      for (const a of this.animals) a.update(gdt, ctx as unknown as AnimalContext);
+      const ctx = this.animalCtx(true);
+      for (const a of this.animals) a.update(gdt, ctx);
       this.blood?.update(gdt);
       this.bursts.update(gdt);
       if (this.deathTimer <= 0 && !document.querySelector('.scr.on')) {

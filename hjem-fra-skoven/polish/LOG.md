@@ -40,3 +40,13 @@ Regler: se `POLISH.md` i projektmappen. Kort om afvigelser, besluttet med Søren
   Nu falder lanternen til jorden, og kernen er dæmpet fra 2,2 til 1,5. Før: `polish/latest/death-before.png`, efter: `polish/latest/death-night-after.png`.
 - 1.5 Menuens "Styring" kan foldes sammen (åben for nye spillere), slidere og afkrydsninger i guld (`accent-color`).
 - Verificeret: tsc ren, dødssekvens på bane 1 og 24 i headless Chromium, ingen konsolfejl.
+
+## Iteration 4 – Performance: dyre-kontekst uden allokering, shader-opvarmning pr. bane
+- `animalCtx()` byggede et nyt objekt med 6 closures hver frame (to gange når man var død). Nu bygges det én gang
+  pr. bane/spiller og opdateres kun med tid, sværhedsgrad og lugt-faktor. Sværhedsgraden læses levende, så et skift i
+  indstillinger virker med det samme.
+- `warmup()` kørte kun én gang pr. session, mens hvert baneskift frigiver alle materialer, så første drab på bane 2+
+  kunne hakke igen. Kører nu ved hver banestart (bag indlæsningsskærmen).
+- Måling efter (headless, 600 frames uden rendering med alle rovdyr i jagt): CPU pr. frame 1,05 ms (bane 1),
+  0,86 ms (bane 15), 1,05 ms (bane 30). Én frame: 252 / 238 / 207 draw calls, 724k / 835k / 848k trekanter,
+  60 / 70 / 72 shader-programmer. Baseline fra perf-auditor kommer i `polish/baseline/perf/`.
