@@ -10,7 +10,10 @@ import { getLevel, LEVEL_COUNT, type LevelDef } from '../data/levels';
 import { UPGRADES, type UpgradeId } from '../data/upgrades';
 import { effective, FAMILIES, MAX_UPGRADE, upgradeCost, weaponById, WEAPONS, type Effective, type Track, type WeaponDef } from '../data/weapons';
 import { Animal, type AnimalContext } from '../animals/Animal';
-import { spawnAnimals } from '../animals/spawner';
+import { spawnAnimals, spawnBoss } from '../animals/spawner';
+import type { Boss } from '../animals/Boss';
+import type { AnimalCue } from '../animals/Animal';
+import { Blood } from '../fx/Blood';
 import { Audio } from '../audio/Audio';
 import { AudioDirector } from '../audio/AudioDirector';
 import { CameraRig } from '../player/CameraRig';
@@ -30,7 +33,10 @@ import { freshSave, loadSave, writeSave, type Save } from './save';
 import { qualityProfile, settings } from './settings';
 
 const MIN_POWER = 0.12; // a tap on the button
+// animals that count against the engagement cap; 'circle' animals wait their turn and must not block each other
 const HOSTILE = new Set(['chase', 'windup', 'strike', 'recover']);
+/** Anything that means "you are being hunted" (music, the 'Uset' mark, threat chevrons). */
+const HUNTING = new Set(['chase', 'windup', 'strike', 'recover', 'circle']);
 
 type State = 'menu' | 'hub' | 'playing' | 'paused' | 'dead' | 'arriving' | 'ending';
 
@@ -70,6 +76,8 @@ export class Game {
   drift!: Drift;
   fireflies?: Fireflies;
   bursts!: Bursts;
+  blood?: Blood;
+  boss: Boss | null = null;
 
   private composer!: EffectComposer;
   private renderPass!: RenderPass;
@@ -214,6 +222,10 @@ export class Game {
         free(mat);
       }
     });
+    for (const a of this.animals) a.dispose();
+    this.projectiles?.clear();
+    this.blood?.dispose();
+    this.blood = undefined;
     this.bursts?.dispose();
     this.drift?.dispose();
     this.fireflies?.dispose();
@@ -239,6 +251,8 @@ export class Game {
     this.projectiles = new Projectiles(this.scene, this.world);
     this.projectiles.onHit = (e) => this.onAnimalHit(e.animal, e.killed, e.point);
     this.traps = new Traps(this.scene, this.world);
+    this.blood = new Blood(this.scene, this.world);
+    this.traps.blood = this.blood;
     this.traps.onTrigger = (a) => {
       this.audio.play(a.def.radius > 1 ? 'beartrap_clamp' : 'snare_snap', { pos: a.pos });
       this.hud.toast('Fælden klaprede!', 1400);
@@ -253,6 +267,25 @@ export class Game {
     for (const a of this.animals) {
       this.scene.add(a.group);
       a.onDeath = (an) => this.onKilled(an);
+    }
+    this.boss = spawnBoss(this.level, this.world);
+    if (this.boss) {
+      const boss = this.boss;
+      this.scene.add(boss.group);
+      this.animals.push(boss);
+      boss.onDeath = (an) => this.onKilled(an);
+      boss.onSummon = (w) => {
+        this.scene.add(w.group);
+        w.onDeath = (an) => this.onKilled(an);
+        this.animals.push(w);
+      };
+      boss.onPhase = () => {
+        this.hitStop = 0.12;
+        this.timeScale = 0.3;
+        this.slowT = 0.4;
+        this.rig.kick(0.6);
+        this.audio.duck(0.5, 1.5);
+      };
     }
     this.renderer.toneMappingExposure = this.world.light.exposure;
     // placeholder player so the menu backdrop has something to follow
@@ -852,6 +885,17 @@ export class Game {
       else this.drops.spawn('trophies', d.trophies, deathPos);
       if (d.id === 'hvidhjort') this.run.whiteDeer = true;
     }
+    const boss = (a as unknown as { isBoss?: boolean; bossName?: string }).isBoss ? (a as unknown as { bossName: string }) : null;
+    if (boss) {
+      this.save.bossesBeaten[this.level.n] = true;
+      this.hud.setBoss(null);
+      this.director.setBossEngaged(false);
+      this.timeScale = 0.3;
+      this.slowT = 1.2;
+      this.hud.toast(`${boss.bossName} er nedlagt! Vejen til hulen er fri.`, 3000);
+      this.rig.kick(0.5);
+      return;
+    }
     if (!this.save.firstKill[d.id]) {
       this.save.firstKill[d.id] = true;
       this.drops.spawn('trophies', 1, deathPos);
@@ -903,6 +947,29 @@ export class Game {
   // per frame
   // ======================================================================
 
+  /** Sounds for animal tells (windup commit, paws, roars...). Hurt/flee/death voices come from the AudioDirector. */
+  private animalCue(a: Animal, cue: AnimalCue) {
+    const pos = a.hitCenter();
+    const id = a.def.id;
+    const boss = (a as unknown as { isBoss?: boolean }).isBoss;
+    const rate = boss ? 0.85 : 1;
+    const attack: Record<string, string> = { ulv: 'wolf_attack', raev: 'fox_bark', bjorn: 'bear_growl', vildsvin: 'boar_squeal', elg: 'moose_grunt', kronhjort: 'deer_roar' };
+    const growl: Record<string, string> = { ulv: 'wolf_growl', raev: 'wolf_growl', bjorn: 'bear_growl', vildsvin: 'boar_grunt', elg: 'moose_grunt', kronhjort: 'deer_roar' };
+    let snd: string | undefined;
+    if (cue === 'commit') snd = attack[id];
+    else if (cue === 'growl') snd = growl[id];
+    else if (cue === 'snort') snd = 'boar_grunt';
+    else if (cue === 'paw' || cue === 'slam') snd = 'boss_charge';
+    else if (cue === 'howl') snd = boss ? 'boss_wolf_howl' : 'wolf_howl';
+    else if (cue === 'roar') snd = boss ? (id === 'ulv' ? 'boss_wolf_snarl' : id === 'elg' ? 'boss_moose_bellow' : 'boss_bear_roar') : id === 'bjorn' ? 'bear_roar' : growl[id];
+    else if (cue === 'flap') snd = 'bird_flush';
+    else if (cue === 'yelp') snd = 'wolf_hurt';
+    else if (cue === 'stun') snd = 'hit_wood';
+    else if (cue === 'throw') snd = 'throw_heavy';
+    if (snd) this.audio.play(snd, { pos, rate });
+    if (cue === 'slam' || cue === 'stun') this.rig.kick(0.4);
+  }
+
   private animalCtx(): AnimalContext {
     const p = this.player;
     const diff = DIFFICULTY[settings.difficulty];
@@ -913,21 +980,27 @@ export class Game {
       scentMul: this.stats.scentMul,
       time: this.time,
       diff,
+      blood: this.blood,
+      camera: this.camera,
       onAlert: () => this.tip('wind'),
       onStrike: (a: Animal) => {
-        const dmg = a.def.damage * diff.animalDamage;
-        const dmgFn = p.damage as unknown as (amount: number, by: string, from?: THREE.Vector3) => boolean;
-        if (dmgFn.call(p, dmg, a.def.name, a.pos)) {
-          this.rig.kick(0.45, p.hitDir);
+        const dmg = a.strikeDamage || a.def.damage * diff.animalDamage;
+        const name = (a as unknown as { bossName?: string }).bossName ?? a.def.name;
+        if (p.damage(dmg, name, a.pos)) {
+          const big = ['charge', 'crush', 'stomp', 'rock'].includes(a.strikeKind);
+          this.rig.kick(big ? 0.7 : 0.45, p.hitDir);
+          if (a.strikeKind === 'hamstring') p.stagger = Math.max(p.stagger, 1.2);
           this.hud.hurtFrom(this.screenAngleTo(a.pos));
         }
       },
+      onCue: (a: Animal, cue: AnimalCue) => this.animalCue(a, cue),
       canEngage: (a: Animal) => {
         let n = 0;
         for (const o of this.animals) if (o !== a && !o.dead && HOSTILE.has(o.state) && !(o as unknown as { isBoss?: boolean }).isBoss) n++;
         return n < diff.maxAttackers;
       },
       onImpact: (kind: string, strength: number) => {
+        if (kind === 'hit') return;
         if (kind === 'kill') this.hitStop = Math.max(this.hitStop, 0.07);
         else if (kind === 'heavy') this.hitStop = Math.max(this.hitStop, 0.045);
         else if (kind === 'thud') this.rig.kick(Math.min(0.25, 0.02 * strength));
@@ -960,7 +1033,7 @@ export class Game {
     const ctx = this.animalCtx();
     for (const a of this.animals) {
       a.update(dt, ctx);
-      if (!a.dead && HOSTILE.has(a.state)) {
+      if (!a.dead && HUNTING.has(a.state)) {
         this.run.hunted = true;
         if (a.def.role === 'predator' && a.pos.distanceTo(p.pos) < 25) this.tip('roll');
       }
@@ -968,9 +1041,11 @@ export class Game {
     for (let i = this.animals.length - 1; i >= 0; i--) {
       if (this.animals[i].removable) {
         this.scene.remove(this.animals[i].group);
+        this.animals[i].dispose();
         this.animals.splice(i, 1);
       }
     }
+    this.blood?.update(dt);
     this.projectiles.update(dt, this.animals);
     this.traps.update(dt, this.animals);
     this.drops.update(this.time, this.player.pos);
@@ -981,10 +1056,21 @@ export class Game {
       return;
     }
     const dCave = Math.hypot(p.pos.x - this.world.caveEntrance.x, p.pos.z - this.world.caveEntrance.z);
-    if (dCave < 25) this.tip('cave');
-    if (dCave < 5) {
+    const guarded = this.boss && !this.boss.dead;
+    if (this.boss) {
+      const show = this.boss.awake && !this.boss.dead;
+      this.hud.setBoss(show ? this.boss.bossName : null, this.boss.hp / this.boss.maxHp);
+      this.director.setBossEngaged(show);
+    }
+    if (dCave < 25 && !guarded) this.tip('cave');
+    if (dCave < 5 && !guarded) {
       this.arrive();
       return;
+    }
+    if (dCave < 9 && guarded) {
+      this.hud.toast(`${this.boss!.bossName} vogter hulen. Nedlæg den først.`, 1500);
+      const away = this.v1.set(p.pos.x - this.world.caveEntrance.x, 0, p.pos.z - this.world.caveEntrance.z).normalize();
+      p.pos.addScaledVector(away, 0.15);
     }
     if (this.drops.near(p.pos, 6).length) this.tip('pickup');
     if (p.hp < this.stats.maxHealth * 0.6 && p.carried.meat > 0) this.tip('eat');
@@ -1035,7 +1121,7 @@ export class Game {
     // predators hunting you from outside the screen
     const threats: number[] = [];
     for (const a of this.animals) {
-      if (a.dead || !HOSTILE.has(a.state) || a.pos.distanceTo(p.pos) > 45) continue;
+      if (a.dead || !HUNTING.has(a.state) || a.pos.distanceTo(p.pos) > 45) continue;
       const ang = this.screenAngleTo(a.pos);
       if (Math.abs(ang) > 38) threats.push(ang);
     }
@@ -1119,6 +1205,7 @@ export class Game {
       ctx.scentMul = 0;
       ctx.onStrike = () => {};
       for (const a of this.animals) a.update(gdt, ctx as unknown as AnimalContext);
+      this.blood?.update(gdt);
       this.bursts.update(gdt);
       if (this.deathTimer <= 0 && !document.querySelector('.scr.on')) {
         this.hud.show(false);

@@ -22,7 +22,7 @@ const VOICE: Record<string, { alert?: string; chase?: string; windup?: string; h
 /** Pitch per species, so the fox bark can stand in higher and big animals sound bigger. */
 const RATE: Record<string, number> = { raev: 1.15, hvidhjort: 0.9, elg: 0.85, bjorn: 0.95, hare: 1.2 };
 
-const HOSTILE = new Set(['chase', 'windup', 'strike', 'recover']);
+const HOSTILE = new Set(['chase', 'windup', 'strike', 'recover', 'circle']);
 
 interface Track {
   state: string;
@@ -128,7 +128,6 @@ export class AudioDirector {
         if (an.state === 'dead') a.play('animal_death_fall', { pos, rate: an.def.radius > 1 ? 0.8 : 1.1 });
         else if (an.state === 'alert' && voice.alert) a.play(voice.alert, { pos, rate, volume: 0.8 });
         else if (an.state === 'chase' && t.state !== 'recover' && voice.chase) a.play(voice.chase, { pos, rate });
-        else if (an.state === 'windup' && voice.windup) a.play(voice.windup, { pos, rate });
         else if (an.state === 'flee' && voice.flee) a.play(voice.flee, { pos, rate });
       }
       if (an.state === 'idle' && voice.idle && !an.dead) {

@@ -897,6 +897,11 @@ export class Boss extends Animal {
     if (this.feint && this.mode === 'telegraph') m.head.rotation.y += 0.6 * this.passSide;
   }
 
+  /** Bosses have the HUD bar instead of the ?/! marker (which would fill the screen at this size). */
+  protected override updateMarker(_ctx: AnimalContext) {
+    this.sprite.visible = false;
+  }
+
   override dispose() {
     super.dispose();
     for (const o of [this.ring, this.mark, this.rock]) o?.removeFromParent();

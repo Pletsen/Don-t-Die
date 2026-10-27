@@ -43,7 +43,7 @@ const CSS = `
 .scr .wcard .stats{font-size:13px;opacity:.8;margin:2px 0 6px}
 .scr .wcard .row{padding:5px 0;font-size:15px}
 .scr .tip{border-left:3px solid #7fa3c4;padding-left:12px;margin-top:12px;opacity:.9;font-size:14px}
-.scr .map{position:relative;width:100%;aspect-ratio:2.4/1;border-radius:4px;margin:8px 0;
+.scr .map{position:relative;width:100%;aspect-ratio:3.4/1;border-radius:4px;margin:8px 0;
   background:linear-gradient(90deg,#c9b98a 0%,#b9a676 45%,#5d6a7a 80%,#2a3346 100%);box-shadow:inset 0 0 40px rgba(0,0,0,.55)}
 .scr .map svg{position:absolute;inset:0;width:100%;height:100%}
 .scr .node{position:absolute;transform:translate(-50%,-50%);width:26px;height:26px;border-radius:50%;border:2px solid #3a2a18;

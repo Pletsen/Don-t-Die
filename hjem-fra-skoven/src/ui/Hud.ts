@@ -69,7 +69,7 @@ const CSS = `
 .hud .hint{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);font-size:18px;background:rgba(0,0,0,.5);padding:6px 16px;border-radius:4px;display:none}
 .hud .toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-size:20px;opacity:0;transition:opacity .35s;text-align:center;max-width:70vw}
 .hud .toast.on{opacity:1}
-.hud .tipbox{position:absolute;left:50%;bottom:170px;transform:translateX(-50%);max-width:520px;padding:12px 18px;font-size:16px;line-height:1.45;
+.hud .tipbox{position:absolute;left:24px;top:110px;max-width:360px;padding:12px 18px;font-size:16px;line-height:1.45;
   background:rgba(14,18,14,.85);border:1px solid rgba(220,200,150,.35);border-left:4px solid #e0c47a;border-radius:3px;opacity:0;transition:opacity .4s}
 .hud .tipbox.on{opacity:1}
 .hud .vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(160,10,10,.75));opacity:0}
