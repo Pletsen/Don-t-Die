@@ -62,7 +62,7 @@ export const CAMERA = {
   sprintDistance: 0.25,
   pivotSpring: { ground: 14, air: 5 }, // ω of the vertical follow
   shake: { decay: 1.5, yaw: 0.04, pitch: 0.04, roll: 0.055, pos: 0.04, freq: 22, push: 0.35 },
-  death: { height: 4, distance: 4.5, orbit: 0.22 },
+  death: { height: 2.4, distance: 3.8, orbit: 0.22 }, // low enough to stay under the tree crowns
 };
 
 /** The wind swings slowly. Strength 1 means a clear effect, 1.5 is a gale. */

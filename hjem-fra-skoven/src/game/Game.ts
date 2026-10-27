@@ -461,7 +461,8 @@ export class Game {
     this.warmup();
     this.director.startLevel(this.level.tod, this.world.caveEntrance, this.level.n % 10 === 0);
     this.hud.toast(`Bane ${n} · ${this.windText()}`, 3500);
-    if (n === 1) setTimeout(() => this.tip('draw'), 3800);
+    // the first help waits until the start toast has faded (and only ticks while playing)
+    if (n === 1) this.delayed.push({ t: 3.8, fn: () => this.tip('draw') });
     this.input.requestLock();
     this.hud.setUnlocked(this.requireLock && !this.input.locked);
   }
@@ -500,6 +501,7 @@ export class Game {
 
   private die() {
     this.state = 'dead';
+    this.hud.show(false);
     this.input.playing = false;
     this.deathTimer = 1.8;
     this.timeScale = 0.4;
@@ -1309,6 +1311,7 @@ export class Game {
       }
     }
     const focus = this.state === 'playing' || this.state === 'dead' || this.state === 'paused' || this.state === 'arriving' ? this.player.pos : this.camera.position;
+    this.world.dropLantern = this.state === 'dead';
     this.world.update(dt, focus, this.camera, this.time, this.player.heading);
     this.drift.update(dt, this.wind, this.camera.position, this.time);
     this.fireflies?.update(dt, focus, this.time, this.world.height(focus.x, focus.z));

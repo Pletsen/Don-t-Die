@@ -45,6 +45,8 @@ export class World {
   readonly torch: THREE.PointLight;
   /** Lantern model; World places it at the hunter's belt every frame. */
   readonly lantern = new THREE.Group();
+  /** True when the hunter is down: the lantern lies on the ground instead of hanging at belt height. */
+  dropLantern = false;
   readonly caveEntrance = new THREE.Vector3();
   readonly spawn = new THREE.Vector3();
   /**
@@ -353,7 +355,7 @@ export class World {
     this.lanternCore = new THREE.MeshStandardMaterial({
       color: 0x3a2a14,
       emissive: 0xffb35a,
-      emissiveIntensity: 2.2 * Math.min(1, this.night * 1.5),
+      emissiveIntensity: 1.5 * Math.min(1, this.night * 1.5),
       roughness: 0.6,
       transparent: true,
       opacity: 0.92,
@@ -557,7 +559,8 @@ export class World {
       const lz = 0.05;
       const wx = focus.x + lx * ch + lz * sh;
       const wz = focus.z - lx * sh + lz * ch;
-      this.lantern.position.set(wx, focus.y + 1.0, wz);
+      const ly = this.dropLantern ? this.height(wx, wz) + 0.1 : focus.y + 1.0;
+      this.lantern.position.set(wx, ly, wz);
       this.lantern.rotation.set(0, h, 0);
       // swing from the hunter's acceleration (a damped pendulum)
       const vx = dt > 0 ? (focus.x - this.lastFocus.x) / dt : 0;
@@ -569,7 +572,7 @@ export class World {
       const bob = Math.sin(time * 9) * Math.min(1, Math.abs(along) / 4) * 0.12;
       this.lantern.children[0].rotation.x = this.swing + bob;
       // the light sits just outside the lantern, away from the body, so it lights the ground and the hunter's side
-      this.torch.position.set(wx + 0.25 * ch, focus.y + 0.95, wz - 0.25 * sh);
+      this.torch.position.set(wx + 0.25 * ch, ly - 0.05 + (this.dropLantern ? 0.3 : 0), wz - 0.25 * sh);
       const flick = 0.92 + Math.sin(time * 13) * 0.04 + Math.sin(time * 5.7) * 0.04;
       this.torch.intensity = this.night * 7 * flick;
     }

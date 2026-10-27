@@ -67,7 +67,7 @@ const CSS = `
 .hud .cross{position:absolute;left:50%;top:50%;overflow:visible;transform:translate(-50%,-50%);filter:drop-shadow(0 0 2px #000)}
 .hud .cross.hit *{stroke:#ff6a4a}
 .hud .hint{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);font-size:18px;background:rgba(0,0,0,.5);padding:6px 16px;border-radius:4px;display:none}
-.hud .toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-size:20px;opacity:0;transition:opacity .35s;text-align:center;max-width:70vw}
+.hud .toast{position:absolute;left:50%;top:30%;transform:translateX(-50%);font-size:20px;opacity:0;transition:opacity .35s;text-align:center;max-width:70vw;background:rgba(10,12,10,.45);padding:6px 18px;border-radius:20px}
 .hud .toast.on{opacity:1}
 .hud .tipbox{position:absolute;left:24px;top:110px;max-width:360px;padding:12px 18px;font-size:16px;line-height:1.45;
   background:rgba(14,18,14,.85);border:1px solid rgba(220,200,150,.35);border-left:4px solid #e0c47a;border-radius:3px;opacity:0;transition:opacity .4s}
@@ -96,6 +96,7 @@ export class Hud {
   private dmgNext = 0;
   private threatEls: HTMLElement[] = [];
   private fpsEl: HTMLDivElement;
+  private pendingTip: { text: string; seconds: number } | null = null;
 
   constructor(parent: HTMLElement) {
     const style = document.createElement('style');
@@ -190,6 +191,11 @@ export class Hud {
 
   /** A help panel for the first time something happens. */
   tip(text: string, seconds = 8) {
+    // never on top of a toast: wait until it has faded
+    if (this.toastTimer > 0) {
+      this.pendingTip = { text, seconds };
+      return;
+    }
     this.q.tip.textContent = text;
     this.q.tip.classList.add('on');
     this.tipTimer = seconds;
@@ -294,6 +300,10 @@ export class Hud {
     if (this.toastTimer > 0) {
       this.toastTimer -= dt;
       if (this.toastTimer <= 0) this.q.toast.classList.remove('on');
+    } else if (this.pendingTip) {
+      const t = this.pendingTip;
+      this.pendingTip = null;
+      this.tip(t.text, t.seconds);
     }
     if (this.tipTimer > 0) {
       this.tipTimer -= dt;

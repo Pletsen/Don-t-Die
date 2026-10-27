@@ -30,3 +30,13 @@ Regler: se `POLISH.md` i projektmappen. Kort om afvigelser, besluttet med Søren
 - **Vis FPS** i indstillinger: fps, frametid, værste frame, kvalitet og draw calls for hele framen
   (`renderer.info.autoReset=false`, nulstilles pr. frame, så tallet dækker skygge + scene + efterbehandling).
 - Verificeret: indstillinger → Ultra + Vis FPS → bane 1 viser måleren (SwiftShader: 1 fps, som forventet i containeren).
+
+## Iteration 3 – Fejl fra grafik-audit (1.1–1.5) + dødskamera
+- 1.1 Hjælpebokse venter nu, til start-toasten er væk (ingen overlap). Toasten fik en mørk "pille" bag teksten for kontrast.
+- 1.2 Første hjælp ("spænd buen") kører via `delayed` (tikker kun under spil) i stedet for `setTimeout`, så den ikke dukker op over pause/hulen.
+- 1.3 Græs, bregner, buske, blomster og svampe har hver sin tilfældighedsstrøm (`Rng(seed*7+k*101)`), så kvalitetsindstillingen ikke længere flytter planterne.
+- 1.4 Dødskamera: HUD skjules ved død; kameraets kran sænket fra 4 m til 2,4 m (under trækronerne).
+  Det hvide skær viste sig at være **lanternen**, der blev hængende i bæltehøjde, når jægeren faldt, og blev til en stor bloom-firkant.
+  Nu falder lanternen til jorden, og kernen er dæmpet fra 2,2 til 1,5. Før: `polish/latest/death-before.png`, efter: `polish/latest/death-night-after.png`.
+- 1.5 Menuens "Styring" kan foldes sammen (åben for nye spillere), slidere og afkrydsninger i guld (`accent-color`).
+- Verificeret: tsc ren, dødssekvens på bane 1 og 24 i headless Chromium, ingen konsolfejl.

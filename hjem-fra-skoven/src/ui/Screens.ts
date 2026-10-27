@@ -60,7 +60,8 @@ const CSS = `
 .scr .marks .got{color:#ffd76a}
 .scr .marks .no{opacity:.35}
 .scr label.set{display:grid;grid-template-columns:180px 1fr 54px;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:15px}
-.scr label.set input[type=range]{width:100%}
+.scr label.set input[type=range]{width:100%;accent-color:#e0c47a}
+.scr input[type=checkbox]{accent-color:#e0c47a;width:16px;height:16px}
 .scr label.set output{text-align:right;opacity:.8}
 .scr .seg{display:flex;gap:6px;flex-wrap:wrap}
 .scr .seg button{margin:0;padding:6px 12px;font-size:14px;background:transparent;color:#cdbf98;border:1px solid rgba(220,200,150,.35)}
@@ -147,7 +148,7 @@ export class Screens {
       `
       <div class="logo">Færten<small>Kom hjem, før natten tager dig</small></div>
       <p class="sub" style="margin-top:18px">${LEVEL_COUNT} strækninger skov ligger mellem dig og hulen. Dyrene får færten af dig, og de bliver vildere, jo mørkere det bliver.</p>
-      <h3>Styring</h3>
+      <details ${fresh ? "open" : ""}><summary style="cursor:pointer;letter-spacing:.2em;text-transform:uppercase;color:#a8b58a;font-size:13px;margin:14px 0 6px">Styring</summary>
       <div class="keys">
         <b>WASD · mus</b><span>gå og se dig om</span>
         <b>Venstre museknap</b><span>hold for at spænde / tage tilløb, slip for at skyde. Nærkamp slår ved klik</span>
@@ -159,7 +160,7 @@ export class Screens {
         <b>1-4 · hjul</b><span>skift våben</span>
         <b>Esc eller P</b><span>pause og indstillinger</span>
         <b>M</b><span>slå lyden til/fra</span>
-      </div>
+      </div></details>
       <div class="tip"><b>Vinden afgør alt.</b> Kompasset viser, hvor din fært driver hen. Driver den mod dyrene, lugter de dig langt væk. Gå på tværs af vinden eller imod den.</div>
       <button id="play">${fresh ? 'Begynd turen' : 'Fortsæt'}</button>
       <button id="settings" class="ghost">Indstillinger</button>

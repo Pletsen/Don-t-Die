@@ -1,0 +1,26 @@
+{
+  "L12-medium": {
+    "calls": 238,
+    "tris": 775520,
+    "geoms": 76,
+    "tex": 59,
+    "progs": 57,
+    "lights": 5,
+    "cpu": {
+      "stepMs": 0.6566666666651144,
+      "renderStepMs": 8.580000000004656
+    }
+  },
+  "L12-high": {
+    "calls": 253,
+    "tris": 927502,
+    "geoms": 76,
+    "tex": 71,
+    "progs": 58,
+    "lights": 5,
+    "cpu": {
+      "stepMs": 0.6133333333341094,
+      "renderStepMs": 7.010000000009313
+    }
+  }
+}

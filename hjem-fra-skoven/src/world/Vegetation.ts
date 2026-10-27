@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { Rng } from '../game/rng';
+import { Rng } from '../game/rng';
 import type { LevelDef } from '../data/levels';
 import { qualityProfile } from '../game/settings';
 import { barkTexture, fernTexture, grainTexture, grassTexture, leafAtlas } from './textures';
@@ -433,7 +433,10 @@ export interface VegResult {
 }
 
 export function buildVegetation(c: VegCtx): VegResult {
-  const { scene, level, rng, night, uniforms, disposables } = c;
+  const { scene, level, night, uniforms, disposables } = c;
+  let rng = c.rng;
+  // Each quality-dependent layer gets its own random stream, so changing the quality never moves the other plants.
+  const layer = (k: number) => (rng = new Rng(level.seed * 7 + k * 101));
   const L = level.length;
   const half = level.width / 2;
   const dim = 1 - night * 0.3;
@@ -596,6 +599,7 @@ export function buildVegetation(c: VegCtx): VegResult {
   const grassMat = own(new THREE.MeshStandardMaterial({ map: own(grassTexture()), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1 }));
   addSway(grassMat, uniforms, 0.06, 1.6, { distanceThin: true });
   const grassFar = 46 * q.viewScale;
+  layer(1);
   const nGrass = Math.min(Math.round(26000 * veg), Math.round(area * 0.8 * veg));
   const grassB = new Batch();
   for (let i = 0; i < nGrass * 1.3 && grassB.count < nGrass; i++) {
@@ -633,6 +637,7 @@ export function buildVegetation(c: VegCtx): VegResult {
   );
   const fernMat = own(new THREE.MeshStandardMaterial({ map: own(fernTexture()), alphaTest: 0.4, side: THREE.DoubleSide, roughness: 0.95 }));
   addSway(fernMat, uniforms, 0.05, 1.5, { occlude: true });
+  layer(2);
   const nFern = Math.round(area * 0.035 * veg);
   const fernB = new Batch();
   for (let i = 0; i < nFern; i++) {
@@ -652,6 +657,7 @@ export function buildVegetation(c: VegCtx): VegResult {
   ];
   const bushGeo = own(blobCrown(bushBlobs, 31, 1));
   const bushCards = own(leafCards(bushBlobs, 5, 37, new THREE.Vector3(0, 0.3, 0)));
+  layer(3);
   const nBush = Math.round(count * 0.5 * Math.max(0.4, veg));
   const bushB = new Batch();
   for (let i = 0; i < nBush; i++) {
@@ -668,6 +674,7 @@ export function buildVegetation(c: VegCtx): VegResult {
   const flowerGeo = own(flowerGeometry());
   const flowerMat = own(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.8, side: THREE.DoubleSide }));
   addSway(flowerMat, uniforms, 0.08, 1.2, { distanceThin: true, nearFade: false });
+  layer(4);
   const palette = [0xf4f1e6, 0xf2d64a, 0xa070d8, 0xe0708a, 0x7aa8e8];
   const flowerB = new Batch();
   const fdim = 1 - 0.5 * night;
@@ -686,6 +693,7 @@ export function buildVegetation(c: VegCtx): VegResult {
   }
   flowerB.emit(scene, chunks, flowerGeo, flowerMat, { cast: false, chunk: 48, maxDist: grassFar + 6 });
 
+  layer(5);
   // mushrooms around tree bases
   const mushGeo = own(
     mergeGeometries(
