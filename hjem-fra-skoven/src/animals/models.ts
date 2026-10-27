@@ -594,7 +594,7 @@ export function buildAnimalModel(def: SpeciesDef, opts: ModelOptions = {}): Anim
     const hipY: number[] = [];
     const feet: THREE.Vector3[] = [];
     const lw = Math.max(0.028, b.width * (id === 'bjorn' ? 0.22 : pred ? 0.17 : 0.15));
-    const legLow = b.hooves ? (id === 'elg' ? dark : isDeer || id === 'kronhjort' ? mix(main, dark, 0.45) : id === 'vildsvin' ? dark : main) : id === 'raev' || id === 'bjorn' ? dark : id === 'ulv' ? mix(main, accent, 0.25) : main;
+    const legLow = b.hooves ? (id === 'elg' ? dark : isDeer || id === 'kronhjort' ? mix(main, dark, 0.45) : id === 'vildsvin' ? dark : main) : id === 'raev' || id === 'bjorn' ? dark : main;
     for (let i = 0; i < 4; i++) {
       const front = i < 2;
       const s = i % 2 === 0 ? -1 : 1;
@@ -628,10 +628,10 @@ export function buildAnimalModel(def: SpeciesDef, opts: ModelOptions = {}): Anim
         void hoofTip;
       } else {
         const ankle = foot.clone().add(V(0, L * 0.09, 0));
-        const thick = id === 'bjorn' ? 1.0 : 0.72;
+        const thick = id === 'bjorn' ? 1.0 : pred ? 0.85 : 0.72;
         taper(sh, knee, ankle, lw * thick, lw * thick * 0.75, legLow, { counter: null, spine: null, shade: 0.28, rough: 0.08 });
         if (id === 'hare' && !front) ell(sh, foot.clone().add(V(0, 0.03, 0.06)), lw * 0.8, 0.03, L * 0.45, main);
-        else ell(sh, foot.clone().add(V(0, lw * 0.42, lw * 0.4)), lw * (id === 'bjorn' ? 1.15 : 0.9), lw * 0.45, lw * (id === 'bjorn' ? 1.5 : 1.25), legLow, undefined, { shade: 0.3 });
+        else ell(sh, foot.clone().add(V(0, lw * 0.42, lw * 0.4)), lw * (id === 'bjorn' ? 1.15 : 0.78), lw * 0.42, lw * (id === 'bjorn' ? 1.5 : 1.05), legLow, undefined, { shade: 0.3 });
         if (id === 'bjorn') for (const c of [-1, 0, 1]) cone(sh, foot.clone().add(V(c * lw * 0.5, lw * 0.3, lw * 1.5)), foot.clone().add(V(c * lw * 0.55, lw * 0.05, lw * 1.95)), lw * 0.12, 0x2a2420); // claws
       }
       legs.push(leg);

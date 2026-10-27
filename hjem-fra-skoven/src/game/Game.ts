@@ -153,11 +153,13 @@ export class Game {
         tint: { value: new THREE.Vector3(1, 1, 1) },
         sat: { value: 1.08 },
         hurt: { value: 0 },
+        lift: { value: 0 },
       },
       vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform sampler2D tDiffuse; uniform float vig; uniform vec3 tint; uniform float sat; uniform float hurt; varying vec2 vUv;
+      fragmentShader: `uniform sampler2D tDiffuse; uniform float vig; uniform vec3 tint; uniform float sat; uniform float hurt; uniform float lift; varying vec2 vUv;
         void main(){
           vec3 c = texture2D(tDiffuse, vUv).rgb;
+          c += lift * vec3(0.6, 0.8, 1.0);
           float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
           c = mix(vec3(l), c, sat * (1.0 - 0.6 * hurt)) * tint;
           float d = distance(vUv, vec2(0.5));
@@ -173,7 +175,8 @@ export class Game {
 
   private applyGrade() {
     const tod = this.level.tod;
-    const g = (this.world as unknown as { grade?: { tint?: THREE.Vector3; sat?: number; vignette?: number } }).grade;
+    const g = (this.world as unknown as { grade?: { tint?: THREE.Vector3; sat?: number; vignette?: number; lift?: number } }).grade;
+    this.gradePass.uniforms.lift.value = g?.lift ?? 0;
     if (g?.tint) this.gradePass.uniforms.tint.value.copy(g.tint);
     else this.gradePass.uniforms.tint.value.set(1.05 - tod * 0.12, 1.0 - tod * 0.02, 0.95 + tod * 0.12);
     this.gradePass.uniforms.sat.value = g?.sat ?? 1.08 - tod * 0.1;
@@ -211,6 +214,10 @@ export class Game {
         free(mat);
       }
     });
+    this.bursts?.dispose();
+    this.drift?.dispose();
+    this.fireflies?.dispose();
+    this.drops?.dispose();
     this.world?.dispose();
     this.renderer.renderLists.dispose();
   }
@@ -226,8 +233,7 @@ export class Game {
     this.world = new World(this.scene, this.level, this.renderer);
     this.renderPass.scene = this.scene;
     this.applyGrade();
-    const view = (this.world as unknown as { viewDistance?: number }).viewDistance;
-    this.camera.far = view ? Math.max(80, view) : 600;
+    this.camera.far = this.world.viewDistance;
     this.camera.updateProjectionMatrix();
     this.wind = new Wind(this.level.windAngle, this.level.windStrength);
     this.projectiles = new Projectiles(this.scene, this.world);
@@ -259,7 +265,11 @@ export class Game {
    * Compiles the shaders of everything that can appear mid-fight (loot, particles, thrown weapons, traps, held weapons)
    * while the level loads. Otherwise the first kill or first throw would freeze for a moment.
    */
+  private warmed = false;
+
   private warmup() {
+    if (this.warmed) return;
+    this.warmed = true;
     const warm = new THREE.Scene();
     const at = this.world.spawn;
     const drops = new Drops(warm, this.world);
@@ -963,7 +973,7 @@ export class Game {
     }
     this.projectiles.update(dt, this.animals);
     this.traps.update(dt, this.animals);
-    this.drops.update(this.time);
+    this.drops.update(this.time, this.player.pos);
     this.bursts.update(dt);
 
     if (p.dead) {
@@ -1154,7 +1164,7 @@ export class Game {
       }
     }
     const focus = this.state === 'playing' || this.state === 'dead' || this.state === 'paused' || this.state === 'arriving' ? this.player.pos : this.camera.position;
-    this.world.update(dt, focus, this.camera, this.time);
+    this.world.update(dt, focus, this.camera, this.time, this.player.heading);
     this.drift.update(dt, this.wind, this.camera.position, this.time);
     this.fireflies?.update(dt, focus, this.time, this.world.height(focus.x, focus.z));
     this.world.setWind(this.wind.dx, this.wind.dz, this.wind.strength);

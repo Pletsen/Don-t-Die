@@ -77,7 +77,7 @@ export const BOSSES: Record<BossId, BossDef> = {
   kaempebjorn: {
     id: 'kaempebjorn', level: 30, name: 'Den arrede bjørn', base: 'bjorn', scale: 1.9,
     hp: 1200, walk: 1.6, run: 7.0, accel: 7, turnRate: 2.5, phases: [0.5, 0.2], punishMul: 1.5,
-    meat: 30, shards: 60, trophies: 3, rim: 0xff9a50, color: 0x1e1612, accent: 0x2e241c, dark: 0x9a9086, eyeshine: 0xffa060,
+    meat: 30, shards: 60, trophies: 3, rim: 0xff9a50, color: 0x1e1612, accent: 0x2e241c, dark: 0x16100c, eyeshine: 0xffa060,
     attacks: {
       swipe: { min: 0, max: 4.6, weight: 3, telegraph: 0.6, commit: 0.2, active: 0.22, recovery: 0.8, damage: 42, phase: 1 },
       crush: { min: 0, max: 6.5, weight: 2, telegraph: 1.2, commit: 0.3, active: 0.25, recovery: 1.4, damage: 55, phase: 1 },

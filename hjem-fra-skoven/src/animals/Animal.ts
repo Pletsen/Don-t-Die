@@ -1328,11 +1328,12 @@ export class Animal {
     pose.rotation.set(pitch, 0, this.pRoll + this.bank + fr + bodyRollLimp + jerkR + tremble * 2);
     if (rear > 0.05) {
       // front legs dangle when rearing
+      // hind legs stay planted (counter the body pitch), front legs fold and hang
       for (let i = 0; i < 2; i++) {
-        m.legs[i].rotation.x += -rear * 0.6;
+        m.legs[i].rotation.x += rear * 0.45;
         m.shanks[i].rotation.x += rear * 0.9;
       }
-      for (let i = 2; i < 4; i++) m.legs[i].rotation.x += -rear;
+      for (let i = 2; i < 4; i++) m.legs[i].rotation.x += rear;
     }
 
     // head and neck

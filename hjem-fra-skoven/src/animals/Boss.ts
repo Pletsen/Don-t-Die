@@ -74,8 +74,7 @@ function decorate(b: BossDef, k: ModelKit) {
   if (b.id === 'alfaulv') {
     // silver ruff and raised hackles, a pale scar over the right eye
     const nb = p.neckBase;
-    k.ell(bones.neck, nb.clone().add(V(0, p.ry * 0.25, p.rz * 0.08)), p.rx * 1.25, p.ry * 0.95, p.rz * 0.32, 0xb8b8bc, undefined, { rough: 0.25 });
-    k.ell(bones.neck, nb.clone().add(V(0, p.ry * 0.05, p.rz * 0.25)), p.rx * 1.05, p.ry * 0.8, p.rz * 0.25, 0xa8a8ae, undefined, { rough: 0.25 });
+    k.ell(bones.neck, nb.clone().add(V(0, p.ry * 0.35, p.rz * 0.12)), p.rx * 1.02, p.ry * 0.7, p.rz * 0.22, 0x8e8e94, undefined, { rough: 0.3, counter: 0x6a6a70 });
     for (let i = 0; i < 9; i++) {
       const z = p.rz * (0.75 - i * 0.16);
       const y = p.bodyY + p.ry * 0.95;
@@ -115,7 +114,7 @@ function addRim(mat: THREE.MeshStandardMaterial, color: number) {
     sh.uniforms.uRim = rim;
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform vec3 uRim;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += uRim * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0) * 0.6;');
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += uRim * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0) * 0.22;');
   };
   mat.customProgramCacheKey = () => 'boss-rim';
 }
@@ -370,7 +369,7 @@ export class Boss extends Animal {
     this.setMode('retreat', this.bdef.id === 'kaempebjorn' ? this.x('retreatTime') + 3 : 14);
   }
 
-  private thinkRetreat(dt: number, ctx: AnimalContext, d: number) {
+  private thinkRetreat(dt: number, ctx: AnimalContext, _d: number) {
     const P = ctx.player.pos;
     if (this.bdef.id === 'kaempebjorn') {
       // back into the cave mouth, then out again
@@ -879,12 +878,20 @@ export class Boss extends Animal {
         m.shanks[right ? 0 : 1].rotation.x = 0.6;
       }
       if (this.mode === 'wait') {
-        // sitting: hind legs folded forward, front legs braced
+        // sitting on its rump in front of the cave: body pitched up, hind legs forward on the ground, front legs braced
+        const th = 0.85;
+        const ry = m.half.y;
+        const rz = m.half.z;
+        m.pose.rotation.set(-th, 0, 0);
+        m.pose.position.set(0, 0.12 + ry * Math.cos(th) + rz * Math.sin(th) * 0.8, rz * 0.25);
         for (let i = 2; i < 4; i++) {
-          m.legs[i].rotation.x = -0.9;
-          m.shanks[i].rotation.x = -1.2;
+          m.legs[i].rotation.set(-Math.PI / 2 + th + 0.15, 0, (i === 2 ? -1 : 1) * 0.25);
+          m.shanks[i].rotation.set(-0.5, 0, 0);
         }
-        for (let i = 0; i < 2; i++) m.legs[i].rotation.x = 0.55;
+        for (let i = 0; i < 2; i++) {
+          m.legs[i].rotation.set(th - 0.1, 0, 0);
+          m.shanks[i].rotation.set(0.1, 0, 0);
+        }
       }
     }
     if (this.feint && this.mode === 'telegraph') m.head.rotation.y += 0.6 * this.passSide;
