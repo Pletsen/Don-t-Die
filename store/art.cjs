@@ -15,6 +15,8 @@
 //   public/apple-touch-icon.png  180 x 180 for "Add to Home Screen" (index.html)
 //   public/favicon-32.png        browser tab icon (a simpler drawing: at 32 px
 //                                the corridor would only be noise)
+//   store/art/play-icon-512.png  Google Play store icon
+//   store/art/play-feature-1024x500.png  Google Play feature graphic
 //   store/art/preview/           the icon at 60 and 120 px, to check it reads small
 //   android/app/src/main/res/    (node store/art.cjs android) the Android launcher
 //                                icons (legacy, round, and the adaptive icon's full-bleed
@@ -430,6 +432,15 @@ function paintAll() {
       canvas.height = h;
       canvas.getContext('2d').drawImage(sq, (w - S) / 2, (h - S) / 2);
     }
+    if (kind === 'feature') {
+      // Google Play's feature graphic (1024 x 500): the launch art's middle band.
+      const sq = document.createElement('canvas');
+      sq.width = sq.height = 1024;
+      splash(sq.getContext('2d'), 1024, 560);
+      canvas.width = 1024;
+      canvas.height = 500;
+      canvas.getContext('2d').drawImage(sq, 0, -262);
+    }
     canvas.id = 'out';
     document.getElementById('out')?.remove();
     document.body.appendChild(canvas);
@@ -442,6 +453,9 @@ const JOBS = [
   { kind: 'splash-safe', size: 2732, file: path.join(OUT, 'splash-2732.png') },
   { kind: 'icon@180', size: 180, file: path.join(PUBLIC, 'apple-touch-icon.png') },
   { kind: 'simple@32', size: 32, file: path.join(PUBLIC, 'favicon-32.png') },
+  // Google Play: the store icon and the feature graphic.
+  { kind: 'icon@512', size: 512, file: path.join(OUT, 'play-icon-512.png') },
+  { kind: 'feature', size: 1024, h: 500, file: path.join(OUT, 'play-feature-1024x500.png') },
   // How the icon reads on a home screen (not shipped).
   { kind: 'icon@60', size: 60, file: path.join(OUT, 'preview', 'icon-60.png') },
   { kind: 'icon@120', size: 120, file: path.join(OUT, 'preview', 'icon-120.png') },
@@ -499,8 +513,8 @@ async function main() {
   for (const job of JOBS) {
     if (only.length && !only.some((o) => job.file.includes(o))) continue;
     await page.evaluate(({ kind, size }) => window.renderArt(kind, size), job);
-    const px = await readCanvas(page, '#out', job.size, job.size);
-    const png = encodeRGB(px, job.size, job.size);
+    const px = await readCanvas(page, '#out', job.size, job.h ?? job.size);
+    const png = encodeRGB(px, job.size, job.h ?? job.size);
     fs.writeFileSync(job.file, png);
     const info = pngInfo(png);
     console.log(`${path.relative(ROOT, job.file)}  ${info.width}x${info.height}  ${info.alpha ? 'ALPHA!' : 'RGB'}  ${(png.length / 1024).toFixed(0)} KB`);

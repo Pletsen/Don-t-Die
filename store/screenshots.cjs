@@ -29,7 +29,7 @@
 //
 // It relies on these game hooks (keep them, or update this script):
 //   window.game, window.progress, UIScene: play(level|null), playDaily(),
-//   showSelect(), showDaily(), select.setHard(), shop.tiles, banner,
+//   showSelect(), showDaily(), select.setSet(), shop.tiles, banner,
 //   GameScene: debugState(), track, current, player, safeUntil, frenzy,
 //   warp(), playerRadius(), watchPerformance(), and the 'dd-tap' event.
 
@@ -48,11 +48,14 @@ const OUT = path.join(ROOT, 'store', 'screenshots');
 const RAW = path.join(OUT, 'raw');
 const REUSE = args.includes('--reuse');
 
-/** App Store device classes: [width, height] in pixels, portrait. */
+/** App Store device classes (and Google Play's phone size): [width, height] in pixels, portrait. */
 const SIZES = {
   '6.9': [1290, 2796], // iPhone with Dynamic Island, large (also accepted as 6.7")
   '6.5': [1242, 2688], // iPhone with Face ID, large
   '6.3': [1206, 2622], // iPhone with Dynamic Island, medium (the one App Store Connect requires)
+  // Google Play phone screenshots: at most 2:1, at least 1080 px for the
+  // larger listing tiles (--sizes play).
+  play: [1080, 2160],
 };
 const GAME_CSS = { w: 430, h: 732 };
 const DPR = 3;
@@ -90,12 +93,12 @@ const SHOTS = [
     accent: CRIMSON,
     en: { title: ['ZERO MERCY.'], sub: 'SAWS, BOMBS AND WALLS' },
     da: { title: ['NUL NÅDE.'], sub: 'SAVKLINGER, BOMBER OG VÆGGE' },
-    seed: { stars: range(1, 17, 3) },
+    seed: { stars: range(1, 19, 3) },
     run: async () => {
       S.hideBanners();
-      UI.play(18);
+      UI.play(118);
       S.harmless();
-      // World 4: a saw or bomb just ahead, a whisker away, with company on screen.
+      // HARD 18: a saw or bomb just ahead, a whisker away, with company on screen.
       const r = S.play(60 * 120, (s) => {
         if (s.meters < 150) return false;
         const h = S.nearestHazard();
@@ -130,16 +133,16 @@ const SHOTS = [
   {
     id: 'worlds',
     accent: VIOLET,
-    en: { title: ['4 WORLDS', '+ HARD MODE'], sub: '40 LEVELS. 3 STARS EACH.' },
-    da: { title: ['4 VERDENER', '+ HARD MODE'], sub: '40 LEVELS. 3 STJERNER I HVER.' },
+    en: { title: ['4 WORLDS', 'EASY TO HARD'], sub: '60 LEVELS. 3 STARS EACH.' },
+    da: { title: ['4 VERDENER', 'FRA EASY TIL HARD'], sub: '60 LEVELS. 3 STJERNER I HVER.' },
     seed: {
-      stars: { ...range(1, 20, 3), 4: 2, 9: 2, 14: 2, 17: 2, 19: 2, ...range(101, 104, 3), 105: 2 },
+      stars: { ...range(201, 220, 3), ...range(1, 20, 3), 4: 2, 9: 2, 14: 2, 17: 2, 19: 2, ...range(101, 104, 3), 105: 2 },
       warps: [3, 7, 12],
     },
     run: async () => {
       S.hideBanners();
       UI.showSelect();
-      UI.select.setHard(false);
+      UI.select.setSet('normal');
       S.step(50);
     },
   },
@@ -390,6 +393,10 @@ async function captureShot(browser, shot, index) {
   const storage = {
     dontdie_intro_seen: '1',
     dontdie_tips_seen: JSON.stringify(Array.from({ length: 20 }, (_, i) => i + 1)),
+    // The one-time intro cards and the menu tour: already seen.
+    ...Object.fromEntries(
+      ['dontdie_tour_menu', 'dontdie_intro_reactor', 'dontdie_intro_normal', 'dontdie_intro_hard', 'dontdie_news_easy', 'dontdie_tip_reactor'].map((k) => [k, 'true']),
+    ),
     dontdie_quality_v2: '0',
     dontdie_level_stars: JSON.stringify(seed.stars ?? {}),
     dontdie_ducks: '486',

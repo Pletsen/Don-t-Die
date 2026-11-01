@@ -18,23 +18,24 @@ native storage (`src/native/bridge.ts`, `src/game/persist.ts`).
 **DUCKWISE: Privacy Policy**
 Effective [DATE]
 
-DUCKWISE is a game. It does not collect, store or share any personal data.
+DUCKWISE is a game by VANGR. It does not collect, store or share any personal data.
 
 - **No data collection.** The game has no account, no login, no analytics, no
   advertising and no tracking. It does not use your contacts, photos, location,
   camera, microphone or any identifier for advertising.
 - **Your progress stays on your device.** Levels, stars, ducks, skins,
-  records and settings are saved on your iPhone (or in your browser if you play
+  records and settings are saved on your phone (or in your browser if you play
   on the web). They are never sent to us or to anyone else. Deleting the app
-  deletes them. Like all app data, they can be part of your own iCloud or
-  device backups, which Apple handles under its own privacy policy.
-- **Game Center (optional).** If you are signed in to Apple's Game Center, your
+  deletes them. Like all app data, they can be part of your own device backups
+  (Google on Android, iCloud on iPhone), which Google and Apple handle under
+  their own privacy policies.
+- **Game Center (iPhone, optional).** If you are signed in to Apple's Game Center, your
   scores are sent to Game Center for the leaderboards. This is Apple's service:
   Apple handles that data under its privacy policy, and we can only see what
   Game Center shows every player (your Game Center nickname and scores).
 - **Notifications (optional).** If you allow notifications, the game schedules
   reminders on your device (for example when a new Daily Run is out). They are
-  created and shown by your iPhone; nothing is sent anywhere. You can turn them
+  created and shown by your phone; nothing is sent anywhere. You can turn them
   off at any time in Settings.
 - **Sharing (optional).** When you tap Share, the game opens your device's
   share sheet with a picture of your result. You choose where it goes; the game
@@ -52,24 +53,25 @@ DUCKWISE is a game. It does not collect, store or share any personal data.
 **DUCKWISE: Privatlivspolitik**
 Gælder fra [DATE]
 
-DUCKWISE er et spil. Det indsamler, gemmer og deler ingen personoplysninger.
+DUCKWISE er et spil fra VANGR. Det indsamler, gemmer og deler ingen personoplysninger.
 
 - **Ingen dataindsamling.** Spillet har ingen konto, intet login, ingen
   statistik, ingen reklamer og ingen sporing. Det bruger ikke dine kontakter,
   billeder, din placering, dit kamera, din mikrofon eller noget
   reklame-id.
 - **Dine fremskridt bliver på din enhed.** Levels, stjerner, ænder, skins,
-  rekorder og indstillinger gemmes på din iPhone (eller i din browser, hvis du
+  rekorder og indstillinger gemmes på din telefon (eller i din browser, hvis du
   spiller på nettet). De sendes aldrig til os eller andre. Sletter du appen,
-  slettes de. Som alle apps' data kan de indgå i dine egne iCloud- eller
-  enhedsbackups, som Apple håndterer efter sin egen privatlivspolitik.
-- **Game Center (valgfrit).** Er du logget ind i Apples Game Center, sendes
+  slettes de. Som alle apps' data kan de indgå i dine egne enhedsbackups
+  (Google på Android, iCloud på iPhone), som Google og Apple håndterer efter
+  deres egne privatlivspolitikker.
+- **Game Center (iPhone, valgfrit).** Er du logget ind i Apples Game Center, sendes
   dine point til Game Center til toplisterne. Det er Apples tjeneste: Apple
   håndterer de data efter sin privatlivspolitik, og vi kan kun se det, Game
   Center viser alle spillere (dit Game Center-kaldenavn og dine point).
 - **Notifikationer (valgfrit).** Tillader du notifikationer, planlægger spillet
   påmindelser på din enhed (fx når en ny Daily Run er klar). De laves og vises
-  af din iPhone; intet sendes nogen steder hen. Du kan slå dem fra når som
+  af din telefon; intet sendes nogen steder hen. Du kan slå dem fra når som
   helst under Indstillinger.
 - **Deling (valgfrit).** Når du trykker på Del, åbner spillet din enheds
   delingsmenu med et billede af dit resultat. Du vælger selv, hvor det skal
