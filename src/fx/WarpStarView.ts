@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import type { WarpStar } from '../game/Track';
 import { hueColor } from '../game/palette';
 import { TEX } from './textures';
-import { glowFx } from './glow';
+import { glowFx, type GlowHandle } from './glow';
 
 /**
  * The hidden warp star: tiny, twinkling through the rainbow, with a few
@@ -13,7 +13,7 @@ export class WarpStarView {
   private star: Phaser.GameObjects.Image;
   private halo: Phaser.GameObjects.Image;
   private sparkles: Phaser.GameObjects.Particles.ParticleEmitter;
-  private glow: Phaser.Filters.Glow | null;
+  private glow: GlowHandle;
 
   constructor(
     scene: Phaser.Scene,
@@ -21,8 +21,8 @@ export class WarpStarView {
   ) {
     this.halo = scene.add.image(0, 0, TEX.glow).setBlendMode(Phaser.BlendModes.ADD).setScale(0.32);
     this.star = scene.add.image(0, 0, TEX.warpStar).setScale(0.26);
-    this.glow = glowFx.add(this.star, 0xffffff, 3, 10);
     this.root = scene.add.container(data.x, data.y, [this.halo, this.star]).setDepth(5);
+    this.glow = glowFx.add(this.star, 0xffffff, 3);
     this.sparkles = scene.add
       .particles(data.x, data.y, TEX.spark, {
         frequency: 90,
@@ -44,7 +44,8 @@ export class WarpStarView {
     this.star.setRotation(time * 2).setScale(0.24 + tw * 0.06);
     this.halo.setTint(color).setAlpha(0.6 + tw * 0.4);
     this.sparkles.setParticleTint(color);
-    if (this.glow) this.glow.color = color;
+    this.glow.setColor(color);
+    this.glow.sync();
   }
 
   setVisible(v: boolean) {

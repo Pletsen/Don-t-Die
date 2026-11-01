@@ -9,6 +9,8 @@ export const palette = {
   magenta: 0xff2f9e,
   orange: 0xff9a2e,
   red: 0xff3b4e,
+  violet: 0x9b5cff,
+  crimson: 0xff2d55,
 };
 
 export const css = {

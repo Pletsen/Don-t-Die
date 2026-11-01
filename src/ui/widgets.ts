@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { display } from '../game/display';
 import { css, fonts, palette } from '../game/palette';
 import { sfx } from '../audio/Sfx';
+import { drawIcon, type IconName } from './icons';
 
 // Small building blocks shared by every UI screen.
 
@@ -62,48 +63,173 @@ export interface ButtonOpts {
   label: string;
   width: number;
   height?: number;
-  /** `primary` is a filled pill; `ghost` is an outline. */
+  /** `primary` is a filled, glowing pill; `ghost` is an outline. */
   style?: 'primary' | 'ghost';
   color?: number;
+  /** Optional line icon left of the label. */
+  icon?: IconName;
   onPress: () => void;
 }
 
 export type Button = Phaser.GameObjects.Container & { setLabel(label: string): void };
 
+const mix = (a: number, b: number, t: number) => {
+  const ch = (c: number, s: number) => (c >> s) & 255;
+  const m = (s: number) => Math.round(ch(a, s) + (ch(b, s) - ch(a, s)) * t);
+  return `rgb(${m(16)},${m(8)},${m(0)})`;
+};
+
+/**
+ * Bake a button face into a texture at the screen's pixel density: soft glow
+ * (a real blurred shadow, no visible rings), a top-lit gradient and a thin
+ * highlight for primary buttons; a dark glassy plate with a crisp outline for
+ * ghost buttons. Cached per size/colour/style.
+ */
+function bakeButton(scene: Phaser.Scene, w: number, h: number, color: number, ghost: boolean): { key: string; pad: number } {
+  const S = display.dpr;
+  const pad = ghost ? 4 : 22;
+  const key = `btn_${w}x${h}_${color.toString(16)}_${ghost ? 'g' : 'p'}_${S}`;
+  if (scene.textures.exists(key)) return { key, pad };
+  const tex = scene.textures.createCanvas(key, Math.ceil((w + pad * 2) * S), Math.ceil((h + pad * 2) * S));
+  if (!tex) return { key, pad };
+  const ctx = tex.getContext();
+  ctx.scale(S, S);
+  const r = h / 2;
+  const path = (inset = 0) => {
+    ctx.beginPath();
+    ctx.roundRect(pad + inset, pad + inset, w - inset * 2, h - inset * 2, Math.max(0, r - inset));
+  };
+  if (ghost) {
+    path(1);
+    ctx.fillStyle = 'rgba(8,12,18,0.72)';
+    ctx.fill();
+    ctx.fillStyle = mix(color, color, 0).replace('rgb', 'rgba').replace(')', ',0.08)');
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = mix(color, color, 0).replace('rgb', 'rgba').replace(')', ',0.9)');
+    ctx.stroke();
+  } else {
+    // Glow: the shadow of the pill only (drawn far away, shadow offset back).
+    ctx.save();
+    ctx.shadowColor = mix(color, color, 0).replace('rgb', 'rgba').replace(')', ',0.55)');
+    ctx.shadowBlur = 18 * S;
+    ctx.shadowOffsetX = 4000 * S;
+    ctx.translate(-4000, 0);
+    path();
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.restore();
+    // Body: light from above.
+    const grad = ctx.createLinearGradient(0, pad, 0, pad + h);
+    grad.addColorStop(0, mix(color, 0xffffff, 0.5));
+    grad.addColorStop(0.5, mix(color, 0xffffff, 0.08));
+    grad.addColorStop(1, mix(color, 0x000000, 0.12));
+    path();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    // 1 px highlight along the top edge.
+    ctx.save();
+    path();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillRect(pad, pad, w, 1.2);
+    ctx.restore();
+  }
+  tex.refresh();
+  return { key, pad };
+}
+
+/** True if this object or any container above it is fading out (taps ignored). */
+function inactive(obj: Phaser.GameObjects.GameObject): boolean {
+  let p: Phaser.GameObjects.Container | null = obj.parentContainer;
+  while (p) {
+    if (p.getData('inactive') || !p.visible) return true;
+    p = p.parentContainer;
+  }
+  return false;
+}
+
 export function makeButton(scene: Phaser.Scene, o: ButtonOpts): Button {
   const w = o.width;
-  const h = o.height ?? (o.style === 'ghost' ? 40 : 48);
+  const h = o.height ?? (o.style === 'ghost' ? 40 : 50);
   const color = o.color ?? palette.cyan;
   const ghost = o.style === 'ghost';
-  const r = h / 2;
 
-  const bg = scene.add.graphics();
-  if (ghost) {
-    bg.fillStyle(0x0a0e14, 0.55).fillRoundedRect(-w / 2, -h / 2, w, h, r);
-    bg.lineStyle(1.5, color, 0.8).strokeRoundedRect(-w / 2, -h / 2, w, h, r);
-  } else {
-    // Soft glow: a few rounded rectangles, each larger and fainter.
-    for (let i = 4; i >= 1; i--) {
-      const grow = i * 5;
-      bg.fillStyle(color, 0.06).fillRoundedRect(-w / 2 - grow, -h / 2 - grow, w + grow * 2, h + grow * 2, r + grow);
-    }
-    bg.fillStyle(color, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
-  }
+  const face = bakeButton(scene, w, h, color, ghost);
+  const bg = scene.add.image(0, 0, face.key).setScale(1 / display.dpr);
   const hex = `#${color.toString(16).padStart(6, '0')}`;
   const txt = makeText(scene, 0, 0, o.label, {
-    size: ghost ? 13 : 15,
-    color: ghost ? hex : css.bg,
+    size: ghost ? 13 : 16,
+    color: ghost ? hex : '#041016',
     spacing: 2,
   }).setOrigin(0.5);
+  const parts: Phaser.GameObjects.GameObject[] = [bg, txt];
+  let icon: Phaser.GameObjects.Graphics | null = null;
+  if (o.icon) {
+    icon = scene.add.graphics();
+    parts.push(icon);
+  }
+  const placeIcon = () => {
+    if (!icon || !o.icon) return;
+    const size = ghost ? 16 : 18;
+    const total = size + 8 + txt.width;
+    txt.setX(-total / 2 + size + 8 + txt.width / 2);
+    icon.clear();
+    drawIcon(icon, o.icon, -total / 2 + size / 2, 0, size, ghost ? color : 0x041016);
+  };
+  placeIcon();
   const hit = scene.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
+  parts.push(hit);
 
-  const btn = scene.add.container(0, 0, [bg, txt, hit]) as Button;
-  btn.setLabel = (label: string) => txt.setText(label);
+  const btn = scene.add.container(0, 0, parts) as Button;
+  btn.setLabel = (label: string) => {
+    txt.setText(label);
+    placeIcon();
+  };
   hit.on('pointerdown', () => {
+    if (inactive(hit)) return;
     sfx.unlock();
     sfx.click();
     scene.tweens.add({ targets: btn, scale: 0.94, duration: 60, yoyo: true });
     o.onPress();
+  });
+  return btn;
+}
+
+/**
+ * A round 44 px icon button (pause, sound, back ...). `paint` redraws it, e.g.
+ * to switch between the sound and mute icons.
+ */
+export type IconButton = Phaser.GameObjects.Container & { setIcon(name: IconName, active?: boolean): void };
+
+/**
+ * A round icon button. `onRelease` fires on pointer up instead of down: use
+ * it for anything that opens a system sheet (sharing), which browsers only
+ * allow from a finished tap.
+ */
+export function makeIconButton(
+  scene: Phaser.Scene,
+  name: IconName,
+  onPress: () => void,
+  color: number = palette.cyan,
+  onRelease = false,
+): IconButton {
+  const g = scene.add.graphics();
+  const hit = scene.add.zone(0, 0, 48, 48).setInteractive({ useHandCursor: true });
+  const btn = scene.add.container(0, 0, [g, hit]) as IconButton;
+  btn.setIcon = (icon: IconName, active = true) => {
+    g.clear();
+    g.fillStyle(0x080c12, 0.72).fillCircle(0, 0, 20);
+    g.lineStyle(1.5, active ? color : 0x2a3644, active ? 0.9 : 1).strokeCircle(0, 0, 20);
+    drawIcon(g, icon, 0, 0, 18, active ? color : 0x6f8496);
+  };
+  btn.setIcon(name);
+  hit.on(onRelease ? 'pointerup' : 'pointerdown', () => {
+    if (inactive(hit)) return;
+    sfx.unlock();
+    sfx.click();
+    scene.tweens.add({ targets: btn, scale: 0.9, duration: 60, yoyo: true });
+    onPress();
   });
   return btn;
 }
