@@ -20,7 +20,7 @@ import { NotifyBanner } from '../ui/NotifyBanner';
 import { readJSON, writeJSON } from '../game/persist';
 import { TEX, DUCK_RES } from '../fx/textures';
 import { renderCard, type CardInfo } from '../ui/shareCard';
-import { calmMoment, share } from '../native/bridge';
+import { calmMoment, leaveApp, onAppState, onBackButton, share } from '../native/bridge';
 import { todaysGuest } from '../game/guest';
 import { gacha } from '../game/gacha';
 import { Coach, type CardSpec, type TourStep } from '../ui/Coach';
@@ -231,7 +231,7 @@ export class UIScene extends Phaser.Scene {
         if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
           e.preventDefault();
           this.coach.key();
-        }
+        } else if (e.code === 'Escape') this.back();
         return;
       }
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') {
@@ -239,13 +239,17 @@ export class UIScene extends Phaser.Scene {
         if (this.mode === 'select') this.play(nextLevelToPlay());
         else if (this.mode === 'menu') this.showSelect();
         else this.onBackgroundTap();
-      } else if ((e.code === 'Escape' || e.code === 'KeyP') && this.mode === 'play') {
+      } else if (e.code === 'KeyP' && this.mode === 'play') {
         this.game.events.emit(EV.pause);
-      } else if (e.code === 'Escape' && this.mode === 'paused') {
-        this.resume();
-      } else if (e.code === 'Escape' && this.mode !== 'play' && this.mode !== 'menu' && this.mode !== 'countdown') {
-        this.showMenu();
+      } else if (e.code === 'Escape' && this.mode !== 'menu') {
+        this.back();
       }
+    });
+    // Android: the back button / gesture steps back through the game, and
+    // leaves the app only from the main menu.
+    onBackButton(() => this.back(true));
+    onAppState((active) => {
+      if (!active) this.game.events.emit(EV.pause);
     });
 
     this.game.events.on(EV.started, this.onStarted, this);
@@ -304,6 +308,39 @@ export class UIScene extends Phaser.Scene {
   /** True while a run is on screen (playing, paused, or its result showing). */
   private inRun() {
     return this.mode === 'dead' || this.mode === 'clear' || this.mode === 'paused' || this.mode === 'countdown' || this.mode === 'play';
+  }
+
+  /**
+   * One step back (Esc, Android's back button): a run pauses, a pause
+   * resumes, a card or tour closes, any other screen goes to the menu, and
+   * on the menu itself the app goes to the background (native only).
+   */
+  private back(native = false) {
+    if (this.coach.active) {
+      this.coach.back();
+      return;
+    }
+    switch (this.mode) {
+      case 'play':
+        this.game.events.emit(EV.pause);
+        break;
+      case 'paused':
+        this.resume();
+        break;
+      case 'countdown':
+        break;
+      case 'menu':
+        if (native) leaveApp();
+        break;
+      case 'skins':
+        this.shop.pressBack();
+        break;
+      case 'howto':
+        this.howTo.pressBack();
+        break;
+      default:
+        this.showMenu();
+    }
   }
 
   private onBackgroundTap() {
@@ -1071,6 +1108,7 @@ export class UIScene extends Phaser.Scene {
           },
         },
         secondary: { label: 'LATER', onPress: () => this.inRun() && this.maybeShowSpinBanner(150) },
+        back: 'secondary',
         onOpen: () => writeJSON(INTRO_KEYS.reactor, true),
       }),
     );

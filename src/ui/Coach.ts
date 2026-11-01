@@ -27,6 +27,8 @@ export interface CardSpec {
   secondary?: { label: string; onPress?: () => void };
   /** Runs when the card is really on screen (e.g. remember it was seen). */
   onOpen?: () => void;
+  /** Which button the Android back button presses (default: the one that just closes the card). */
+  back?: 'primary' | 'secondary';
 }
 
 export interface TourStep {
@@ -150,6 +152,16 @@ export class Coach {
     if (this.scene.time.now < this.armedAt) return;
     if (this.steps.length) this.nextStep();
     else if (this.spec) this.press(this.spec.primary);
+  }
+
+  /** Back button / Esc: the tour is skipped, a card closes the gentle way. */
+  back() {
+    if (this.scene.time.now < this.armedAt) return;
+    if (this.steps.length) this.endTour();
+    else if (this.spec) {
+      const s = this.spec;
+      this.press(s.back === 'secondary' && s.secondary ? s.secondary : s.primary);
+    }
   }
 
   update(time: number) {

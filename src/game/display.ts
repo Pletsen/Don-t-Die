@@ -26,13 +26,31 @@ function dprFor(step: number, fxReduced: boolean): number {
   return Math.min(deviceDpr, cap);
 }
 
-const storedStep = Math.min(MAX_QUALITY_STEP, Math.max(0, parseInt(read(QUALITY_KEY) ?? '0', 10) || 0));
+/**
+ * Where a first launch starts on the ladder: the top, unless the phone looks
+ * like a budget one (2 GB of memory or less, 4 cores or fewer: many cheap
+ * Androids), which starts one step down so the first run doesn't stutter
+ * while the ladder finds its feet. It still climbs back up if it can.
+ */
+function firstStep(): number {
+  const nav = navigator as Navigator & { deviceMemory?: number };
+  const weak = (nav.deviceMemory !== undefined && nav.deviceMemory <= 2) || (navigator.hardwareConcurrency || 8) <= 4;
+  return weak ? 1 : 0;
+}
 
-/** Height of the phone's notch / status bar area, read from CSS. */
+const storedStep = Math.min(MAX_QUALITY_STEP, Math.max(0, parseInt(read(QUALITY_KEY) ?? String(firstStep()), 10) || 0));
+
+/**
+ * Height of the phone's notch / status bar area, read from CSS: the browser's
+ * own env() values, or on Android the ones the app shell (Capacitor's
+ * SystemBars) writes into --safe-area-inset-* (camera hole, system bars).
+ */
 function measureSafeArea(): { top: number; bottom: number } {
   const probe = document.createElement('div');
   probe.style.cssText =
-    'position:fixed;top:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden';
+    'position:fixed;top:0;visibility:hidden;' +
+    'padding-top:max(env(safe-area-inset-top,0px),var(--safe-area-inset-top,0px));' +
+    'padding-bottom:max(env(safe-area-inset-bottom,0px),var(--safe-area-inset-bottom,0px))';
   document.body.appendChild(probe);
   const style = getComputedStyle(probe);
   const value = { top: parseFloat(style.paddingTop) || 0, bottom: parseFloat(style.paddingBottom) || 0 };

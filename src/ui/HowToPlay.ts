@@ -513,6 +513,12 @@ export class HowToPlay {
     this.scene.tweens.add({ targets: this.stage, alpha: 1, duration: 200 });
   }
 
+  /** Back button: a tip card moves on (to its level); the full tour closes. */
+  pressBack() {
+    if (this.single) this.go(1);
+    else this.onDone(false);
+  }
+
   /** A tap outside the buttons also moves on. */
   tap() {
     this.go(1);

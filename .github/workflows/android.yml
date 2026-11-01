@@ -1,0 +1,77 @@
+# Build the DUCKWISE Android app on GitHub. No Android Studio needed.
+#
+# Every push to the game's branches (and a manual run from the Actions tab)
+# builds:
+#   duckwise-debug.apk    install it straight on a phone to test (allow
+#                         "install unknown apps" for the browser/Files app)
+#   duckwise-release.aab  the file to upload to Google Play; only when the
+#                         upload key secrets are there (store/android-plan.md)
+# Both are under the run's "Artifacts" for 30 days.
+#
+# Secrets for the release build (repo Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_BASE64     the upload keystore (.jks), base64-encoded
+#   ANDROID_KEYSTORE_PASSWORD   its password
+#   ANDROID_KEY_ALIAS           the key's alias (e.g. duckwise-upload)
+#   ANDROID_KEY_PASSWORD        the key's password
+name: Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'claude/**']
+    tags: ['v*']
+    paths-ignore: ['**.md', 'store/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build the game and copy it into the Android project
+        run: |
+          npm ci
+          npm run android
+
+      - name: Upload key
+        id: key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            echo "path=$RUNNER_TEMP/upload.jks" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Gradle build
+        working-directory: android
+        env:
+          # Google Play wants a higher versionCode for every upload.
+          VERSION_CODE: ${{ github.run_number }}
+          DUCKWISE_KEYSTORE: ${{ steps.key.outputs.path }}
+          DUCKWISE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          DUCKWISE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          DUCKWISE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -n "$DUCKWISE_KEYSTORE" ]; then ./gradlew --no-daemon assembleDebug bundleRelease; else ./gradlew --no-daemon assembleDebug; fi
+          mkdir -p ../out
+          cp app/build/outputs/apk/debug/app-debug.apk ../out/duckwise-debug.apk
+          if [ -n "$DUCKWISE_KEYSTORE" ]; then cp app/build/outputs/bundle/release/app-release.aab ../out/duckwise-release.aab; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duckwise-android-${{ github.run_number }}
+          path: out/
+          retention-days: 30

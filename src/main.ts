@@ -72,6 +72,12 @@ async function start() {
   // Resizes come in bursts (rotation, keyboard, browser bars): apply the last
   // one on the next frame instead of rebuilding the canvas for each.
   let pending = 0;
+  // Android: the app shell writes the safe-area insets onto <html> after
+  // launch (and when the camera hole or bars change): lay out again.
+  new MutationObserver(() => window.dispatchEvent(new Event('resize'))).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style'],
+  });
   window.addEventListener('resize', () => {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(() => {

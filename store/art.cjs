@@ -16,6 +16,10 @@
 //   public/favicon-32.png        browser tab icon (a simpler drawing: at 32 px
 //                                the corridor would only be noise)
 //   store/art/preview/           the icon at 60 and 120 px, to check it reads small
+//   android/app/src/main/res/    (node store/art.cjs android) the Android launcher
+//                                icons (legacy, round, and the adaptive icon's full-bleed
+//                                layer: launchers show its middle two thirds), the
+//                                Android 12+ splash icon, and the older splash images
 //
 // The look copies the game: the glossy orb with its tilted orbit ring
 // (fx/textures.ts, fx/PlayerView.ts), the cyan neon corridor of world 1
@@ -399,11 +403,32 @@ function paintAll() {
       big.width = big.height = 1024;
       icon(big.getContext('2d'), 1024);
       canvas.getContext('2d').drawImage(shrink(big, size), 0, 0);
+    } else if (kind.startsWith('round@')) {
+      const big = document.createElement('canvas');
+      big.width = big.height = 1024;
+      icon(big.getContext('2d'), 1024);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(shrink(big, size), 0, 0);
+      ctx.restore();
     } else if (kind.startsWith('simple@')) {
       const big = document.createElement('canvas');
       big.width = big.height = 512;
       simpleIcon(big.getContext('2d'), 512);
       canvas.getContext('2d').drawImage(shrink(big, size), 0, 0);
+    }
+    if (kind.startsWith('splashrect@')) {
+      // A portrait or landscape launch image: the square splash, centred.
+      const [w, h] = kind.slice(11).split('x').map(Number);
+      const S = Math.max(w, h);
+      const sq = document.createElement('canvas');
+      sq.width = sq.height = S;
+      splash(sq.getContext('2d'), S, Math.min(w, h) * 0.9);
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(sq, (w - S) / 2, (h - S) / 2);
     }
     canvas.id = 'out';
     document.getElementById('out')?.remove();
@@ -422,6 +447,38 @@ const JOBS = [
   { kind: 'icon@120', size: 120, file: path.join(OUT, 'preview', 'icon-120.png') },
 ];
 
+// Android (`node store/art.cjs android`). Any PNG goes here, alpha included.
+const RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+const DENSITIES = [
+  ['mdpi', 1],
+  ['hdpi', 1.5],
+  ['xhdpi', 2],
+  ['xxhdpi', 3],
+  ['xxxhdpi', 4],
+];
+const ANDROID_JOBS = [
+  ...DENSITIES.flatMap(([d, k]) => [
+    { kind: `icon@${48 * k}`, file: path.join(RES, `mipmap-${d}`, 'ic_launcher.png') },
+    { kind: `round@${48 * k}`, file: path.join(RES, `mipmap-${d}`, 'ic_launcher_round.png') },
+    { kind: `icon@${108 * k}`, file: path.join(RES, `mipmap-${d}`, 'ic_launcher_foreground.png') },
+    { kind: `splashrect@${320 * k}x${480 * k}`, file: path.join(RES, `drawable-port-${d}`, 'splash.png') },
+    { kind: `splashrect@${480 * k}x${320 * k}`, file: path.join(RES, `drawable-land-${d}`, 'splash.png') },
+  ]),
+  { kind: 'splashrect@480x320', file: path.join(RES, 'drawable', 'splash.png') },
+  // Android 12+ shows this in a circle on the dark background while the game starts.
+  { kind: 'simple@768', file: path.join(RES, 'drawable-nodpi', 'splash_icon.png') },
+];
+
+async function renderAndroid(page) {
+  for (const job of ANDROID_JOBS) {
+    await page.evaluate((kind) => window.renderArt(kind, Number(kind.split('@')[1].split('x')[0])), job.kind);
+    const url = await page.evaluate(() => document.getElementById('out').toDataURL('image/png'));
+    fs.mkdirSync(path.dirname(job.file), { recursive: true });
+    fs.writeFileSync(job.file, Buffer.from(url.split(',')[1], 'base64'));
+    console.log(`${path.relative(ROOT, job.file)}  ${job.kind}`);
+  }
+}
+
 async function main() {
   const only = process.argv.slice(2);
   fs.mkdirSync(path.join(OUT, 'preview'), { recursive: true });
@@ -434,6 +491,11 @@ async function main() {
   </style></head><body></body></html>`);
   await page.evaluate(() => Promise.all([document.fonts.load('700 40px "Chakra Petch"'), document.fonts.load('500 20px "JetBrains Mono"')]));
   await page.evaluate(paintAll);
+  if (only.includes('android')) {
+    await renderAndroid(page);
+    await browser.close();
+    return;
+  }
   for (const job of JOBS) {
     if (only.length && !only.some((o) => job.file.includes(o))) continue;
     await page.evaluate(({ kind, size }) => window.renderArt(kind, size), job);

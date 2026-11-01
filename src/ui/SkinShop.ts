@@ -108,6 +108,16 @@ export class SkinShop {
 
   private phase: 'idle' | 'show' | 'card' = 'idle';
   /** A reveal is playing (banners wait until the card is in). */
+  /** Back button: off the card (the gentle way) or out of the screen; never mid-show. */
+  pressBack() {
+    if (this.phase === 'show') return;
+    if (this.phase === 'card') this.pressCard('ok');
+    else {
+      shopSfx.chargeStop();
+      this.onBack();
+    }
+  }
+
   get revealing() {
     return this.phase === 'show';
   }

@@ -1,6 +1,7 @@
 // The thin seam between the web game and a native app shell (Capacitor on
-// iOS). On the web every call here quietly falls back to a browser API or
-// does nothing, so the game never depends on the shell being there.
+// Android and iOS). On the web every call here quietly falls back to a
+// browser API or does nothing, so the game never depends on the shell being
+// there.
 //
 // Plugins it looks for (by their Capacitor names), all optional:
 //   Haptics             @capacitor/haptics              (iPhones ignore navigator.vibrate)
@@ -9,9 +10,10 @@
 //   GameCenter          store/ios/game-center-plugin    (submitScore / showLeaderboard)
 //   LocalNotifications  @capacitor/local-notifications  (Daily Run and streak reminders)
 //   InAppReview         @capacitor-community/in-app-review (the App Store rating prompt)
-//   App                 @capacitor/app                  (the app's version)
+//   App                 @capacitor/app                  (version, Android back button, app in background)
+//   Filesystem          @capacitor/filesystem           (the share card as a file for the share sheet)
 //   RewardedAds         (later) a rewarded-video plugin  (isReady / show)
-// store/ios-plan.md has the versions and the iOS setup.
+// store/android-plan.md and store/ios-plan.md have the setup per platform.
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
@@ -20,7 +22,7 @@ import { Capacitor, registerPlugin } from '@capacitor/core';
 // none of the plugin packages: the native app ships their native halves. Only
 // plugins the app really has are registered, so a missing one stays undefined.
 // (On the web nothing is registered and every call below is a no-op.)
-const PLUGIN_NAMES = ['Haptics', 'Preferences', 'Share', 'GameCenter', 'LocalNotifications', 'InAppReview', 'App', 'RewardedAds'];
+const PLUGIN_NAMES = ['Haptics', 'Preferences', 'Share', 'GameCenter', 'LocalNotifications', 'InAppReview', 'App', 'Filesystem', 'RewardedAds'];
 if (Capacitor.isNativePlatform()) {
   for (const name of PLUGIN_NAMES) if (Capacitor.isPluginAvailable(name)) registerPlugin(name);
 }
@@ -54,7 +56,15 @@ interface CapPlugins {
     cancel(o: { notifications: { id: number }[] }): Promise<void>;
   };
   InAppReview?: { requestReview(): Promise<void> };
-  App?: { getInfo(): Promise<{ version: string; build: string }> };
+  App?: {
+    getInfo(): Promise<{ version: string; build: string }>;
+    addListener(event: 'backButton', fn: () => void): Promise<unknown>;
+    addListener(event: 'appStateChange', fn: (s: { isActive: boolean }) => void): Promise<unknown>;
+    minimizeApp(): Promise<void>;
+  };
+  Filesystem?: {
+    writeFile(o: { path: string; data: string; directory: 'CACHE' }): Promise<{ uri: string }>;
+  };
   RewardedAds?: {
     isReady(o: { placement: string }): Promise<{ ready: boolean }>;
     show(o: { placement: string }): Promise<{ rewarded: boolean }>;
@@ -124,6 +134,29 @@ export async function restoreBackup(): Promise<boolean> {
   return false;
 }
 
+// --- The app shell ------------------------------------------------------------------
+
+/** Running as the Android app. */
+export const isAndroid = () => Capacitor.getPlatform() === 'android';
+
+/**
+ * Android's back button / back gesture. With a listener the app no longer
+ * closes by itself: the game decides (pause, a screen back, leave).
+ */
+export function onBackButton(fn: () => void) {
+  quiet(plugins()?.App?.addListener('backButton', fn));
+}
+
+/** The app went to the background (home, app switcher, a call) or came back. */
+export function onAppState(fn: (active: boolean) => void) {
+  quiet(plugins()?.App?.addListener('appStateChange', (s) => fn(s.isActive)));
+}
+
+/** Back on the main menu: send the app to the background, like the home button. */
+export function leaveApp() {
+  quiet(plugins()?.App?.minimizeApp());
+}
+
 // --- Share -----------------------------------------------------------------------
 
 export type ShareResult = 'shared' | 'copied' | 'failed';
@@ -131,6 +164,14 @@ export type ShareResult = 'shared' | 'copied' | 'failed';
 /** Share an image (when the platform can) with a line of text. */
 export async function share(text: string, image?: Blob): Promise<ShareResult> {
   try {
+    // Android's web view has no navigator.share: the native sheet, with the
+    // card saved as a file first so it goes along.
+    const p = plugins();
+    if (p?.Share && isAndroid()) {
+      const files = image && p.Filesystem ? [(await p.Filesystem.writeFile({ path: 'duckwise.png', data: await base64(image), directory: 'CACHE' })).uri] : undefined;
+      await p.Share.share({ title: 'DUCKWISE', text, files });
+      return 'shared';
+    }
     if (typeof navigator.share === 'function') {
       const file = image ? new File([image], 'dont-die.png', { type: 'image/png' }) : null;
       if (file && navigator.canShare?.({ files: [file] })) await navigator.share({ text, files: [file] });
@@ -148,6 +189,15 @@ export async function share(text: string, image?: Blob): Promise<ShareResult> {
     // Closing the share sheet is not an error worth showing.
     return (e as Error)?.name === 'AbortError' ? 'shared' : 'failed';
   }
+}
+
+function base64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
 }
 
 // --- Leaderboards ----------------------------------------------------------------
@@ -350,7 +400,9 @@ export function syncReminders() {
       const plan = planReminders(source());
       if (plan.length === 0) return;
       await ln.schedule({
-        notifications: plan.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: true } })),
+        // (Android: no exact alarms; Google Play keeps those for alarm clocks.
+        // A reminder a few minutes late is fine.)
+        notifications: plan.map((n) => ({ id: n.id, title: n.title, body: n.body, schedule: { at: new Date(n.at), allowWhileIdle: !isAndroid() } })),
       });
     })
     .catch(() => {});
